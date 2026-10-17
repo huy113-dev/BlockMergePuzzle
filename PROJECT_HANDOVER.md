@@ -2,6 +2,7 @@
 
 ## 1. Trạng Thái Hiện Tại (Ready for Next Session)
 - **Unity Scene (`MainScene.unity`)**: Đã bake đầy đủ 21 blocks, 7 gates, khung đá `Board_Frame` trực tiếp trong Edit Mode (idle). Không cần bấm Play vẫn thấy toàn bộ layout.
+- **Git Repository**: `https://github.com/huy113-dev/BlockMergePuzzle.git`, branch `feat/core-puzzle-mechanics`.
 - **Hệ thống kết nối Unity MCP**: FastMCP HTTP bridge hoạt động ổn định trên `http://127.0.0.1:8080/mcp`. Tự động kết nối lại khi domain reload nhờ `AutoMcpStarter` trong `SceneSetupHelper.cs`.
 - **Screenshot kiểm chứng**: `Assets/Screenshots/screenshot-20261017-174145.png` (khớp 100% layout tài liệu tham chiếu 21 block).
 
