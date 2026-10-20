@@ -2,7 +2,12 @@
 
 ## 1. Trạng Thái Hiện Tại (Ready for Next Session)
 - **Unity Scene (`MainScene.unity`)**: Đã bake đầy đủ 21 blocks, 7 gates, khung đá `Board_Frame` trực tiếp trong Edit Mode (idle). Không cần bấm Play vẫn thấy toàn bộ layout.
-- **Git Repository**: `https://github.com/huy113-dev/BlockMergePuzzle.git`, branch `feat/core-puzzle-mechanics`.
+- **Git Repository**: `https://github.com/huy113-dev/BlockMergePuzzle.git`
+  - `main`: Branch gốc tích hợp gitignore chuẩn Unity.
+  - `feat/core-puzzle-mechanics`: Core gameplay sliding, collinear merge, gate escape.
+  - `fix/screen-fit-1440x3200`: Auto-fit camera portrait 1440x3200 (ratio 0.45) không bị crop viền.
+  - `feat/block-lift-and-drag-gamefeel`: Game feel nhấc khối khi chạm (scale pop 1.075x, nâng sorting order 50, âm thanh pickup, dynamic tilt).
+  - `feat/smooth-multi-directional-drag`: Di chuyển đa hướng theo ngón tay qua mọi khoảng trống (corridor navigation, quẹo góc mượt mà, snap/merge/escape linh hoạt).
 - **Hệ thống kết nối Unity MCP**: FastMCP HTTP bridge hoạt động ổn định trên `http://127.0.0.1:8080/mcp`. Tự động kết nối lại khi domain reload nhờ `AutoMcpStarter` trong `SceneSetupHelper.cs`.
 - **Screenshot kiểm chứng**: `Assets/Screenshots/screenshot-20261017-174145.png` (khớp 100% layout tài liệu tham chiếu 21 block).
 
@@ -32,6 +37,21 @@
 
 ### d. Căn giữa số trên thanh/khối
 - **Đã sửa**: `PuzzlePiece.cs` và `ExitGateView.cs` căn `TextAnchor.MiddleCenter` tại tâm hình học bounding box.
+
+### e. Tối ưu vừa vặn màn hình tỷ lệ hẹp dài 1440x3200 (Portrait 0.45)
+- **Vấn đề cũ**: Màn hình 1440x3200 có tỉ lệ 9:20 (0.45) khiến camera mặc định cắt mất 2 viền bên của bàn cờ và cổng thoát.
+- **Đã sửa**: Cập nhật `SceneSetupHelper.cs` và thêm `FitCameraToBoard()` trong `LevelManager.cs`. Camera tính toán theo cả width và height: `Mathf.Max(sizeByWidth, sizeByHeight)` với `orthographicSize = 10.5f` và vị trí `(0, 0, -10)`. Đảm bảo bàn cờ luôn nằm gọn gàng giữa màn hình trên mọi tỉ lệ.
+
+### f. Game Feel: Cảm giác nhấc khối (Lift on Touch & Responsive Drag)
+- **Tính năng**: Khi chạm hoặc kéo khối, khối phóng to nhẹ (1.075x), nhấc nổi lên `Z = -0.1f` và `Y +0.08f`, nâng `sortingOrder = 50` để nổi trên các khối khác; phát âm thanh click nhẹ có ngẫu nhiên cao độ (`SoundManager.PlayPickup`); nghiêng động (`tilt`) theo vận tốc di chuột và hạ mượt mà về kích thước gốc khi thả.
+
+### g. Di chuyển đa hướng tự do theo ngón tay (Multi-Directional Corridor Navigation)
+- **Vấn đề cũ**: Kéo khối bị khóa theo một tia thẳng cố định, không thể lượn theo ngón tay qua các khoảng trống quanh co hoặc góc ngoặc ("đơ và cứng").
+- **Đã sửa**:
+  - `PlayerPieceController.cs`: Thay thế raycast cứng bằng cơ chế dịch chuyển tâm ô động (`_currentOrigin`). Khi ngón tay kéo khối qua các ô trống kề cận (`CanPieceFitAt`), tâm ô tự động tịnh tiến theo hành trình ngón tay (`maxAdvances`). Khối có thể rẽ trái, xuống dưới, qua phải linh hoạt trong một lần kéo duy nhất mà không cần nhấc ngón tay.
+  - Tự động cản góc chéo, tạo đàn hồi nhẹ khi kéo sát tường hoặc khối khác.
+  - Phát hiện cơ hội Hợp nhất (Merge) hoặc Thoát cổng (Escape) thẳng hàng và thực thi ngay khi nhả chuột (`Input.GetMouseButtonUp`).
+
 
 ---
 
