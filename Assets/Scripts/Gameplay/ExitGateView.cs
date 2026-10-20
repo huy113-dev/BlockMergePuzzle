@@ -1,6 +1,7 @@
 using System;
 using UnityEngine;
 using BlockMergePuzzle.Core;
+using BlockMergePuzzle.Utils;
 
 namespace BlockMergePuzzle.Gameplay
 {
@@ -65,6 +66,17 @@ namespace BlockMergePuzzle.Gameplay
         {
             _labelRoot = new GameObject("LabelRoot").transform;
             _labelRoot.SetParent(transform, false);
+
+            // Contrast badge behind number for clear visibility over gate arrows or backgrounds
+            GameObject badgeObj = new GameObject("GateBadge");
+            badgeObj.transform.SetParent(_labelRoot, false);
+            badgeObj.transform.localPosition = new Vector3(0f, 0f, -0.05f);
+            badgeObj.transform.localScale = new Vector3(0.52f, 0.52f, 1f);
+
+            SpriteRenderer badgeSr = badgeObj.AddComponent<SpriteRenderer>();
+            badgeSr.sprite = SpriteGenerator.GetCircleSprite();
+            badgeSr.color = new UnityEngine.Color(0.08f, 0.09f, 0.14f, 0.88f);
+            badgeSr.sortingOrder = 4;
 
             // Drop shadow text
             GameObject shadowObj = new GameObject("GateShadow");

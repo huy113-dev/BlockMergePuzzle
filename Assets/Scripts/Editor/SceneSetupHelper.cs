@@ -22,10 +22,46 @@ namespace BlockMergePuzzle.Editor
 #endif
         }
 
+        [MenuItem("Tools/Block Merge Puzzle/Load Level 1 (Tutorial Cross)")]
+        public static void LoadLevel1()
+        {
+            LevelManager lm = FindObj<LevelManager>();
+            if (lm != null)
+            {
+                lm.CurrentLevel = LevelId.Level1_TutorialCross;
+            }
+            BakeLevelToScene();
+        }
+
+        [MenuItem("Tools/Block Merge Puzzle/Load Level 2 (Reference 6x8)")]
+        public static void LoadLevel2()
+        {
+            LevelManager lm = FindObj<LevelManager>();
+            if (lm != null)
+            {
+                lm.CurrentLevel = LevelId.Level2_ReferenceBoard;
+            }
+            BakeLevelToScene();
+        }
+
         [MenuItem("Tools/Block Merge Puzzle/Bake Level to Scene (Idle Display)")]
         public static void BakeLevelToScene()
         {
-            // 1. Camera
+            // 1. Level Manager & Baked Level first to determine frame size
+            LevelManager lm = FindObj<LevelManager>();
+            if (lm == null)
+            {
+                GameObject lmObj = GameObject.Find("LevelManager");
+                if (lmObj == null)
+                {
+                    lmObj = new GameObject("LevelManager");
+                    Undo.RegisterCreatedObjectUndo(lmObj, "Create LevelManager");
+                }
+                lm = lmObj.GetComponent<LevelManager>();
+                if (lm == null) lm = lmObj.AddComponent<LevelManager>();
+            }
+
+            // 2. Camera
             Camera cam = Camera.main;
             if (cam == null)
             {
@@ -35,13 +71,22 @@ namespace BlockMergePuzzle.Editor
                 Undo.RegisterCreatedObjectUndo(camObj, "Create Camera");
             }
 
+            float screenRatio = cam.aspect > 0.05f ? cam.aspect : (1440f / 3200f);
+            if (screenRatio > 0.75f) screenRatio = 1440f / 3200f; // Force target portrait (0.45) in Edit Mode
+            float paddingX = 0.55f;
+            float paddingY = 0.85f;
+            float targetW = lm != null ? lm.CurrentFrameWidth : GameConfig.FrameWidth;
+            float targetH = lm != null ? lm.CurrentFrameHeight : GameConfig.FrameHeight;
+            float sizeByWidth = (targetW / 2f + paddingX) / screenRatio;
+            float sizeByHeight = targetH / 2f + paddingY;
+
             cam.orthographic = true;
-            cam.orthographicSize = 10.5f;
+            cam.orthographicSize = Mathf.Max(sizeByWidth, sizeByHeight);
             cam.transform.position = new Vector3(0f, 0f, -10f);
             cam.clearFlags = CameraClearFlags.SolidColor;
             cam.backgroundColor = new Color(0.10f, 0.11f, 0.16f);
 
-            // 2. Event System
+            // 3. Event System
             if (FindObj<EventSystem>() == null && GameObject.Find("EventSystem") == null)
             {
                 GameObject es = new GameObject("EventSystem");
@@ -50,7 +95,7 @@ namespace BlockMergePuzzle.Editor
                 Undo.RegisterCreatedObjectUndo(es, "Create EventSystem");
             }
 
-            // 3. Audio & Control Singletons
+            // 4. Audio & Control Singletons
             if (FindObj<SoundManager>() == null && GameObject.Find("SoundManager") == null)
             {
                 GameObject sm = new GameObject("SoundManager");
@@ -72,20 +117,6 @@ namespace BlockMergePuzzle.Editor
                 Undo.RegisterCreatedObjectUndo(ui, "Create GameUI");
             }
 
-            // 4. Level Manager & Baked Level
-            LevelManager lm = FindObj<LevelManager>();
-            if (lm == null)
-            {
-                GameObject lmObj = GameObject.Find("LevelManager");
-                if (lmObj == null)
-                {
-                    lmObj = new GameObject("LevelManager");
-                    Undo.RegisterCreatedObjectUndo(lmObj, "Create LevelManager");
-                }
-                lm = lmObj.GetComponent<LevelManager>();
-                if (lm == null) lm = lmObj.AddComponent<LevelManager>();
-            }
-
             lm.BakeEditModeLevel();
 
             // 5. Mark Scene Dirty and Save
@@ -93,7 +124,7 @@ namespace BlockMergePuzzle.Editor
             EditorSceneManager.MarkSceneDirty(activeScene);
             EditorSceneManager.SaveScene(activeScene);
 
-            Debug.Log($"[Block Merge Puzzle] Level baked successfully to scene {activeScene.name}! Board, 7 gates and 21 blocks are now visible in idle Edit Mode.");
+            Debug.Log($"[Block Merge Puzzle] Level {lm.CurrentLevel} baked successfully to scene {activeScene.name}! Board, gates and blocks are now visible in idle Edit Mode.");
         }
 
         [MenuItem("Tools/Block Merge Puzzle/Setup Scene Now")]

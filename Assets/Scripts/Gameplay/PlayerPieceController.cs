@@ -78,8 +78,8 @@ namespace BlockMergePuzzle.Gameplay
                 }
 
                 Vector3 targetWorld = mouseWorld + _grabOffset;
-                float cw = GameConfig.CellWidth;
-                float ch = GameConfig.CellHeight;
+                float cw = LevelManager.Instance != null ? LevelManager.Instance.CurrentCellWidth : GameConfig.CellWidth;
+                float ch = LevelManager.Instance != null ? LevelManager.Instance.CurrentCellHeight : GameConfig.CellHeight;
 
                 // Advance current origin along open cells as finger moves
                 bool advanced = true;
@@ -194,8 +194,8 @@ namespace BlockMergePuzzle.Gameplay
                 {
                     Vector3 currentCellCenter = LevelManager.Instance.CalculatePieceWorldCenter(_selectedPiece.Shape, _currentOrigin);
                     Vector3 offset = _selectedPiece.transform.position - currentCellCenter;
-                    float cw = GameConfig.CellWidth;
-                    float ch = GameConfig.CellHeight;
+                    float cw = LevelManager.Instance != null ? LevelManager.Instance.CurrentCellWidth : GameConfig.CellWidth;
+                    float ch = LevelManager.Instance != null ? LevelManager.Instance.CurrentCellHeight : GameConfig.CellHeight;
 
                     bool actionExecuted = false;
 
