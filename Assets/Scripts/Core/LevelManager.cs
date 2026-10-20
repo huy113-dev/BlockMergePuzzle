@@ -359,6 +359,93 @@ namespace BlockMergePuzzle.Core
             }
         }
 
+        public bool CanPieceFitAt(PuzzlePiece piece, Vector2Int origin)
+        {
+            if (piece == null) return false;
+            List<Vector2Int> cells = piece.GetOccupiedCellsForOrigin(origin);
+            foreach (var c in cells)
+            {
+                if (!IsValidCoord(c.x, c.y)) return false;
+                PuzzlePiece occupant = _grid[c.x, c.y];
+                if (occupant != null && occupant != piece) return false;
+            }
+            return true;
+        }
+
+        public bool CheckMergeOpportunity(PuzzlePiece piece, Vector2Int origin, Vector2Int direction, out PuzzlePiece targetPiece)
+        {
+            targetPiece = null;
+            if (piece == null || direction == Vector2Int.zero) return false;
+
+            Vector2Int candidateOrigin = origin + direction;
+            List<Vector2Int> candidateCells = piece.GetOccupiedCellsForOrigin(candidateOrigin);
+
+            foreach (var c in candidateCells)
+            {
+                if (!IsValidCoord(c.x, c.y)) return false;
+            }
+
+            PuzzlePiece hit = null;
+            bool multiple = false;
+            foreach (var c in candidateCells)
+            {
+                PuzzlePiece occ = GetPieceAt(c.x, c.y);
+                if (occ != null && occ != piece)
+                {
+                    if (hit == null) hit = occ;
+                    else if (hit != occ) multiple = true;
+                }
+            }
+
+            if (hit != null && !multiple)
+            {
+                bool sameShape = (piece.Shape == hit.Shape);
+                bool sameColor = (piece.PieceColor == hit.PieceColor);
+                bool sameValue = (piece.Value == hit.Value);
+
+                bool isAligned = false;
+                if (direction.x != 0 && origin.y == hit.GridOrigin.y) isAligned = true;
+                if (direction.y != 0 && origin.x == hit.GridOrigin.x) isAligned = true;
+
+                if (sameShape && sameColor && sameValue && isAligned)
+                {
+                    targetPiece = hit;
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        public bool CheckEscapeOpportunity(PuzzlePiece piece, Vector2Int origin, Vector2Int direction, out ExitGateView targetGate)
+        {
+            targetGate = null;
+            if (piece == null || direction == Vector2Int.zero) return false;
+
+            Vector2Int candidateOrigin = origin + direction;
+            List<Vector2Int> candidateCells = piece.GetOccupiedCellsForOrigin(candidateOrigin);
+
+            bool anyOutside = false;
+            foreach (var c in candidateCells)
+            {
+                if (!IsValidCoord(c.x, c.y))
+                {
+                    anyOutside = true;
+                    break;
+                }
+            }
+
+            if (anyOutside)
+            {
+                ExitGateView gate = CheckGateAlignment(piece, direction, candidateCells);
+                if (gate != null && piece.PieceColor == gate.GateColor && piece.Value >= gate.RequiredValue)
+                {
+                    targetGate = gate;
+                    return true;
+                }
+            }
+            return false;
+        }
+
         // ==================== SLIDING PHYSICS & RAYCASTING ====================
 
         public enum SlideActionType
@@ -645,62 +732,91 @@ namespace BlockMergePuzzle.Core
 
             if (result.Action == SlideActionType.Slide)
             {
-                SoundManager.Instance.PlayDrop();
-                piece.SlideTo(targetWorldPos, result.TargetOrigin, duration, () =>
-                {
-                    AssignPieceToGrid(piece, result.TargetOrigin);
-                });
+                ExecuteSlide(piece, result.TargetOrigin, duration);
                 return true;
             }
             else if (result.Action == SlideActionType.Merge)
             {
-                PuzzlePiece target = result.TargetPiece;
-                SoundManager.Instance.PlayDrop();
-
-                piece.SlideTo(targetWorldPos, result.TargetOrigin, duration, () =>
-                {
-                    // Merge resolution on arrival:
-                    // Block target disappears, sliding piece takes position, number +1
-                    ClearPieceFromGrid(target);
-                    _activePieces.Remove(target);
-                    Destroy(target.gameObject);
-
-                    piece.SetValue(piece.Value + 1);
-                    piece.PlayMergeEffect();
-                    AssignPieceToGrid(piece, result.TargetOrigin);
-
-                    Score += piece.Value * 50;
-                    OnScoreChanged?.Invoke(Score);
-                    OnRemainingBlocksChanged?.Invoke(RemainingBlocksCount);
-
-                    SoundManager.Instance.PlayMerge(piece.Value);
-                    GameUI.Instance.ShowFloatingText($"+50 HỢP NHẤT [{piece.Value}]!", targetWorldPos, UnityEngine.Color.cyan);
-                });
+                ExecuteMerge(piece, result.TargetPiece, duration);
                 return true;
             }
             else if (result.Action == SlideActionType.Escape)
             {
-                ExitGateView gate = result.TargetGate;
-                SoundManager.Instance.PlayDrop();
-
-                piece.SlideTo(targetWorldPos, result.TargetOrigin, duration, () =>
-                {
-                    piece.PlayEscapeAnimation(gate.ExitDirection, () =>
-                    {
-                        _activePieces.Remove(piece);
-                        Score += piece.Value * 150;
-                        OnScoreChanged?.Invoke(Score);
-                        OnRemainingBlocksChanged?.Invoke(RemainingBlocksCount);
-                        CheckVictoryCondition();
-                    });
-
-                    SoundManager.Instance.PlayEscape();
-                    GameUI.Instance.ShowFloatingText("+150 ĐÃ THOÁT CỔNG!", gate.transform.position, UnityEngine.Color.yellow);
-                });
+                ExecuteEscape(piece, result.TargetGate, duration);
                 return true;
             }
 
             return false;
+        }
+
+        public void ExecuteSlide(PuzzlePiece piece, Vector2Int newOrigin, float duration = 0.12f)
+        {
+            if (piece == null) return;
+            Vector3 targetWorldPos = CalculatePieceWorldCenter(piece.Shape, newOrigin);
+            float actualDist = Vector3.Distance(piece.transform.position, targetWorldPos);
+            float actualDuration = Mathf.Clamp(actualDist / 9.5f, 0.05f, duration);
+
+            ClearPieceFromGrid(piece);
+            SoundManager.Instance.PlayDrop();
+            piece.SlideTo(targetWorldPos, newOrigin, actualDuration, () =>
+            {
+                AssignPieceToGrid(piece, newOrigin);
+            });
+        }
+
+        public void ExecuteMerge(PuzzlePiece piece, PuzzlePiece target, float duration = 0.12f)
+        {
+            if (piece == null || target == null) return;
+            Vector3 targetWorldPos = target.transform.position;
+            Vector2Int targetOrigin = target.GridOrigin;
+            float actualDist = Vector3.Distance(piece.transform.position, targetWorldPos);
+            float actualDuration = Mathf.Clamp(actualDist / 9.5f, 0.05f, duration);
+
+            ClearPieceFromGrid(piece);
+            SoundManager.Instance.PlayDrop();
+            piece.SlideTo(targetWorldPos, targetOrigin, actualDuration, () =>
+            {
+                ClearPieceFromGrid(target);
+                _activePieces.Remove(target);
+                Destroy(target.gameObject);
+
+                piece.SetValue(piece.Value + 1);
+                piece.PlayMergeEffect();
+                AssignPieceToGrid(piece, targetOrigin);
+
+                Score += piece.Value * 50;
+                OnScoreChanged?.Invoke(Score);
+                OnRemainingBlocksChanged?.Invoke(RemainingBlocksCount);
+
+                SoundManager.Instance.PlayMerge(piece.Value);
+                GameUI.Instance.ShowFloatingText($"+50 HỢP NHẤT [{piece.Value}]!", targetWorldPos, UnityEngine.Color.cyan);
+            });
+        }
+
+        public void ExecuteEscape(PuzzlePiece piece, ExitGateView gate, float duration = 0.12f)
+        {
+            if (piece == null || gate == null) return;
+            Vector3 gatePos = gate.transform.position;
+            float actualDist = Vector3.Distance(piece.transform.position, gatePos);
+            float actualDuration = Mathf.Clamp(actualDist / 9.5f, 0.05f, duration);
+
+            ClearPieceFromGrid(piece);
+            SoundManager.Instance.PlayDrop();
+            piece.SlideTo(gatePos, piece.GridOrigin, actualDuration, () =>
+            {
+                piece.PlayEscapeAnimation(gate.ExitDirection, () =>
+                {
+                    _activePieces.Remove(piece);
+                    Score += piece.Value * 150;
+                    OnScoreChanged?.Invoke(Score);
+                    OnRemainingBlocksChanged?.Invoke(RemainingBlocksCount);
+                    CheckVictoryCondition();
+                });
+
+                SoundManager.Instance.PlayEscape();
+                GameUI.Instance.ShowFloatingText("+150 ĐÃ THOÁT CỔNG!", gatePos, UnityEngine.Color.yellow);
+            });
+        }
         }
 
         private void CheckVictoryCondition()
