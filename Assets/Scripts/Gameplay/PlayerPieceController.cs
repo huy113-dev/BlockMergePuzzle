@@ -11,11 +11,10 @@ namespace BlockMergePuzzle.Gameplay
 
         private Camera _mainCamera;
         private PuzzlePiece _selectedPiece;
-        private Vector3 _startPieceWorldPos;
-        private Vector3 _pointerDownPos;
+        private Vector2Int _startOrigin;
+        private Vector2Int _currentOrigin;
+        private Vector3 _grabOffset;
         private bool _isDragging;
-        private Vector2Int _dragDirection;
-        private int _maxFreeSteps;
 
         private void Awake()
         {
@@ -52,11 +51,17 @@ namespace BlockMergePuzzle.Gameplay
                     if (piece != null && !piece.IsSliding && !piece.IsEscaping)
                     {
                         _selectedPiece = piece;
-                        _startPieceWorldPos = piece.transform.position;
-                        _pointerDownPos = mouseWorld;
+                        _startOrigin = piece.GridOrigin;
+                        _currentOrigin = _startOrigin;
+                        _grabOffset = piece.transform.position - mouseWorld;
                         _isDragging = true;
-                        _dragDirection = Vector2Int.zero;
-                        _maxFreeSteps = 0;
+
+                        // Game feel: Lift block on touch
+                        _selectedPiece.SetLifted(true);
+                        Audio.SoundManager.Instance.PlayPickup();
+
+                        // Temporarily clear from grid so piece can move through its own start cells
+                        LevelManager.Instance.ClearPieceFromGrid(_selectedPiece);
                     }
                 }
                 else
@@ -72,98 +77,172 @@ namespace BlockMergePuzzle.Gameplay
                     return;
                 }
 
-                Vector3 delta = mouseWorld - _pointerDownPos;
+                Vector3 targetWorld = mouseWorld + _grabOffset;
+                float cw = GameConfig.CellWidth;
+                float ch = GameConfig.CellHeight;
 
-                // Re-evaluate direction if uninitialized or if current direction is blocked
-                if (_dragDirection == Vector2Int.zero || _maxFreeSteps == 0)
+                // Advance current origin along open cells as finger moves
+                bool advanced = true;
+                int maxAdvances = 4;
+                Vector3 currentCellCenter = LevelManager.Instance.CalculatePieceWorldCenter(_selectedPiece.Shape, _currentOrigin);
+                Vector3 delta = targetWorld - currentCellCenter;
+
+                while (advanced && maxAdvances-- > 0)
                 {
-                    if (delta.magnitude > 0.05f)
+                    advanced = false;
+                    currentCellCenter = LevelManager.Instance.CalculatePieceWorldCenter(_selectedPiece.Shape, _currentOrigin);
+                    delta = targetWorld - currentCellCenter;
+
+                    if (Mathf.Abs(delta.x) > Mathf.Abs(delta.y))
                     {
-                        Vector2Int candidateDir = DetectCardinalDirection(delta);
-                        var sim = LevelManager.Instance.RaycastSlide(_selectedPiece, candidateDir, 8);
-                        if (sim.Steps > 0 || _dragDirection == Vector2Int.zero)
+                        Vector2Int dX = (delta.x > 0) ? new Vector2Int(1, 0) : new Vector2Int(-1, 0);
+                        if (Mathf.Abs(delta.x) >= 0.5f * cw && LevelManager.Instance.CanPieceFitAt(_selectedPiece, _currentOrigin + dX))
                         {
-                            _dragDirection = candidateDir;
-                            _maxFreeSteps = sim.Steps;
+                            _currentOrigin += dX;
+                            advanced = true;
+                            continue;
+                        }
+                        Vector2Int dY = (delta.y > 0) ? new Vector2Int(0, -1) : new Vector2Int(0, 1);
+                        if (Mathf.Abs(delta.y) >= 0.5f * ch && LevelManager.Instance.CanPieceFitAt(_selectedPiece, _currentOrigin + dY))
+                        {
+                            _currentOrigin += dY;
+                            advanced = true;
+                            continue;
+                        }
+                    }
+                    else
+                    {
+                        Vector2Int dY = (delta.y > 0) ? new Vector2Int(0, -1) : new Vector2Int(0, 1);
+                        if (Mathf.Abs(delta.y) >= 0.5f * ch && LevelManager.Instance.CanPieceFitAt(_selectedPiece, _currentOrigin + dY))
+                        {
+                            _currentOrigin += dY;
+                            advanced = true;
+                            continue;
+                        }
+                        Vector2Int dX = (delta.x > 0) ? new Vector2Int(1, 0) : new Vector2Int(-1, 0);
+                        if (Mathf.Abs(delta.x) >= 0.5f * cw && LevelManager.Instance.CanPieceFitAt(_selectedPiece, _currentOrigin + dX))
+                        {
+                            _currentOrigin += dX;
+                            advanced = true;
+                            continue;
                         }
                     }
                 }
 
-                if (_dragDirection != Vector2Int.zero)
+                // Re-evaluate from current cell center
+                currentCellCenter = LevelManager.Instance.CalculatePieceWorldCenter(_selectedPiece.Shape, _currentOrigin);
+                delta = targetWorld - currentCellCenter;
+
+                Vector2Int dirX = (delta.x >= 0) ? new Vector2Int(1, 0) : new Vector2Int(-1, 0);
+                bool canMoveX = LevelManager.Instance.CanPieceFitAt(_selectedPiece, _currentOrigin + dirX);
+                bool isSpecialX = LevelManager.Instance.CheckMergeOpportunity(_selectedPiece, _currentOrigin, dirX, out _) ||
+                                  LevelManager.Instance.CheckEscapeOpportunity(_selectedPiece, _currentOrigin, dirX, out _);
+
+                Vector2Int dirY = (delta.y >= 0) ? new Vector2Int(0, -1) : new Vector2Int(0, 1);
+                bool canMoveY = LevelManager.Instance.CanPieceFitAt(_selectedPiece, _currentOrigin + dirY);
+                bool isSpecialY = LevelManager.Instance.CheckMergeOpportunity(_selectedPiece, _currentOrigin, dirY, out _) ||
+                                  LevelManager.Instance.CheckEscapeOpportunity(_selectedPiece, _currentOrigin, dirY, out _);
+
+                float moveX;
+                if (delta.x >= 0)
                 {
-                    float cellDim = (_dragDirection.x != 0) ? GameConfig.CellWidth : GameConfig.CellHeight;
-                    float rawDist = 0f;
-                    if (_dragDirection == new Vector2Int(1, 0)) rawDist = delta.x;
-                    else if (_dragDirection == new Vector2Int(-1, 0)) rawDist = -delta.x;
-                    else if (_dragDirection == new Vector2Int(0, -1)) rawDist = delta.y; // screen UP is grid -Y
-                    else if (_dragDirection == new Vector2Int(0, 1)) rawDist = -delta.y; // screen DOWN is grid +Y
-
-                    float maxWorldDist = _maxFreeSteps * cellDim;
-                    float clampedDist;
-                    if (_maxFreeSteps > 0)
-                    {
-                        clampedDist = Mathf.Clamp(rawDist, 0f, maxWorldDist);
-                    }
-                    else
-                    {
-                        // Slight rubber-band resistance when pulling against an obstacle
-                        clampedDist = Mathf.Clamp(rawDist * 0.25f, 0f, 0.06f);
-                    }
-
-                    Vector3 visualOffset = Vector3.zero;
-                    if (_dragDirection == new Vector2Int(1, 0)) visualOffset = new Vector3(clampedDist, 0f, 0f);
-                    else if (_dragDirection == new Vector2Int(-1, 0)) visualOffset = new Vector3(-clampedDist, 0f, 0f);
-                    else if (_dragDirection == new Vector2Int(0, -1)) visualOffset = new Vector3(0f, clampedDist, 0f);
-                    else if (_dragDirection == new Vector2Int(0, 1)) visualOffset = new Vector3(0f, -clampedDist, 0f);
-
-                    _selectedPiece.transform.position = _startPieceWorldPos + visualOffset;
+                    if (canMoveX) moveX = Mathf.Min(delta.x, cw);
+                    else if (isSpecialX) moveX = Mathf.Min(delta.x, cw * 0.85f);
+                    else moveX = Mathf.Clamp(delta.x * 0.15f, 0f, 0.08f);
                 }
+                else
+                {
+                    if (canMoveX) moveX = Mathf.Max(delta.x, -cw);
+                    else if (isSpecialX) moveX = Mathf.Max(delta.x, -cw * 0.85f);
+                    else moveX = Mathf.Clamp(delta.x * 0.15f, -0.08f, 0f);
+                }
+
+                float moveY;
+                if (delta.y >= 0)
+                {
+                    if (canMoveY) moveY = Mathf.Min(delta.y, ch);
+                    else if (isSpecialY) moveY = Mathf.Min(delta.y, ch * 0.85f);
+                    else moveY = Mathf.Clamp(delta.y * 0.15f, 0f, 0.08f);
+                }
+                else
+                {
+                    if (canMoveY) moveY = Mathf.Max(delta.y, -ch);
+                    else if (isSpecialY) moveY = Mathf.Max(delta.y, -ch * 0.85f);
+                    else moveY = Mathf.Clamp(delta.y * 0.15f, -0.08f, 0f);
+                }
+
+                // Prevent cutting corners through diagonal obstacles
+                if (Mathf.Abs(moveX) > 0.05f && Mathf.Abs(moveY) > 0.05f)
+                {
+                    Vector2Int diagDir = dirX + dirY;
+                    if (!LevelManager.Instance.CanPieceFitAt(_selectedPiece, _currentOrigin + diagDir))
+                    {
+                        if (Mathf.Abs(delta.x) > Mathf.Abs(delta.y)) moveY = 0f;
+                        else moveX = 0f;
+                    }
+                }
+
+                _selectedPiece.transform.position = currentCellCenter + new Vector3(moveX, moveY, 0f);
+
+                // Subtle dynamic tilt
+                float tilt = -Mathf.Clamp(moveX * 3.0f, -3.5f, 3.5f);
+                _selectedPiece.SetTilt(tilt);
             }
             else if (Input.GetMouseButtonUp(0))
             {
                 if (_isDragging && _selectedPiece != null && !_selectedPiece.IsSliding && !_selectedPiece.IsEscaping)
                 {
-                    Vector3 delta = mouseWorld - _pointerDownPos;
-                    bool slideExecuted = false;
+                    Vector3 currentCellCenter = LevelManager.Instance.CalculatePieceWorldCenter(_selectedPiece.Shape, _currentOrigin);
+                    Vector3 offset = _selectedPiece.transform.position - currentCellCenter;
+                    float cw = GameConfig.CellWidth;
+                    float ch = GameConfig.CellHeight;
 
-                    if (_dragDirection != Vector2Int.zero && _maxFreeSteps > 0)
+                    bool actionExecuted = false;
+
+                    // Check Merge or Escape trigger along X
+                    if (Mathf.Abs(offset.x) >= 0.35f * cw)
                     {
-                        float cellDim = (_dragDirection.x != 0) ? GameConfig.CellWidth : GameConfig.CellHeight;
-                        float rawDist = 0f;
-                        if (_dragDirection == new Vector2Int(1, 0)) rawDist = delta.x;
-                        else if (_dragDirection == new Vector2Int(-1, 0)) rawDist = -delta.x;
-                        else if (_dragDirection == new Vector2Int(0, -1)) rawDist = delta.y;
-                        else if (_dragDirection == new Vector2Int(0, 1)) rawDist = -delta.y;
-
-                        // Threshold: dragging at least 35% of a cell snaps to the next cell
-                        int targetSteps = Mathf.Clamp(Mathf.FloorToInt(rawDist / cellDim + 0.65f), 0, _maxFreeSteps);
-
-                        if (targetSteps > 0)
+                        Vector2Int dirX = (offset.x > 0) ? new Vector2Int(1, 0) : new Vector2Int(-1, 0);
+                        if (LevelManager.Instance.CheckMergeOpportunity(_selectedPiece, _currentOrigin, dirX, out PuzzlePiece mergeTarget))
                         {
-                            // Piece smoothly continues from current dragged position to target cell (no jerk/teleport)
-                            slideExecuted = LevelManager.Instance.TrySlidePieceSteps(_selectedPiece, _dragDirection, targetSteps);
+                            LevelManager.Instance.ExecuteMerge(_selectedPiece, mergeTarget);
+                            actionExecuted = true;
+                        }
+                        else if (LevelManager.Instance.CheckEscapeOpportunity(_selectedPiece, _currentOrigin, dirX, out ExitGateView escapeGate))
+                        {
+                            LevelManager.Instance.ExecuteEscape(_selectedPiece, escapeGate);
+                            actionExecuted = true;
                         }
                     }
 
-                    if (!slideExecuted)
+                    // Check Merge or Escape trigger along Y
+                    if (!actionExecuted && Mathf.Abs(offset.y) >= 0.35f * ch)
                     {
-                        // Return piece smoothly to start position without popping
-                        float dist = Vector3.Distance(_selectedPiece.transform.position, _startPieceWorldPos);
-                        if (dist > 0.01f)
+                        Vector2Int dirY = (offset.y > 0) ? new Vector2Int(0, -1) : new Vector2Int(0, 1);
+                        if (LevelManager.Instance.CheckMergeOpportunity(_selectedPiece, _currentOrigin, dirY, out PuzzlePiece mergeTarget))
                         {
-                            float returnDur = Mathf.Clamp(dist / 9.5f, 0.05f, 0.12f);
-                            _selectedPiece.SlideTo(_startPieceWorldPos, _selectedPiece.GridOrigin, returnDur, null);
+                            LevelManager.Instance.ExecuteMerge(_selectedPiece, mergeTarget);
+                            actionExecuted = true;
                         }
-                        else
+                        else if (LevelManager.Instance.CheckEscapeOpportunity(_selectedPiece, _currentOrigin, dirY, out ExitGateView escapeGate))
                         {
-                            _selectedPiece.transform.position = _startPieceWorldPos;
+                            LevelManager.Instance.ExecuteEscape(_selectedPiece, escapeGate);
+                            actionExecuted = true;
                         }
                     }
+
+                    // Otherwise, snap into current cell origin
+                    if (!actionExecuted)
+                    {
+                        LevelManager.Instance.ExecuteSlide(_selectedPiece, _currentOrigin);
+                    }
+
+                    _selectedPiece.SetLifted(false);
+                    _selectedPiece.SetTilt(0f);
                 }
 
                 _isDragging = false;
-                _dragDirection = Vector2Int.zero;
-                _maxFreeSteps = 0;
+                _selectedPiece = null;
             }
         }
 
@@ -171,19 +250,11 @@ namespace BlockMergePuzzle.Gameplay
         {
             if (_selectedPiece != null)
             {
-                float dist = Vector3.Distance(_selectedPiece.transform.position, _startPieceWorldPos);
-                if (dist > 0.01f)
-                {
-                    _selectedPiece.SlideTo(_startPieceWorldPos, _selectedPiece.GridOrigin, 0.08f, null);
-                }
-                else
-                {
-                    _selectedPiece.transform.position = _startPieceWorldPos;
-                }
+                LevelManager.Instance.ExecuteSlide(_selectedPiece, _startOrigin);
+                _selectedPiece.SetLifted(false);
+                _selectedPiece.SetTilt(0f);
             }
             _isDragging = false;
-            _dragDirection = Vector2Int.zero;
-            _maxFreeSteps = 0;
             _selectedPiece = null;
         }
 
