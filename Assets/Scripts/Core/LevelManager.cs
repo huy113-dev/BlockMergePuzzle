@@ -201,33 +201,6 @@ namespace BlockMergePuzzle.Core
                         CurrentFrameHeight / nativeH,
                         1f);
                 }
-
-                // Place carved stone floor tiles under each playable cross cell
-                Sprite tileSprite = GemSpriteManager.GetSprite("stone_floor_tile");
-                for (int col = 0; col < CurrentColumns; col++)
-                {
-                    for (int row = 0; row < CurrentRows; row++)
-                    {
-                        if (IsValidCoord(col, row))
-                        {
-                            GameObject tileObj = new GameObject($"FloorTile_{col}_{row}");
-                            tileObj.transform.SetParent(_frameRoot);
-                            tileObj.transform.position = GridToWorld(col, row);
-                            SpriteRenderer tileSr = tileObj.AddComponent<SpriteRenderer>();
-                            tileSr.sprite = tileSprite;
-                            tileSr.sortingOrder = 3;
-                            if (tileSprite != null)
-                            {
-                                float tileNativeW = tileSprite.rect.width / tileSprite.pixelsPerUnit;
-                                float tileNativeH = tileSprite.rect.height / tileSprite.pixelsPerUnit;
-                                tileObj.transform.localScale = new Vector3(
-                                    CurrentCellWidth / tileNativeW,
-                                    CurrentCellHeight / tileNativeH,
-                                    1f);
-                            }
-                        }
-                    }
-                }
             }
             else
             {
