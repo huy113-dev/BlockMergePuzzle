@@ -36,8 +36,8 @@ namespace BlockMergePuzzle.Editor
             }
 
             cam.orthographic = true;
-            cam.orthographicSize = 6.8f;
-            cam.transform.position = new Vector3(0f, 0.85f, -10f);
+            cam.orthographicSize = 10.5f;
+            cam.transform.position = new Vector3(0f, 0f, -10f);
             cam.clearFlags = CameraClearFlags.SolidColor;
             cam.backgroundColor = new Color(0.10f, 0.11f, 0.16f);
 
