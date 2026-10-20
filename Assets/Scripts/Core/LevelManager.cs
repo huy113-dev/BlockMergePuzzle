@@ -95,6 +95,20 @@ namespace BlockMergePuzzle.Core
 
             OnScoreChanged?.Invoke(Score);
             OnRemainingBlocksChanged?.Invoke(RemainingBlocksCount);
+            FitCameraToBoard();
+        }
+
+        private void FitCameraToBoard()
+        {
+            var cam = Camera.main;
+            if (cam == null) return;
+            float screenRatio = (float)Screen.width / Screen.height;
+            float paddingX = 0.5f;
+            float paddingY = 0.8f;
+            float sizeByWidth  = (GameConfig.FrameWidth  / 2f + paddingX) / screenRatio;
+            float sizeByHeight =  GameConfig.FrameHeight / 2f + paddingY;
+            cam.orthographicSize = Mathf.Max(sizeByWidth, sizeByHeight);
+            cam.transform.position = new Vector3(0f, 0f, -10f);
         }
 
         private void BindSceneObjects()
