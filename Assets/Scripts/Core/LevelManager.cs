@@ -817,7 +817,6 @@ namespace BlockMergePuzzle.Core
                 GameUI.Instance.ShowFloatingText("+150 ĐÃ THOÁT CỔNG!", gatePos, UnityEngine.Color.yellow);
             });
         }
-        }
 
         private void CheckVictoryCondition()
         {
