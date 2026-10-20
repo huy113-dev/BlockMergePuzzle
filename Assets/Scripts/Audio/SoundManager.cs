@@ -87,6 +87,13 @@ namespace BlockMergePuzzle.Audio
             _effectsSource.PlayOneShot(_buttonClip, 0.5f);
         }
 
+        public void PlayPickup()
+        {
+            if (!SoundEnabled || _effectsSource == null) return;
+            _effectsSource.pitch = Random.Range(1.15f, 1.25f);
+            _effectsSource.PlayOneShot(_buttonClip, 0.35f);
+        }
+
         private AudioClip GenerateTone(float duration, float startFreq, float endFreq, float volume)
         {
             int sampleRate = 44100;

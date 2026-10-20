@@ -57,6 +57,10 @@ namespace BlockMergePuzzle.Gameplay
                         _isDragging = true;
                         _dragDirection = Vector2Int.zero;
                         _maxFreeSteps = 0;
+
+                        // Game feel: Lift block on touch
+                        _selectedPiece.SetLifted(true);
+                        Audio.SoundManager.Instance.PlayPickup();
                     }
                 }
                 else
@@ -74,50 +78,77 @@ namespace BlockMergePuzzle.Gameplay
 
                 Vector3 delta = mouseWorld - _pointerDownPos;
 
-                // Re-evaluate direction if uninitialized or if current direction is blocked
-                if (_dragDirection == Vector2Int.zero || _maxFreeSteps == 0)
+                if (delta.magnitude < 0.015f)
                 {
-                    if (delta.magnitude > 0.05f)
-                    {
-                        Vector2Int candidateDir = DetectCardinalDirection(delta);
-                        var sim = LevelManager.Instance.RaycastSlide(_selectedPiece, candidateDir, 8);
-                        if (sim.Steps > 0 || _dragDirection == Vector2Int.zero)
-                        {
-                            _dragDirection = candidateDir;
-                            _maxFreeSteps = sim.Steps;
-                        }
-                    }
+                    _selectedPiece.transform.position = _startPieceWorldPos;
+                    _selectedPiece.SetTilt(0f);
+                    _dragDirection = Vector2Int.zero;
+                    _maxFreeSteps = 0;
+                    return;
                 }
 
-                if (_dragDirection != Vector2Int.zero)
-                {
-                    float cellDim = (_dragDirection.x != 0) ? GameConfig.CellWidth : GameConfig.CellHeight;
-                    float rawDist = 0f;
-                    if (_dragDirection == new Vector2Int(1, 0)) rawDist = delta.x;
-                    else if (_dragDirection == new Vector2Int(-1, 0)) rawDist = -delta.x;
-                    else if (_dragDirection == new Vector2Int(0, -1)) rawDist = delta.y; // screen UP is grid -Y
-                    else if (_dragDirection == new Vector2Int(0, 1)) rawDist = -delta.y; // screen DOWN is grid +Y
+                // Determine active axis dynamically from finger movement
+                Vector2Int currentDir;
+                float rawDist;
+                float cellDim;
+                Vector3 worldDir;
 
-                    float maxWorldDist = _maxFreeSteps * cellDim;
-                    float clampedDist;
-                    if (_maxFreeSteps > 0)
+                if (Mathf.Abs(delta.x) > Mathf.Abs(delta.y))
+                {
+                    // Horizontal drag
+                    currentDir = (delta.x >= 0) ? new Vector2Int(1, 0) : new Vector2Int(-1, 0);
+                    rawDist = Mathf.Abs(delta.x);
+                    cellDim = GameConfig.CellWidth;
+                    worldDir = new Vector3(Mathf.Sign(delta.x), 0f, 0f);
+                }
+                else
+                {
+                    // Vertical drag (in grid coordinates: delta.y > 0 is UP (0, -1), delta.y < 0 is DOWN (0, 1))
+                    currentDir = (delta.y >= 0) ? new Vector2Int(0, -1) : new Vector2Int(0, 1);
+                    rawDist = Mathf.Abs(delta.y);
+                    cellDim = GameConfig.CellHeight;
+                    worldDir = new Vector3(0f, Mathf.Sign(delta.y), 0f);
+                }
+
+                // Check slide clearance
+                var sim = LevelManager.Instance.RaycastSlide(_selectedPiece, currentDir, 8);
+                int freeSteps = sim.Steps;
+                float maxWorldDist = freeSteps * cellDim;
+
+                float clampedDist;
+                if (freeSteps > 0)
+                {
+                    if (rawDist <= maxWorldDist)
                     {
-                        clampedDist = Mathf.Clamp(rawDist, 0f, maxWorldDist);
+                        clampedDist = rawDist;
                     }
                     else
                     {
-                        // Slight rubber-band resistance when pulling against an obstacle
-                        clampedDist = Mathf.Clamp(rawDist * 0.25f, 0f, 0.06f);
+                        // Elastic rubber-band when dragging past available steps
+                        clampedDist = maxWorldDist + Mathf.Clamp((rawDist - maxWorldDist) * 0.18f, 0f, 0.14f);
                     }
-
-                    Vector3 visualOffset = Vector3.zero;
-                    if (_dragDirection == new Vector2Int(1, 0)) visualOffset = new Vector3(clampedDist, 0f, 0f);
-                    else if (_dragDirection == new Vector2Int(-1, 0)) visualOffset = new Vector3(-clampedDist, 0f, 0f);
-                    else if (_dragDirection == new Vector2Int(0, -1)) visualOffset = new Vector3(0f, clampedDist, 0f);
-                    else if (_dragDirection == new Vector2Int(0, 1)) visualOffset = new Vector3(0f, -clampedDist, 0f);
-
-                    _selectedPiece.transform.position = _startPieceWorldPos + visualOffset;
                 }
+                else
+                {
+                    // Elastic rubber-band resistance when pulling into an obstacle
+                    clampedDist = Mathf.Clamp(rawDist * 0.18f, 0f, 0.08f);
+                }
+
+                _selectedPiece.transform.position = _startPieceWorldPos + worldDir * clampedDist;
+
+                // Subtle dynamic tilt to enhance physical feel
+                if (currentDir.x != 0)
+                {
+                    float tilt = -worldDir.x * Mathf.Clamp(clampedDist * 2.2f, 0f, 3.2f);
+                    _selectedPiece.SetTilt(tilt);
+                }
+                else
+                {
+                    _selectedPiece.SetTilt(0f);
+                }
+
+                _dragDirection = currentDir;
+                _maxFreeSteps = freeSteps;
             }
             else if (Input.GetMouseButtonUp(0))
             {
@@ -140,24 +171,29 @@ namespace BlockMergePuzzle.Gameplay
 
                         if (targetSteps > 0)
                         {
-                            // Piece smoothly continues from current dragged position to target cell (no jerk/teleport)
+                            // Piece smoothly continues from current dragged position to target cell
                             slideExecuted = LevelManager.Instance.TrySlidePieceSteps(_selectedPiece, _dragDirection, targetSteps);
                         }
                     }
 
                     if (!slideExecuted)
                     {
-                        // Return piece smoothly to start position without popping
+                        // Return piece smoothly to start position and lower lift
+                        _selectedPiece.SetLifted(false);
+                        _selectedPiece.SetTilt(0f);
+
                         float dist = Vector3.Distance(_selectedPiece.transform.position, _startPieceWorldPos);
                         if (dist > 0.01f)
                         {
-                            float returnDur = Mathf.Clamp(dist / 9.5f, 0.05f, 0.12f);
+                            float returnDur = Mathf.Clamp(dist / 9.5f, 0.06f, 0.14f);
                             _selectedPiece.SlideTo(_startPieceWorldPos, _selectedPiece.GridOrigin, returnDur, null);
                         }
                         else
                         {
                             _selectedPiece.transform.position = _startPieceWorldPos;
                         }
+
+                        Audio.SoundManager.Instance.PlayDrop();
                     }
                 }
 
@@ -171,6 +207,9 @@ namespace BlockMergePuzzle.Gameplay
         {
             if (_selectedPiece != null)
             {
+                _selectedPiece.SetLifted(false);
+                _selectedPiece.SetTilt(0f);
+
                 float dist = Vector3.Distance(_selectedPiece.transform.position, _startPieceWorldPos);
                 if (dist > 0.01f)
                 {

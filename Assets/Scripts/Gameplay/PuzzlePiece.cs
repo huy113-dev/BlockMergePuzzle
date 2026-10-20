@@ -29,6 +29,8 @@ namespace BlockMergePuzzle.Gameplay
         private List<Collider2D> _colliders = new List<Collider2D>();
         private int _baseSortingOrder = 10;
         private Coroutine _activeTween;
+        private Coroutine _liftCoroutine;
+        private float _currentLiftProgress = 0f;
 
         public string ColorDisplayName => GameConfig.GetColorNameVietnamese(PieceColor);
 
@@ -39,15 +41,35 @@ namespace BlockMergePuzzle.Gameplay
                 SetupShapeOffsets(Shape);
             }
 
+            EnsureVisualReferences();
+        }
+
+        private void EnsureVisualReferences()
+        {
             if (_visualRoot == null)
             {
                 _visualRoot = transform.Find("VisualRoot");
-                if (_visualRoot != null)
+            }
+
+            if (_visualRoot != null)
+            {
+                if (_renderers == null || _renderers.Count == 0)
                 {
-                    Transform tNum = _visualRoot.Find("NumberLabel");
-                    if (tNum != null) _numberLabel = tNum.GetComponent<TextMesh>();
-                    Transform tShadow = _visualRoot.Find("NumberShadow");
-                    if (tShadow != null) _shadowLabel = tShadow.GetComponent<TextMesh>();
+                    _renderers = new List<SpriteRenderer>(_visualRoot.GetComponentsInChildren<SpriteRenderer>(true));
+                }
+
+                Transform tNum = _visualRoot.Find("NumberLabel");
+                if (tNum != null)
+                {
+                    _numberLabel = tNum.GetComponent<TextMesh>();
+                    _numberMesh = tNum.GetComponent<MeshRenderer>();
+                }
+
+                Transform tShadow = _visualRoot.Find("NumberShadow");
+                if (tShadow != null)
+                {
+                    _shadowLabel = tShadow.GetComponent<TextMesh>();
+                    _shadowMesh = tShadow.GetComponent<MeshRenderer>();
                 }
             }
         }
@@ -306,12 +328,70 @@ namespace BlockMergePuzzle.Gameplay
 
         public void SetSortingOrder(int order)
         {
+            EnsureVisualReferences();
             foreach (var r in _renderers)
             {
                 if (r != null) r.sortingOrder = order;
             }
             if (_shadowMesh != null) _shadowMesh.sortingOrder = order + 2;
             if (_numberMesh != null) _numberMesh.sortingOrder = order + 3;
+        }
+
+        public void SetLifted(bool lifted)
+        {
+            EnsureVisualReferences();
+            if (_liftCoroutine != null) StopCoroutine(_liftCoroutine);
+            _liftCoroutine = StartCoroutine(CoAnimateLift(lifted));
+        }
+
+        public void SetTilt(float angleZ)
+        {
+            if (_visualRoot != null)
+            {
+                _visualRoot.localRotation = Quaternion.Euler(0f, 0f, angleZ);
+            }
+        }
+
+        private IEnumerator CoAnimateLift(bool lifted)
+        {
+            float startProg = _currentLiftProgress;
+            float targetProg = lifted ? 1f : 0f;
+            float duration = lifted ? 0.08f : 0.09f;
+            float elapsed = 0f;
+
+            if (lifted)
+            {
+                SetSortingOrder(50);
+            }
+
+            while (elapsed < duration)
+            {
+                elapsed += Time.deltaTime;
+                float t = Mathf.Clamp01(elapsed / duration);
+                float ease = 1f - (1f - t) * (1f - t);
+                _currentLiftProgress = Mathf.Lerp(startProg, targetProg, ease);
+                ApplyLiftVisuals(_currentLiftProgress);
+                yield return null;
+            }
+
+            _currentLiftProgress = targetProg;
+            ApplyLiftVisuals(_currentLiftProgress);
+
+            if (!lifted && !IsSliding && !IsEscaping)
+            {
+                SetSortingOrder(_baseSortingOrder);
+                SetTilt(0f);
+            }
+            _liftCoroutine = null;
+        }
+
+        private void ApplyLiftVisuals(float progress)
+        {
+            if (_visualRoot == null) return;
+            float scale = Mathf.Lerp(1.0f, 1.075f, progress);
+            _visualRoot.localScale = Vector3.one * scale;
+            float yOffset = Mathf.Lerp(0f, 0.08f, progress);
+            _visualRoot.localPosition = new Vector3(0f, yOffset, -0.1f * progress);
         }
 
         public void SlideTo(Vector3 targetWorldPos, Vector2Int newOrigin, float duration, Action onArrival)
@@ -325,6 +405,8 @@ namespace BlockMergePuzzle.Gameplay
             IsSliding = true;
             SetSortingOrder(40);
             Vector3 startPos = transform.position;
+            float startLift = _currentLiftProgress;
+            Quaternion startRot = (_visualRoot != null) ? _visualRoot.localRotation : Quaternion.identity;
             float elapsed = 0f;
 
             while (elapsed < duration)
@@ -334,12 +416,24 @@ namespace BlockMergePuzzle.Gameplay
                 // Ease out quad: smooth continuation and gentle deceleration into target slot
                 float ease = 1f - (1f - t) * (1f - t);
                 transform.position = Vector3.Lerp(startPos, targetWorldPos, ease);
+
+                // Smoothly lower lifted block back to board as it slides into place
+                _currentLiftProgress = Mathf.Lerp(startLift, 0f, ease);
+                ApplyLiftVisuals(_currentLiftProgress);
+                if (_visualRoot != null)
+                {
+                    _visualRoot.localRotation = Quaternion.Slerp(startRot, Quaternion.identity, ease);
+                }
+
                 yield return null;
             }
 
             transform.position = targetWorldPos;
             GridOrigin = newOrigin;
             IsSliding = false;
+            _currentLiftProgress = 0f;
+            ApplyLiftVisuals(0f);
+            SetTilt(0f);
             SetSortingOrder(_baseSortingOrder);
             _activeTween = null;
 
