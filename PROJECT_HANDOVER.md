@@ -16,13 +16,14 @@
   - `fix/screen-fit-1440x3200`: Auto-fit camera portrait 1440x3200 (ratio 0.45) không bị crop viền.
   - `feat/block-lift-and-drag-gamefeel`: Game feel nhấc khối khi chạm (scale pop 1.075x, nâng sorting order 50, âm thanh pickup, dynamic tilt).
   - `feat/smooth-multi-directional-drag`: Di chuyển đa hướng theo ngón tay qua mọi khoảng trống (corridor navigation, quẹo góc mượt mà, snap/merge/escape linh hoạt).
-  - `feat/level-1`: **[Branch mới nhất]** Cấu hình Level 1 Tutorial Cross, lưu scene và prefab riêng, bỏ gạch sàn, đồng bộ chuyển đổi Level 1 và Level 2.
+  - `feat/level-1`: Cấu hình Level 1 Tutorial Cross, lưu scene và prefab riêng, bỏ gạch sàn, đồng bộ chuyển đổi Level 1 và Level 2, tích hợp background vũ trụ.
+  - `feat/header-ui-controls`: **[Branch mới nhất]** Thiết kế thanh Header UI (Return đá, Time neon 1:40 đếm ngược, Pause đá, popup Tạm dừng).
 - **Hệ thống kết nối Unity MCP**: FastMCP HTTP bridge hoạt động ổn định trên `http://127.0.0.1:8080/mcp`. Tự động kết nối lại khi domain reload nhờ `AutoMcpStarter` trong `SceneSetupHelper.cs`.
 - **Screenshot kiểm chứng**:
-  - `Assets/Screenshots/screenshot-20261102-141445.png`: Ảnh chụp Level 1 hoàn thiện với nền vũ trụ `Background main play.png`, board chữ thập sạch không nền gạch.
-  - `Assets/Screenshots/screenshot-20261102-141528.png`: Ảnh chụp Level 2 hoàn thiện với nền vũ trụ `Background main play.png`, 21 khối trên bàn 6×8.
-  - `Assets/Screenshots/screenshot-20261021-022003.png`: Ảnh chụp Level 1 sạch không nền gạch (trước khi thêm background).
-  - `Assets/Screenshots/screenshot-20261017-174145.png`: Ảnh chụp Level 2 (trước khi thêm background).
+  - `Assets/Screenshots/screenshot-20261102-143623.png`: Ảnh chụp Level 1 hoàn thiện với Header UI (Return, ⏱ 1:40, Pause) và nền vũ trụ.
+  - `Assets/Screenshots/screenshot-20261102-143627.png`: Ảnh chụp Level 2 hoàn thiện với Header UI (Return, ⏱ 1:40, Pause) và nền vũ trụ.
+  - `Assets/Screenshots/screenshot-20261102-141445.png`: Ảnh chụp Level 1 có nền vũ trụ.
+  - `Assets/Screenshots/screenshot-20261102-141528.png`: Ảnh chụp Level 2 có nền vũ trụ.
 
 ---
 
@@ -71,6 +72,14 @@
 - **Auto Aspect-Fill**: Tự động scale theo camera (`Mathf.Max(camH / nativeH, camW / nativeW)`) đảm bảo phủ kín 100% màn hình dọc 1440×3200 và mọi tỷ lệ hiển thị khác, không bị méo tỉ lệ hay hở viền đen.
 - **Layering**: Đặt tại `sortingOrder = -10`, nằm sau khung bàn cờ (`sortingOrder = 2`), badge cổng (`4`), chữ số cổng (`5-6`) và các khối đá quý (`10-50`).
 - **Tự động áp dụng**: Nạp tự động trong `LevelManager.BuildBackground()` và `FitBackgroundToCamera()` cho mọi level (Level 1, Level 2, các level tương lai).
+
+### i. Thiết kế thanh Header UI (Return, Time 1:40, Pause)
+- **Thiết kế theo mẫu [Image #5]**:
+  - **Nút Return (Trái)**: Sprite `Return.png` (khối đá cổ có mũi tên quay lại), kích thước 145×145, hiệu ứng punch scale khi bấm, gọi `RestartLevel()` reset bàn cờ và bộ đếm thời gian.
+  - **Banner Time (Giữa)**: Sprite `Time.png` (hộp kim loại viền neon xanh cyan và icon đồng hồ bấm giờ), kích thước 360×157, tích hợp text đếm ngược động `1:40` (100 giây), cảnh báo chuyển đỏ khi còn dưới 20 giây.
+  - **Nút Pause (Phải)**: Sprite `Pause.png` (khối đá cổ có biểu tượng ||), kích thước 145×145, hiệu ứng punch scale khi bấm, mở modal Tạm Dừng (`Time.timeScale = 0f`).
+- **Modal Tạm Dừng (Pause Dialog)**: Hộp thoại viền xanh cyan phát sáng với nút "TIẾP TỤC" (Resume) và "CHƠI LẠI" (Restart).
+- **Render Mode**: Sử dụng `RenderMode.ScreenSpaceCamera` với `Camera.main`, `planeDistance = 5f`, `sortingOrder = 100`, hiển thị hoàn hảo và ổn định cả trong Edit Mode bake lẫn Runtime.
 
 ---
 

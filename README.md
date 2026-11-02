@@ -51,8 +51,12 @@ Game hỗ trợ chuyển đổi linh hoạt giữa các màn chơi cả trong **
 
 ---
 
-## 📱 Tối Ưu Màn Hình Dọc 1440×3200 & Background Toàn Diện
+## 📱 Tối Ưu Màn Hình Dọc 1440×3200 & Header UI Controls
 
+- **Thanh Header UI đỉnh cao (Return, Time 1:40, Pause)**:
+  - Nút **Return**: Đá cổ viền tím, mũi tên undo xoay ngược, chạm để chơi lại màn và hồi thời gian.
+  - Hộp **Time**: Hộp kim loại viền neon cyan với icon đồng hồ và bộ đếm ngược 1:40 (100 giây).
+  - Nút **Pause**: Đá cổ viền tím, biểu tượng ||, chạm để tạm dừng game và mở menu tùy chọn.
 - **Background vũ trụ (`Background main play.png`)**:
   - Tự động phủ kín toàn bộ màn hình với thuật toán Aspect-Fill (`Mathf.Max(camH / nativeH, camW / nativeW)`).
   - Tọa độ gắn liền với Camera (`Z = 0`, `sortingOrder = -10`) đảm bảo không bị đen viền trên mọi kích thước thiết bị.

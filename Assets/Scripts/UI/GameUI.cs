@@ -3,6 +3,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using BlockMergePuzzle.Audio;
 using BlockMergePuzzle.Core;
+using BlockMergePuzzle.Utils;
 
 namespace BlockMergePuzzle.UI
 {
@@ -11,11 +12,24 @@ namespace BlockMergePuzzle.UI
         public static GameUI Instance { get; private set; }
 
         private Canvas _canvas;
-        private Text _scoreText;
-        private Text _gatesText;
-        private GameObject _victoryPanel;
+        private CanvasScaler _scaler;
 
-        // Feedback error banner components
+        // Top Header matching design [Image #5]
+        private GameObject _headerPanel;
+        private Image _returnButtonImg;
+        private Image _timeBannerImg;
+        private Image _pauseButtonImg;
+        private Text _timeText;
+
+        // Timer state
+        private const float DefaultLevelTime = 100f; // 1:40 default
+        private float _timeRemaining = DefaultLevelTime;
+        private bool _isTimerRunning = false;
+        private bool _isPaused = false;
+
+        // Modals
+        private GameObject _pausePanel;
+        private GameObject _victoryPanel;
         private GameObject _feedbackPanel;
         private Text _feedbackText;
         private CanvasGroup _feedbackCanvasGroup;
@@ -23,7 +37,7 @@ namespace BlockMergePuzzle.UI
 
         private void Awake()
         {
-            if (Instance != null)
+            if (Instance != null && Instance != this)
             {
                 Destroy(gameObject);
                 return;
@@ -37,69 +51,260 @@ namespace BlockMergePuzzle.UI
         {
             if (LevelManager.Instance != null)
             {
-                LevelManager.Instance.OnScoreChanged += UpdateScore;
-                LevelManager.Instance.OnRemainingBlocksChanged += UpdateRemainingBlocks;
-                UpdateScore(LevelManager.Instance.Score);
-                UpdateRemainingBlocks(LevelManager.Instance.RemainingBlocksCount);
+                LevelManager.Instance.OnRemainingBlocksChanged += HandleRemainingBlocksChanged;
             }
+
+            StartTimer();
+        }
+
+        private void Update()
+        {
+            if (!Application.isPlaying) return;
+
+            if (_isTimerRunning && !_isPaused)
+            {
+                _timeRemaining -= Time.deltaTime;
+                if (_timeRemaining <= 0f)
+                {
+                    _timeRemaining = 0f;
+                    _isTimerRunning = false;
+                    UpdateTimeDisplay();
+                    OnTimeExpired();
+                }
+                else
+                {
+                    UpdateTimeDisplay();
+                }
+            }
+        }
+
+        [ContextMenu("Rebuild UI Hierarchy")]
+        public void RebuildUI()
+        {
+            for (int i = transform.childCount - 1; i >= 0; i--)
+            {
+                if (Application.isPlaying) Destroy(transform.GetChild(i).gameObject);
+                else DestroyImmediate(transform.GetChild(i).gameObject);
+            }
+
+            BuildUIHierarchy();
         }
 
         private void BuildUIHierarchy()
         {
-            _canvas = gameObject.AddComponent<Canvas>();
-            _canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            _canvas = GetComponent<Canvas>();
+            if (_canvas == null) _canvas = gameObject.AddComponent<Canvas>();
+            _canvas.renderMode = RenderMode.ScreenSpaceCamera;
+            _canvas.worldCamera = Camera.main;
+            _canvas.planeDistance = 5f;
             _canvas.sortingOrder = 100;
 
-            CanvasScaler scaler = gameObject.AddComponent<CanvasScaler>();
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1080, 1920);
-            scaler.matchWidthOrHeight = 0.5f;
+            _scaler = GetComponent<CanvasScaler>();
+            if (_scaler == null) _scaler = gameObject.AddComponent<CanvasScaler>();
+            _scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            _scaler.referenceResolution = new Vector2(1080, 1920);
+            _scaler.matchWidthOrHeight = 0.5f;
 
-            gameObject.AddComponent<GraphicRaycaster>();
+            if (GetComponent<GraphicRaycaster>() == null)
+            {
+                gameObject.AddComponent<GraphicRaycaster>();
+            }
 
-            Font defaultFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            if (defaultFont == null) defaultFont = Resources.GetBuiltinResource<Font>("Arial.ttf");
+            Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            if (font == null) font = Resources.GetBuiltinResource<Font>("Arial.ttf");
 
-            // 1. Top Header Panel - Positioned cleanly at top of screen without obscuring upper exit gates
-            GameObject header = CreateUIPanel("HeaderPanel", transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -70f), new Vector2(1000f, 120f));
+            // 1. Top Header Bar (Return, Time 1:40, Pause)
+            BuildTopHeader(font);
 
-            // Remaining Blocks Box
-            GameObject gatesBox = CreateUIPanel("GatesBox", header.transform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(190f, 0f), new Vector2(320f, 110f));
-            SetImageColor(gatesBox, new Color(0.14f, 0.16f, 0.24f, 0.92f));
-            CreateUIText("GatesLabel", gatesBox.transform, "CÒN LẠI", defaultFont, 22, TextAnchor.UpperCenter, new Vector2(0f, -12f), new Color(0.7f, 0.8f, 1f));
-            _gatesText = CreateUIText("GatesVal", gatesBox.transform, "21 KHỐI", defaultFont, 32, TextAnchor.MiddleCenter, new Vector2(0f, -16f), new Color(0.4f, 0.95f, 0.6f));
+            // 2. Pause Modal
+            BuildPausePanel(font);
 
-            // Score Box
-            GameObject scoreBox = CreateUIPanel("ScoreBox", header.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 0f), new Vector2(260f, 110f));
-            SetImageColor(scoreBox, new Color(0.14f, 0.16f, 0.24f, 0.92f));
-            CreateUIText("ScoreLabel", scoreBox.transform, "ĐIỂM", defaultFont, 22, TextAnchor.UpperCenter, new Vector2(0f, -12f), Color.gray);
-            _scoreText = CreateUIText("ScoreVal", scoreBox.transform, "0", defaultFont, 38, TextAnchor.MiddleCenter, new Vector2(0f, -16f), Color.white);
+            // 3. Victory Modal
+            BuildVictoryPanel(font);
+
+            // 4. Feedback Banner
+            BuildFeedbackBanner(font);
+
+            UpdateTimeDisplay();
+        }
+
+        private void BuildTopHeader(Font font)
+        {
+            // Container anchored to Top Center
+            _headerPanel = new GameObject("HeaderPanel");
+            _headerPanel.transform.SetParent(transform, false);
+
+            RectTransform headerRect = _headerPanel.AddComponent<RectTransform>();
+            headerRect.anchorMin = new Vector2(0.5f, 1f);
+            headerRect.anchorMax = new Vector2(0.5f, 1f);
+            headerRect.pivot = new Vector2(0.5f, 1f);
+            headerRect.anchoredPosition = new Vector2(0f, -80f);
+            headerRect.sizeDelta = new Vector2(1000f, 180f);
+
+            // a. Return Button (Left: x = -340)
+            GameObject returnObj = new GameObject("Btn_Return");
+            returnObj.transform.SetParent(_headerPanel.transform, false);
+
+            RectTransform retRect = returnObj.AddComponent<RectTransform>();
+            retRect.anchorMin = new Vector2(0.5f, 0.5f);
+            retRect.anchorMax = new Vector2(0.5f, 0.5f);
+            retRect.pivot = new Vector2(0.5f, 0.5f);
+            retRect.anchoredPosition = new Vector2(-340f, 0f);
+            retRect.sizeDelta = new Vector2(145f, 145f);
+
+            _returnButtonImg = returnObj.AddComponent<Image>();
+            _returnButtonImg.sprite = GemSpriteManager.GetSprite("Return");
+            _returnButtonImg.preserveAspect = true;
+
+            Button returnBtn = returnObj.AddComponent<Button>();
+            returnBtn.targetGraphic = _returnButtonImg;
+            returnBtn.onClick.AddListener(OnReturnClicked);
+
+            // b. Time Banner (Center: x = 0)
+            GameObject timeObj = new GameObject("Banner_Time");
+            timeObj.transform.SetParent(_headerPanel.transform, false);
+
+            RectTransform timeRect = timeObj.AddComponent<RectTransform>();
+            timeRect.anchorMin = new Vector2(0.5f, 0.5f);
+            timeRect.anchorMax = new Vector2(0.5f, 0.5f);
+            timeRect.pivot = new Vector2(0.5f, 0.5f);
+            timeRect.anchoredPosition = new Vector2(0f, 0f);
+            timeRect.sizeDelta = new Vector2(360f, 157f);
+
+            _timeBannerImg = timeObj.AddComponent<Image>();
+            _timeBannerImg.sprite = GemSpriteManager.GetSprite("Time");
+            _timeBannerImg.preserveAspect = true;
+
+            // Dark inner patch overlay over the "1:40" text area in the sprite
+            GameObject patchObj = new GameObject("TimeTextPatch");
+            patchObj.transform.SetParent(timeObj.transform, false);
+            RectTransform patchRect = patchObj.AddComponent<RectTransform>();
+            patchRect.anchorMin = new Vector2(0.5f, 0.5f);
+            patchRect.anchorMax = new Vector2(0.5f, 0.5f);
+            patchRect.pivot = new Vector2(0.5f, 0.5f);
+            patchRect.anchoredPosition = new Vector2(34f, 2f);
+            patchRect.sizeDelta = new Vector2(160f, 60f);
+
+            Image patchImg = patchObj.AddComponent<Image>();
+            patchImg.color = new Color(0.082f, 0.094f, 0.278f, 1f); // #151847 matching inner navy
+            patchImg.raycastTarget = false;
+
+            // Live Time Text
+            GameObject textObj = new GameObject("TimeVal");
+            textObj.transform.SetParent(patchObj.transform, false);
+            RectTransform textRect = textObj.AddComponent<RectTransform>();
+            textRect.anchorMin = Vector2.zero;
+            textRect.anchorMax = Vector2.one;
+            textRect.offsetMin = Vector2.zero;
+            textRect.offsetMax = Vector2.zero;
+
+            _timeText = textObj.AddComponent<Text>();
+            _timeText.text = "1:40";
+            _timeText.font = font;
+            _timeText.fontSize = 46;
+            _timeText.fontStyle = FontStyle.Bold;
+            _timeText.alignment = TextAnchor.MiddleCenter;
+            _timeText.color = new Color(1f, 0.96f, 0.92f); // Cream white matching sprite font
+            _timeText.raycastTarget = false;
+
+            Shadow shadow = textObj.AddComponent<Shadow>();
+            shadow.effectColor = new Color(0f, 0f, 0f, 0.6f);
+            shadow.effectDistance = new Vector2(2f, -2f);
+
+            // c. Pause Button (Right: x = +340)
+            GameObject pauseObj = new GameObject("Btn_Pause");
+            pauseObj.transform.SetParent(_headerPanel.transform, false);
+
+            RectTransform pauseRect = pauseObj.AddComponent<RectTransform>();
+            pauseRect.anchorMin = new Vector2(0.5f, 0.5f);
+            pauseRect.anchorMax = new Vector2(0.5f, 0.5f);
+            pauseRect.pivot = new Vector2(0.5f, 0.5f);
+            pauseRect.anchoredPosition = new Vector2(340f, 0f);
+            pauseRect.sizeDelta = new Vector2(145f, 145f);
+
+            _pauseButtonImg = pauseObj.AddComponent<Image>();
+            _pauseButtonImg.sprite = GemSpriteManager.GetSprite("Pause");
+            _pauseButtonImg.preserveAspect = true;
+
+            Button pauseBtn = pauseObj.AddComponent<Button>();
+            pauseBtn.targetGraphic = _pauseButtonImg;
+            pauseBtn.onClick.AddListener(OnPauseClicked);
+        }
+
+        private void BuildPausePanel(Font font)
+        {
+            _pausePanel = CreateUIPanel("PausePanel", transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            SetImageColor(_pausePanel, new Color(0.04f, 0.05f, 0.10f, 0.82f));
+
+            // Dialog Window
+            GameObject dialog = CreateUIPanel("DialogBox", _pausePanel.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(720f, 520f));
+            SetImageColor(dialog, new Color(0.10f, 0.12f, 0.22f, 0.98f));
+
+            Outline outline = dialog.AddComponent<Outline>();
+            outline.effectColor = new Color(0.20f, 0.65f, 1f, 0.85f);
+            outline.effectDistance = new Vector2(3.5f, -3.5f);
+
+            // Title
+            CreateUIText("Title", dialog.transform, "⏸️ TẠM DỪNG", font, 48, TextAnchor.UpperCenter, new Vector2(0f, -50f), new Color(0.44f, 0.84f, 1f));
+
+            // Resume Button
+            GameObject resumeBtn = CreateUIPanel("ResumeBtn", dialog.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 20f), new Vector2(380f, 95f));
+            SetImageColor(resumeBtn, new Color(0.18f, 0.70f, 0.38f, 1f));
+            CreateUIText("Text", resumeBtn.transform, "TIẾP TỤC", font, 32, TextAnchor.MiddleCenter, Vector2.zero, Color.white);
+
+            Button rBtn = resumeBtn.AddComponent<Button>();
+            rBtn.onClick.AddListener(ResumeGame);
 
             // Restart Button
-            GameObject restartBtnObj = CreateUIPanel("RestartBtn", header.transform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(-120f, 0f), new Vector2(180f, 110f));
-            SetImageColor(restartBtnObj, new Color(0.24f, 0.30f, 0.42f, 0.95f));
-            CreateUIText("RestartText", restartBtnObj.transform, "CHƠI LẠI", defaultFont, 24, TextAnchor.MiddleCenter, Vector2.zero, Color.white);
-            Button restartBtn = restartBtnObj.AddComponent<Button>();
-            restartBtn.onClick.AddListener(() =>
+            GameObject restartBtn = CreateUIPanel("RestartBtn", dialog.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -100f), new Vector2(380f, 95f));
+            SetImageColor(restartBtn, new Color(0.25f, 0.45f, 0.85f, 1f));
+            CreateUIText("Text", restartBtn.transform, "CHƠI LẠI", font, 32, TextAnchor.MiddleCenter, Vector2.zero, Color.white);
+
+            Button reBtn = restartBtn.AddComponent<Button>();
+            reBtn.onClick.AddListener(() =>
             {
-                SoundManager.Instance.PlayButton();
-                LevelManager.Instance.InitializeLevel();
+                ResumeGame();
+                RestartLevel();
             });
 
-            // 2. Red Error Feedback Banner (Bottom Screen)
-            BuildFeedbackBanner(defaultFont);
+            _pausePanel.SetActive(false);
+        }
 
-            // 3. Victory Panel
-            BuildVictoryPanel(defaultFont);
+        private void BuildVictoryPanel(Font font)
+        {
+            _victoryPanel = CreateUIPanel("VictoryPanel", transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            SetImageColor(_victoryPanel, new Color(0.04f, 0.05f, 0.10f, 0.85f));
+
+            GameObject dialog = CreateUIPanel("DialogBox", _victoryPanel.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(760f, 580f));
+            SetImageColor(dialog, new Color(0.10f, 0.12f, 0.22f, 0.98f));
+
+            Outline outline = dialog.AddComponent<Outline>();
+            outline.effectColor = new Color(0.95f, 0.8f, 0.2f, 0.9f);
+            outline.effectDistance = new Vector2(4f, -4f);
+
+            CreateUIText("Title", dialog.transform, "🎉 CHIẾN THẮNG!", font, 52, TextAnchor.UpperCenter, new Vector2(0f, -60f), new Color(1f, 0.88f, 0.25f));
+            CreateUIText("Subtitle", dialog.transform, "Bạn đã giải phóng toàn bộ các cổng!", font, 28, TextAnchor.MiddleCenter, new Vector2(0f, 30f), Color.white);
+
+            GameObject playAgainBtn = CreateUIPanel("PlayAgainBtn", dialog.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -120f), new Vector2(380f, 100f));
+            SetImageColor(playAgainBtn, new Color(0.18f, 0.65f, 0.35f, 1f));
+            CreateUIText("BtnText", playAgainBtn.transform, "CHƠI LẠI", font, 34, TextAnchor.MiddleCenter, Vector2.zero, Color.white);
+
+            Button btn = playAgainBtn.AddComponent<Button>();
+            btn.onClick.AddListener(() =>
+            {
+                if (SoundManager.Instance != null) SoundManager.Instance.PlayButton();
+                _victoryPanel.SetActive(false);
+                RestartLevel();
+            });
+
+            _victoryPanel.SetActive(false);
         }
 
         private void BuildFeedbackBanner(Font font)
         {
-            // Positioned at bottom center
             _feedbackPanel = CreateUIPanel("FeedbackBanner", transform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 140f), new Vector2(960f, 110f));
             SetImageColor(_feedbackPanel, new Color(0.12f, 0.04f, 0.06f, 0.95f));
 
-            // Soft glowing red border outline
             Outline outline = _feedbackPanel.AddComponent<Outline>();
             outline.effectColor = new Color(0.9f, 0.18f, 0.22f, 0.75f);
             outline.effectDistance = new Vector2(3f, -3f);
@@ -119,43 +324,124 @@ namespace BlockMergePuzzle.UI
                 new Color(1f, 0.32f, 0.32f, 1f));
         }
 
-        private void BuildVictoryPanel(Font font)
+        public void StartTimer()
         {
-            _victoryPanel = CreateUIPanel("VictoryPanel", transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(850f, 650f));
-            SetImageColor(_victoryPanel, new Color(0.08f, 0.10f, 0.16f, 0.98f));
+            _timeRemaining = DefaultLevelTime;
+            _isTimerRunning = true;
+            _isPaused = false;
+            UpdateTimeDisplay();
+        }
 
-            Outline outline = _victoryPanel.AddComponent<Outline>();
-            outline.effectColor = new Color(0.95f, 0.8f, 0.2f, 0.9f);
-            outline.effectDistance = new Vector2(4f, -4f);
+        public void StopTimer()
+        {
+            _isTimerRunning = false;
+        }
 
-            CreateUIText("Title", _victoryPanel.transform, "🎉 CHIẾN THẮNG!", font, 52, TextAnchor.UpperCenter, new Vector2(0f, -60f), new Color(1f, 0.88f, 0.25f));
-            CreateUIText("Subtitle", _victoryPanel.transform, "Bạn đã giải phóng toàn bộ các cổng!", font, 28, TextAnchor.MiddleCenter, new Vector2(0f, 30f), Color.white);
+        public void ResetTimer()
+        {
+            _timeRemaining = DefaultLevelTime;
+            _isTimerRunning = true;
+            _isPaused = false;
+            UpdateTimeDisplay();
+        }
 
-            GameObject playAgainBtn = CreateUIPanel("PlayAgainBtn", _victoryPanel.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -140f), new Vector2(360f, 110f));
-            SetImageColor(playAgainBtn, new Color(0.18f, 0.65f, 0.35f, 1f));
-            CreateUIText("BtnText", playAgainBtn.transform, "CHƠI LẠI", font, 36, TextAnchor.MiddleCenter, Vector2.zero, Color.white);
+        private void UpdateTimeDisplay()
+        {
+            if (_timeText == null) return;
+            int mins = Mathf.FloorToInt(_timeRemaining / 60f);
+            int secs = Mathf.FloorToInt(_timeRemaining % 60f);
+            _timeText.text = string.Format("{0}:{1:D2}", mins, secs);
 
-            Button btn = playAgainBtn.AddComponent<Button>();
-            btn.onClick.AddListener(() =>
+            if (_timeRemaining < 20f && _timeRemaining > 0f)
             {
-                SoundManager.Instance.PlayButton();
-                _victoryPanel.SetActive(false);
-                LevelManager.Instance.InitializeLevel();
-            });
+                _timeText.color = new Color(1f, 0.35f, 0.35f); // Red warning when low on time
+            }
+            else
+            {
+                _timeText.color = new Color(1f, 0.96f, 0.92f);
+            }
+        }
 
-            _victoryPanel.SetActive(false);
+        private void OnTimeExpired()
+        {
+            ShowFeedbackError("Hết giờ! Hãy thử lại.");
+        }
+
+        public void OnReturnClicked()
+        {
+            if (SoundManager.Instance != null) SoundManager.Instance.PlayButton();
+            if (_returnButtonImg != null) StartCoroutine(CoButtonPunch(_returnButtonImg.transform));
+            RestartLevel();
+        }
+
+        public void OnPauseClicked()
+        {
+            if (SoundManager.Instance != null) SoundManager.Instance.PlayButton();
+            if (_pauseButtonImg != null) StartCoroutine(CoButtonPunch(_pauseButtonImg.transform));
+            TogglePause();
+        }
+
+        public void TogglePause()
+        {
+            _isPaused = !_isPaused;
+            if (_pausePanel != null)
+            {
+                _pausePanel.SetActive(_isPaused);
+            }
+            Time.timeScale = _isPaused ? 0f : 1f;
+        }
+
+        public void ResumeGame()
+        {
+            if (SoundManager.Instance != null) SoundManager.Instance.PlayButton();
+            _isPaused = false;
+            if (_pausePanel != null)
+            {
+                _pausePanel.SetActive(false);
+            }
+            Time.timeScale = 1f;
+        }
+
+        public void RestartLevel()
+        {
+            ResetTimer();
+            if (LevelManager.Instance != null)
+            {
+                LevelManager.Instance.InitializeLevel();
+            }
+        }
+
+        private IEnumerator CoButtonPunch(Transform tr)
+        {
+            float elapsed = 0f;
+            float dur = 0.14f;
+            Vector3 original = Vector3.one;
+            while (elapsed < dur)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                float t = elapsed / dur;
+                float s = 1.0f - Mathf.Sin(t * Mathf.PI) * 0.12f;
+                tr.localScale = original * s;
+                yield return null;
+            }
+            tr.localScale = original;
+        }
+
+        private void HandleRemainingBlocksChanged(int count)
+        {
+            if (count == 0)
+            {
+                StopTimer();
+                ShowVictoryPopup();
+            }
         }
 
         public void ShowFeedbackError(string message)
         {
             if (_feedbackPanel == null || _feedbackText == null) return;
-
             _feedbackText.text = "⚠️ " + message;
 
-            if (_feedbackCoroutine != null)
-            {
-                StopCoroutine(_feedbackCoroutine);
-            }
+            if (_feedbackCoroutine != null) StopCoroutine(_feedbackCoroutine);
             _feedbackCoroutine = StartCoroutine(CoAnimateFeedback());
         }
 
@@ -164,7 +450,6 @@ namespace BlockMergePuzzle.UI
             _feedbackPanel.SetActive(true);
             _feedbackCanvasGroup.alpha = 1f;
 
-            // Punch scale animation
             float elapsed = 0f;
             float punchDuration = 0.20f;
             while (elapsed < punchDuration)
@@ -177,10 +462,8 @@ namespace BlockMergePuzzle.UI
             }
             _feedbackPanel.transform.localScale = Vector3.one;
 
-            // Wait visible
             yield return new WaitForSeconds(2.4f);
 
-            // Fade out
             float fadeElapsed = 0f;
             float fadeDuration = 0.35f;
             while (fadeElapsed < fadeDuration)
@@ -235,25 +518,10 @@ namespace BlockMergePuzzle.UI
             Destroy(floatObj);
         }
 
-        public void UpdateScore(int newScore)
-        {
-            if (_scoreText != null) _scoreText.text = newScore.ToString();
-        }
-
-        public void UpdateScore(int currentScore, int bestScore)
-        {
-            UpdateScore(currentScore);
-        }
-
-        public void UpdateRemainingBlocks(int count)
-        {
-            if (_gatesText != null) _gatesText.text = $"{count} KHỐI";
-        }
-
-        public void UpdateProgress(int escaped, int total)
-        {
-            if (_gatesText != null) _gatesText.text = $"{total - escaped} KHỐI";
-        }
+        public void UpdateScore(int newScore) { }
+        public void UpdateScore(int currentScore, int bestScore) { }
+        public void UpdateRemainingBlocks(int count) { }
+        public void UpdateProgress(int escaped, int total) { }
 
         public void ShowVictoryPopup()
         {

@@ -110,11 +110,21 @@ namespace BlockMergePuzzle.Editor
                 Undo.RegisterCreatedObjectUndo(pc, "Create PlayerPieceController");
             }
 
-            if (FindObj<GameUI>() == null && GameObject.Find("GameUI") == null)
+            GameUI ui = FindObj<GameUI>();
+            if (ui == null)
             {
-                GameObject ui = new GameObject("GameUI");
-                ui.AddComponent<GameUI>();
-                Undo.RegisterCreatedObjectUndo(ui, "Create GameUI");
+                GameObject uiObj = GameObject.Find("GameUI");
+                if (uiObj == null)
+                {
+                    uiObj = new GameObject("GameUI");
+                    Undo.RegisterCreatedObjectUndo(uiObj, "Create GameUI");
+                }
+                ui = uiObj.GetComponent<GameUI>();
+                if (ui == null) ui = uiObj.AddComponent<GameUI>();
+            }
+            if (ui != null)
+            {
+                ui.RebuildUI();
             }
 
             lm.BakeEditModeLevel();
