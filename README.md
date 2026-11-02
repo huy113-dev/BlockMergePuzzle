@@ -51,15 +51,19 @@ Game hỗ trợ chuyển đổi linh hoạt giữa các màn chơi cả trong **
 
 ---
 
-## 📱 Tối Ưu Màn Hình Dọc 1440×3200 (Portrait 0.45)
+## 📱 Tối Ưu Màn Hình Dọc 1440×3200 & Background Toàn Diện
 
-- Tự động tính toán khung nhìn camera theo cả chiều rộng và chiều cao:
+- **Background vũ trụ (`Background main play.png`)**:
+  - Tự động phủ kín toàn bộ màn hình với thuật toán Aspect-Fill (`Mathf.Max(camH / nativeH, camW / nativeW)`).
+  - Tọa độ gắn liền với Camera (`Z = 0`, `sortingOrder = -10`) đảm bảo không bị đen viền trên mọi kích thước thiết bị.
+- **Camera Auto-Fit**:
+  - Tự động tính toán khung nhìn camera theo cả chiều rộng và chiều cao:
   ```csharp
   float sizeByWidth = (CurrentFrameWidth / 2f + paddingX) / screenRatio;
   float sizeByHeight = CurrentFrameHeight / 2f + paddingY;
   cam.orthographicSize = Mathf.Max(sizeByWidth, sizeByHeight);
   ```
-- Bộ lọc `screenRatio` bảo vệ trong Edit Mode: Luôn ép tỷ lệ 9:20 (0.45) để bàn cờ không bao giờ bị cắt 2 bên viền khi mở trên màn hình máy tính landscape.
+  - Bộ lọc `screenRatio` bảo vệ trong Edit Mode: Luôn ép tỷ lệ 9:20 (0.45) để bàn cờ không bao giờ bị cắt 2 bên viền khi mở trên màn hình máy tính landscape.
 
 ---
 

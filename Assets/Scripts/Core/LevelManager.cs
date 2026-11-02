@@ -39,6 +39,7 @@ namespace BlockMergePuzzle.Core
         private List<PuzzlePiece> _activePieces = new List<PuzzlePiece>();
         private List<ExitGateView> _activeGates = new List<ExitGateView>();
 
+        private Transform _backgroundRoot;
         private Transform _frameRoot;
         private Transform _gatesRoot;
         private Transform _piecesRoot;
@@ -87,10 +88,12 @@ namespace BlockMergePuzzle.Core
             _piecesRoot = new GameObject("Active_Pieces").transform;
             _piecesRoot.SetParent(transform);
 
+            BuildBackground();
             BuildBoardFrame();
             BuildExitGates();
             SpawnPieces();
             FitCameraToBoard();
+            FitBackgroundToCamera();
         }
 #endif
 
@@ -98,6 +101,7 @@ namespace BlockMergePuzzle.Core
         {
             Score = 0;
 
+            _backgroundRoot = transform.Find("Background");
             _frameRoot = transform.Find("Board_Frame");
             _gatesRoot = transform.Find("Exit_Gates");
             _piecesRoot = transform.Find("Active_Pieces");
@@ -107,18 +111,24 @@ namespace BlockMergePuzzle.Core
             if (!hasSceneObjects)
             {
                 ClearCurrentLevel();
+                BuildBackground();
                 BuildBoardFrame();
                 BuildExitGates();
                 SpawnPieces();
             }
             else
             {
+                if (_backgroundRoot == null || _backgroundRoot.childCount == 0)
+                {
+                    BuildBackground();
+                }
                 BindSceneObjects();
             }
 
             OnScoreChanged?.Invoke(Score);
             OnRemainingBlocksChanged?.Invoke(RemainingBlocksCount);
             FitCameraToBoard();
+            FitBackgroundToCamera();
         }
 
         private void FitCameraToBoard()
@@ -161,6 +171,7 @@ namespace BlockMergePuzzle.Core
 
         private void ClearCurrentLevel()
         {
+            if (_backgroundRoot != null) Destroy(_backgroundRoot.gameObject);
             if (_frameRoot != null) Destroy(_frameRoot.gameObject);
             if (_gatesRoot != null) Destroy(_gatesRoot.gameObject);
             if (_piecesRoot != null) Destroy(_piecesRoot.gameObject);
@@ -177,6 +188,61 @@ namespace BlockMergePuzzle.Core
 
             _piecesRoot = new GameObject("Active_Pieces").transform;
             _piecesRoot.SetParent(transform);
+        }
+
+        private void BuildBackground()
+        {
+            if (_backgroundRoot == null)
+            {
+                _backgroundRoot = transform.Find("Background");
+                if (_backgroundRoot == null)
+                {
+                    _backgroundRoot = new GameObject("Background").transform;
+                    _backgroundRoot.SetParent(transform);
+                }
+            }
+
+            GameObject bgObj = _backgroundRoot.childCount > 0
+                ? _backgroundRoot.GetChild(0).gameObject
+                : new GameObject("BackgroundSprite");
+            bgObj.transform.SetParent(_backgroundRoot);
+
+            SpriteRenderer sr = bgObj.GetComponent<SpriteRenderer>();
+            if (sr == null) sr = bgObj.AddComponent<SpriteRenderer>();
+            sr.sortingOrder = -10;
+
+            Sprite bgSprite = GemSpriteManager.GetBackgroundSprite();
+            if (bgSprite != null) sr.sprite = bgSprite;
+
+            FitBackgroundToCamera();
+        }
+
+        public void FitBackgroundToCamera()
+        {
+            if (_backgroundRoot == null)
+            {
+                _backgroundRoot = transform.Find("Background");
+                if (_backgroundRoot == null) return;
+            }
+
+            SpriteRenderer sr = _backgroundRoot.GetComponentInChildren<SpriteRenderer>();
+            if (sr == null || sr.sprite == null) return;
+
+            var cam = Camera.main;
+            if (cam == null) return;
+
+            float screenRatio = cam.aspect > 0.05f ? cam.aspect : (1440f / 3200f);
+            if (screenRatio > 0.75f) screenRatio = 1440f / 3200f;
+
+            float camH = 2f * cam.orthographicSize;
+            float camW = camH * screenRatio;
+
+            float nativeW = sr.sprite.rect.width / sr.sprite.pixelsPerUnit;
+            float nativeH = sr.sprite.rect.height / sr.sprite.pixelsPerUnit;
+
+            float scale = Mathf.Max(camH / nativeH, camW / nativeW);
+            sr.transform.position = new Vector3(cam.transform.position.x, cam.transform.position.y, 0f);
+            sr.transform.localScale = new Vector3(scale, scale, 1f);
         }
 
         private void BuildBoardFrame()

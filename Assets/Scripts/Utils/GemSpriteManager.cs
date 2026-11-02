@@ -21,6 +21,7 @@ namespace BlockMergePuzzle.Utils
             Sprite sprite = Resources.Load<Sprite>($"Sprites/LevelAssets/{spriteName}");
             if (sprite == null) sprite = Resources.Load<Sprite>($"Sprites/Blocks/{spriteName}");
             if (sprite == null) sprite = Resources.Load<Sprite>($"Sprites/UI B1 (1)/{spriteName}");
+            if (sprite == null) sprite = Resources.Load<Sprite>($"Sprites/Background/{spriteName}");
 
             if (sprite != null)
             {
@@ -31,6 +32,9 @@ namespace BlockMergePuzzle.Utils
             // 2. Try loading raw PNG bytes from disk across all directories
             string[] searchDirs = new string[]
             {
+                Path.Combine(Application.dataPath, "Sprites", "Background"),
+                Path.Combine(Application.dataPath, "Resources", "Sprites", "Background"),
+                "D:/BlockMergePuzzle/Assets/Sprites/Background",
                 Path.Combine(Application.dataPath, "Sprites", "UI B1 (1)"),
                 Path.Combine(Application.dataPath, "Resources", "Sprites", "LevelAssets"),
                 Path.Combine(Application.dataPath, "Sprites", "LevelAssets"),
@@ -78,6 +82,13 @@ namespace BlockMergePuzzle.Utils
             Sprite frame = GetSprite("Group 23");
             if (frame == null) frame = GetSprite("wall_frame_clean");
             return frame;
+        }
+
+        public static Sprite GetBackgroundSprite()
+        {
+            Sprite bg = GetSprite("Background main play");
+            if (bg == null) bg = GetSprite("background_main_play");
+            return bg;
         }
 
         public static Sprite GetPieceSprite(PieceColor color, PieceShape shape)

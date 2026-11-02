@@ -19,8 +19,10 @@
   - `feat/level-1`: **[Branch mới nhất]** Cấu hình Level 1 Tutorial Cross, lưu scene và prefab riêng, bỏ gạch sàn, đồng bộ chuyển đổi Level 1 và Level 2.
 - **Hệ thống kết nối Unity MCP**: FastMCP HTTP bridge hoạt động ổn định trên `http://127.0.0.1:8080/mcp`. Tự động kết nối lại khi domain reload nhờ `AutoMcpStarter` trong `SceneSetupHelper.cs`.
 - **Screenshot kiểm chứng**:
-  - `Assets/Screenshots/screenshot-20261021-022003.png`: Ảnh chụp Level 1 sạch không nền gạch, căn chỉnh hoàn hảo.
-  - `Assets/Screenshots/screenshot-20261017-174145.png`: Ảnh chụp Level 2 (21 khối trên bàn 6×8).
+  - `Assets/Screenshots/screenshot-20261102-141445.png`: Ảnh chụp Level 1 hoàn thiện với nền vũ trụ `Background main play.png`, board chữ thập sạch không nền gạch.
+  - `Assets/Screenshots/screenshot-20261102-141528.png`: Ảnh chụp Level 2 hoàn thiện với nền vũ trụ `Background main play.png`, 21 khối trên bàn 6×8.
+  - `Assets/Screenshots/screenshot-20261021-022003.png`: Ảnh chụp Level 1 sạch không nền gạch (trước khi thêm background).
+  - `Assets/Screenshots/screenshot-20261017-174145.png`: Ảnh chụp Level 2 (trước khi thêm background).
 
 ---
 
@@ -63,6 +65,12 @@
 
 ### g. Di chuyển đa hướng tự do theo ngón tay (Multi-Directional Corridor Navigation)
 - **Tính năng**: Kéo khối qua các ô trống kề cận (`CanPieceFitAt`), tâm ô tự động tịnh tiến theo hành trình ngón tay (`maxAdvances`). Khối có thể rẽ trái, xuống dưới, qua phải linh hoạt trong một lần kéo duy nhất mà không cần nhấc ngón tay.
+
+### h. Tích hợp Background dùng chung cho toàn bộ Level (`Background main play.png`)
+- **Asset**: `Assets/Sprites/Background/Background main play.png` (kích thước 1167×2117).
+- **Auto Aspect-Fill**: Tự động scale theo camera (`Mathf.Max(camH / nativeH, camW / nativeW)`) đảm bảo phủ kín 100% màn hình dọc 1440×3200 và mọi tỷ lệ hiển thị khác, không bị méo tỉ lệ hay hở viền đen.
+- **Layering**: Đặt tại `sortingOrder = -10`, nằm sau khung bàn cờ (`sortingOrder = 2`), badge cổng (`4`), chữ số cổng (`5-6`) và các khối đá quý (`10-50`).
+- **Tự động áp dụng**: Nạp tự động trong `LevelManager.BuildBackground()` và `FitBackgroundToCamera()` cho mọi level (Level 1, Level 2, các level tương lai).
 
 ---
 
