@@ -97,6 +97,7 @@
     - **Nút Return (`Return.png` trong Pause game)**: Nút tròn xanh cyan 150×150 với mũi tên quay tròn, bấm để chơi lại màn chơi hiện tại.
     - **Nút Home (`Home.png`)**: Nút lục giác xanh lá 390×141 có chữ "Home", bấm để về trang chủ / reset bàn cờ.
 - **Tách biệt Asset Namespace (Disambiguation)**: Dùng `GemSpriteManager.GetHeaderReturnSprite()` cho nút Return trên thanh Header (khối đá 170×171) và `GemSpriteManager.GetPauseSprite("Return")` cho nút Return trong Pause panel (nút tròn cyan 92×93), tránh triệt để xung đột trùng tên file.
+- **Đồng bộ bố cục người dùng chỉnh tay (User Custom Layout Sync)**: Tọa độ tinh chỉnh trực tiếp trên scene của người dùng đã được trích xuất và cập nhật vào `GameUI.BuildPausePanel()`, đồng thời bake đồng nhất trên toàn bộ các scene `Level1.unity`, `Level2.unity` và `MainScene.unity`.
 - **Render Mode**: Sử dụng `RenderMode.ScreenSpaceCamera` với `Camera.main`, `planeDistance = 5f`, `sortingOrder = 100`, hiển thị hoàn hảo và ổn định cả trong Edit Mode bake lẫn Runtime.
 
 ---

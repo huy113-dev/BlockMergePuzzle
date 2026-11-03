@@ -272,7 +272,7 @@ namespace BlockMergePuzzle.UI
             }
 
             // 3. Top Title Banner with Ice Crystals (Asset: Panel game pause.png, 320x85)
-            GameObject titleBanner = CreateUIPanel("TitleBanner", dialog.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, 15f), new Vector2(540f, 143f));
+            GameObject titleBanner = CreateUIPanel("TitleBanner", dialog.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(-4f, -15f), new Vector2(540f, 143f));
             Image titleImg = titleBanner.GetComponent<Image>();
             if (titleImg != null)
             {
@@ -282,7 +282,7 @@ namespace BlockMergePuzzle.UI
             }
 
             // 4. Close 'X' Button on upper right shoulder (Asset: X.png, 78x78)
-            GameObject closeObj = CreateUIPanel("Btn_Close", dialog.transform, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-65f, -25f), new Vector2(105f, 105f));
+            GameObject closeObj = CreateUIPanel("Btn_Close", dialog.transform, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-75f, -40f), new Vector2(105f, 105f));
             Image closeImg = closeObj.GetComponent<Image>();
             if (closeImg != null)
             {
@@ -330,7 +330,7 @@ namespace BlockMergePuzzle.UI
                 ToggleVibration);
 
             // 6. "No Ads" Wide Button (Asset: No Ads.png, 377x95)
-            GameObject noAdsObj = CreateUIPanel("Btn_NoAds", dialog.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -615f), new Vector2(620f, 156f));
+            GameObject noAdsObj = CreateUIPanel("Btn_NoAds", dialog.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(-1f, -648f), new Vector2(620f, 156f));
             Image noAdsImg = noAdsObj.GetComponent<Image>();
             if (noAdsImg != null)
             {
@@ -344,7 +344,7 @@ namespace BlockMergePuzzle.UI
 
             // 7. Bottom Navigation Buttons
             // a. Return Button (Asset: Return.png, 92x93, Cyan circular arrow)
-            GameObject retObj = CreateUIPanel("Btn_ReturnLevel", dialog.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(-190f, -815f), new Vector2(150f, 150f));
+            GameObject retObj = CreateUIPanel("Btn_ReturnLevel", dialog.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(-212f, -841f), new Vector2(150f, 150f));
             Image retImg = retObj.GetComponent<Image>();
             if (retImg != null)
             {
@@ -361,7 +361,7 @@ namespace BlockMergePuzzle.UI
             });
 
             // b. Home Button (Asset: Home.png, 230x83, Green hexagonal button)
-            GameObject homeObj = CreateUIPanel("Btn_Home", dialog.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(95f, -815f), new Vector2(390f, 141f));
+            GameObject homeObj = CreateUIPanel("Btn_Home", dialog.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(102f, -850f), new Vector2(390f, 141f));
             Image homeImg = homeObj.GetComponent<Image>();
             if (homeImg != null)
             {
