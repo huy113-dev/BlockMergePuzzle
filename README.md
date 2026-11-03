@@ -57,6 +57,11 @@ Game hỗ trợ chuyển đổi linh hoạt giữa các màn chơi cả trong **
   - Nút **Return**: Đá cổ viền tím, mũi tên undo xoay ngược, chạm để chơi lại màn và hồi thời gian.
   - Hộp **Time**: Hộp kim loại viền neon cyan với icon đồng hồ và bộ đếm ngược 1:40 (100 giây).
   - Nút **Pause**: Đá cổ viền tím, biểu tượng ||, chạm để tạm dừng game và mở menu tùy chọn.
+- **Hộp thoại Pause Game Sci-Fi (Darkened Game Background)**:
+  - Phủ mờ khung cảnh game phía sau (`#03050ECC`), giữ trọn vẹn bàn cờ và không gian vũ trụ tối sâu.
+  - Bộ 14 assets chuyên biệt: Khung `panel.png`, vương miện băng tuyết `Panel game pause.png`, nút đóng đỏ `X.png`.
+  - 3 hàng tùy chỉnh có thể bật/tắt động và tự lưu: **Sound** (Group 308/314), **Music** (Group 312/315), **Vibration** (Group 313/316) với công tắc switch xanh/xám (`on.png`/`off.png`).
+  - Nút vàng ánh kim **No Ads** (`No Ads.png`), nút **Return** tròn cyan và nút **Home** lục giác xanh lá.
 - **Background vũ trụ (`Background main play.png`)**:
   - Tự động phủ kín toàn bộ màn hình với thuật toán Aspect-Fill (`Mathf.Max(camH / nativeH, camW / nativeW)`).
   - Tọa độ gắn liền với Camera (`Z = 0`, `sortingOrder = -10`) đảm bảo không bị đen viền trên mọi kích thước thiết bị.

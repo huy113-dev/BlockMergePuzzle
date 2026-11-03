@@ -17,13 +17,15 @@
   - `feat/block-lift-and-drag-gamefeel`: Game feel nhấc khối khi chạm (scale pop 1.075x, nâng sorting order 50, âm thanh pickup, dynamic tilt).
   - `feat/smooth-multi-directional-drag`: Di chuyển đa hướng theo ngón tay qua mọi khoảng trống (corridor navigation, quẹo góc mượt mà, snap/merge/escape linh hoạt).
   - `feat/level-1`: Cấu hình Level 1 Tutorial Cross, lưu scene và prefab riêng, bỏ gạch sàn, đồng bộ chuyển đổi Level 1 và Level 2, tích hợp background vũ trụ.
-  - `feat/header-ui-controls`: **[Branch mới nhất]** Thiết kế thanh Header UI (Return đá, Time neon 1:40 đếm ngược, Pause đá, popup Tạm dừng).
+  - `feat/header-ui-controls`: Thiết kế thanh Header UI (Return đá, Time neon 1:40 đếm ngược, Pause đá).
+  - `feat/pause-game-panel`: **[Branch mới nhất]** Thiết kế hoàn chỉnh popup Pause Game Panel ([Image #7]) với background game tối mờ, 14 assets sci-fi, 3 toggle settings (Sound, Music, Vibration), nút No Ads, Return và Home.
 - **Hệ thống kết nối Unity MCP**: FastMCP HTTP bridge hoạt động ổn định trên `http://127.0.0.1:8080/mcp`. Tự động kết nối lại khi domain reload nhờ `AutoMcpStarter` trong `SceneSetupHelper.cs`.
 - **Screenshot kiểm chứng**:
-  - `Assets/Screenshots/screenshot-20261102-143623.png`: Ảnh chụp Level 1 hoàn thiện với Header UI (Return, ⏱ 1:40, Pause) và nền vũ trụ.
-  - `Assets/Screenshots/screenshot-20261102-143627.png`: Ảnh chụp Level 2 hoàn thiện với Header UI (Return, ⏱ 1:40, Pause) và nền vũ trụ.
-  - `Assets/Screenshots/screenshot-20261102-141445.png`: Ảnh chụp Level 1 có nền vũ trụ.
-  - `Assets/Screenshots/screenshot-20261102-141528.png`: Ảnh chụp Level 2 có nền vũ trụ.
+  - `Assets/Screenshots/pause_panel_preview.png`: Ảnh chụp popup Pause Game hoàn thiện chuẩn xác theo Image #7 với nền game tối mờ phía sau.
+  - `Assets/Screenshots/pause_panel_toggled.png`: Ảnh chụp trạng thái toggle OFF của Sound & Music (icon xám + switch xám).
+  - `Assets/Screenshots/normal_gameplay_preview.png`: Ảnh chụp màn chơi bình thường với thanh Header UI và nền vũ trụ.
+  - `Assets/Screenshots/screenshot-20261102-143623.png`: Ảnh chụp Level 1 hoàn thiện với Header UI và nền vũ trụ.
+  - `Assets/Screenshots/screenshot-20261102-143627.png`: Ảnh chụp Level 2 hoàn thiện với Header UI và nền vũ trụ.
 
 ---
 
@@ -75,10 +77,26 @@
 
 ### i. Thiết kế thanh Header UI (Return, Time 1:40, Pause)
 - **Thiết kế theo mẫu [Image #5]**:
-  - **Nút Return (Trái)**: Sprite `Return.png` (khối đá cổ có mũi tên quay lại), kích thước 145×145, hiệu ứng punch scale khi bấm, gọi `RestartLevel()` reset bàn cờ và bộ đếm thời gian.
+  - **Nút Return (Trái)**: Sprite `Return.png` (khối đá cổ có mũi tên quay lại từ `Sprites/LevelAssets/Return.png`), kích thước 145×145, hiệu ứng punch scale khi bấm, gọi `RestartLevel()` reset bàn cờ và bộ đếm thời gian.
   - **Banner Time (Giữa)**: Sprite `Time.png` (hộp kim loại viền neon xanh cyan và icon đồng hồ bấm giờ), kích thước 360×157, tích hợp text đếm ngược động `1:40` (100 giây), cảnh báo chuyển đỏ khi còn dưới 20 giây.
   - **Nút Pause (Phải)**: Sprite `Pause.png` (khối đá cổ có biểu tượng ||), kích thước 145×145, hiệu ứng punch scale khi bấm, mở modal Tạm Dừng (`Time.timeScale = 0f`).
-- **Modal Tạm Dừng (Pause Dialog)**: Hộp thoại viền xanh cyan phát sáng với nút "TIẾP TỤC" (Resume) và "CHƠI LẠI" (Restart).
+
+### j. Thiết kế hoàn chỉnh popup Pause Game Panel ([Image #7])
+- **Background Game Darkened Overlay**: Khi mở Pause panel, màn hình được phủ lớp bán trong suốt `#03050ECC` (`alpha = 0.82`), làm mờ và tối khung cảnh game (bàn cờ, khối đá, background vũ trụ, thanh header) nhưng vẫn thấy rõ trạng thái game bên dưới theo đúng yêu cầu.
+- **Cấu trúc 14 Assets Sci-Fi chuyên biệt** từ `D:\BlockMergePuzzle\Assets\Sprites\Main Scene\Pause game`:
+  - **Khung hộp thoại chính (`panel.png`)**: Khung kim loại viền xanh neon kích thước 820×1040, đặt cân đối giữa màn hình.
+  - **Tiêu đề vương miện băng (`Panel game pause.png`)**: "Game Pause" với các tinh thể pha lê băng viền neon xanh, gắn tại đỉnh notch trên cùng.
+  - **Nút đóng X (`X.png`)**: Nút tròn đỏ X kích thước 105×105 nằm tại góc vai phải, bấm để tiếp tục game (`ResumeGame()`).
+  - **Thẻ cài đặt màu tối (SettingsCard)**: Hộp chứa màu xanh navy sâu `#11152d` với viền xanh neon, chứa 3 hàng tùy chỉnh ngăn cách bởi đường kẻ ngang:
+    - **Sound**: Icon loa xanh `Group 308.png` (ON) / loa xám `Group 314.png` (OFF) + text "Sound" + công tắc switch `on.png` / `off.png`. Kết nối trực tiếp `SoundManager.Instance.SoundEnabled`.
+    - **Music**: Icon nốt nhạc cam `Group 312.png` (ON) / nốt nhạc xám `Group 315.png` (OFF) + text "Music" + công tắc switch `on.png` / `off.png`.
+    - **Vibration**: Icon rung điện thoại cyan `Group 313.png` (ON) / xám `Group 316.png` (OFF) + text "Vibration" + công tắc switch `on.png` / `off.png`.
+    - Trạng thái tự động lưu vào `PlayerPrefs` (`BMP_SoundEnabled`, `BMP_MusicEnabled`, `BMP_VibrationEnabled`).
+  - **Nút No Ads (`No Ads.png`)**: Nút vàng ánh kim rộng 620×156 có biểu tượng giỏ hàng & cấm quảng cáo.
+  - **Cụm nút điều hướng chân trang**:
+    - **Nút Return (`Return.png` trong Pause game)**: Nút tròn xanh cyan 150×150 với mũi tên quay tròn, bấm để chơi lại màn chơi hiện tại.
+    - **Nút Home (`Home.png`)**: Nút lục giác xanh lá 390×141 có chữ "Home", bấm để về trang chủ / reset bàn cờ.
+- **Tách biệt Asset Namespace (Disambiguation)**: Dùng `GemSpriteManager.GetHeaderReturnSprite()` cho nút Return trên thanh Header (khối đá 170×171) và `GemSpriteManager.GetPauseSprite("Return")` cho nút Return trong Pause panel (nút tròn cyan 92×93), tránh triệt để xung đột trùng tên file.
 - **Render Mode**: Sử dụng `RenderMode.ScreenSpaceCamera` với `Camera.main`, `planeDistance = 5f`, `sortingOrder = 100`, hiển thị hoàn hảo và ổn định cả trong Edit Mode bake lẫn Runtime.
 
 ---

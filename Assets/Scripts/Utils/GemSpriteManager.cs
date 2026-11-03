@@ -32,6 +32,8 @@ namespace BlockMergePuzzle.Utils
             // 2. Try loading raw PNG bytes from disk across all directories
             string[] searchDirs = new string[]
             {
+                Path.Combine(Application.dataPath, "Sprites", "Main Scene", "Pause game"),
+                "D:/BlockMergePuzzle/Assets/Sprites/Main Scene/Pause game",
                 Path.Combine(Application.dataPath, "Sprites", "Background"),
                 Path.Combine(Application.dataPath, "Resources", "Sprites", "Background"),
                 "D:/BlockMergePuzzle/Assets/Sprites/Background",
@@ -74,6 +76,67 @@ namespace BlockMergePuzzle.Utils
 
             // Fallback: procedural block
             return SpriteGenerator.GetBlockSprite();
+        }
+
+        public static Sprite GetSpriteExplicit(string subDir, string spriteName)
+        {
+            if (string.IsNullOrEmpty(spriteName)) return null;
+            string cacheKey = $"{subDir}/{spriteName}";
+            if (_cachedSprites.TryGetValue(cacheKey, out Sprite cached) && cached != null)
+                return cached;
+
+            Sprite sprite = Resources.Load<Sprite>($"{subDir}/{spriteName}");
+            if (sprite != null)
+            {
+                _cachedSprites[cacheKey] = sprite;
+                return sprite;
+            }
+
+            string[] baseDirs = new string[]
+            {
+                Path.Combine(Application.dataPath, subDir),
+                Path.Combine(Application.dataPath, "Resources", subDir),
+                Path.Combine("D:/BlockMergePuzzle/Assets", subDir)
+            };
+
+            foreach (string dir in baseDirs)
+            {
+                string path = Path.Combine(dir, spriteName + ".png");
+                if (File.Exists(path))
+                {
+                    try
+                    {
+                        byte[] fileData = File.ReadAllBytes(path);
+                        Texture2D tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+                        tex.filterMode = FilterMode.Bilinear;
+                        tex.wrapMode = TextureWrapMode.Clamp;
+                        if (ImageConversion.LoadImage(tex, fileData))
+                        {
+                            sprite = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 100f);
+                            _cachedSprites[cacheKey] = sprite;
+                            return sprite;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.LogWarning($"[GemSpriteManager] Could not load image from {path}: {ex.Message}");
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        public static Sprite GetPauseSprite(string spriteName)
+        {
+            return GetSpriteExplicit("Sprites/Main Scene/Pause game", spriteName) ?? GetSprite(spriteName);
+        }
+
+        public static Sprite GetHeaderReturnSprite()
+        {
+            return GetSpriteExplicit("Resources/Sprites/LevelAssets", "Return")
+                ?? GetSpriteExplicit("Sprites/LevelAssets", "Return")
+                ?? GetSprite("Return");
         }
 
         public static Sprite GetFrameSprite()
