@@ -69,11 +69,11 @@
 ### g. Di chuyển đa hướng tự do theo ngón tay (Multi-Directional Corridor Navigation)
 - **Tính năng**: Kéo khối qua các ô trống kề cận (`CanPieceFitAt`), tâm ô tự động tịnh tiến theo hành trình ngón tay (`maxAdvances`). Khối có thể rẽ trái, xuống dưới, qua phải linh hoạt trong một lần kéo duy nhất mà không cần nhấc ngón tay.
 
-### h. Tích hợp Background dùng chung cho toàn bộ Level (`Background main play.png`)
-- **Asset**: `Assets/Sprites/Background/Background main play.png` (kích thước 1167×2117).
+### h. Tích hợp Background vũ trụ pha lê (`background_main scene .png`)
+- **Asset**: `Assets/Sprites/Background/background_main scene .png` (kích thước gốc 1441×3200, TextureType = Sprite 2D and UI, maxTextureSize = 4096px bảo toàn độ phân giải cao).
 - **Auto Aspect-Fill**: Tự động scale theo camera (`Mathf.Max(camH / nativeH, camW / nativeW)`) đảm bảo phủ kín 100% màn hình dọc 1440×3200 và mọi tỷ lệ hiển thị khác, không bị méo tỉ lệ hay hở viền đen.
 - **Layering**: Đặt tại `sortingOrder = -10`, nằm sau khung bàn cờ (`sortingOrder = 2`), badge cổng (`4`), chữ số cổng (`5-6`) và các khối đá quý (`10-50`).
-- **Tự động áp dụng**: Nạp tự động trong `LevelManager.BuildBackground()` và `FitBackgroundToCamera()` cho mọi level (Level 1, Level 2, các level tương lai).
+- **Tự động áp dụng & Bake**: Nạp tự động trong `GemSpriteManager.GetBackgroundSprite()`, `LevelManager.BuildBackground()` và `FitBackgroundToCamera()` cho mọi level (Level 1, Level 2, MainScene) và các prefab tương ứng (`Level1_Board.prefab`, `Level2_Board.prefab`).
 
 ### i. Thiết kế thanh Header UI (Return, Time 1:40, Pause)
 - **Thiết kế theo mẫu [Image #5]**:

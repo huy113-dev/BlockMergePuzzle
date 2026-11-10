@@ -10,6 +10,11 @@ namespace BlockMergePuzzle.Utils
     {
         private static readonly Dictionary<string, Sprite> _cachedSprites = new Dictionary<string, Sprite>();
 
+        public static void ClearCache()
+        {
+            _cachedSprites.Clear();
+        }
+
         public static Sprite GetSprite(string spriteName)
         {
             if (string.IsNullOrEmpty(spriteName)) return null;
@@ -149,9 +154,64 @@ namespace BlockMergePuzzle.Utils
 
         public static Sprite GetBackgroundSprite()
         {
-            Sprite bg = GetSprite("Background main play");
-            if (bg == null) bg = GetSprite("background_main_play");
-            return bg;
+#if UNITY_EDITOR
+            // 1. Try loading directly from AssetDatabase in Editor
+            string[] searchEditorPaths = new string[]
+            {
+                "Assets/Sprites/Background/background_main scene .png",
+                "Assets/Sprites/Background/background_main scene.png",
+                "Assets/Sprites/Background/Background main play.png"
+            };
+
+            foreach (string p in searchEditorPaths)
+            {
+                Sprite s = UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>(p);
+                if (s != null) return s;
+            }
+
+            // Check any png in Background folder in Editor
+            string editorBgDir = "Assets/Sprites/Background";
+            if (System.IO.Directory.Exists(editorBgDir))
+            {
+                string[] pngs = System.IO.Directory.GetFiles(editorBgDir, "*.png");
+                if (pngs.Length > 0)
+                {
+                    string p = pngs[0].Replace("\\", "/");
+                    Sprite s = UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>(p);
+                    if (s != null) return s;
+                }
+            }
+#endif
+
+            // 2. Try explicit named sprites (GetSpriteExplicit returns null if not found, avoiding block fallback)
+            Sprite bg = GetSpriteExplicit("Sprites/Background", "background_main scene ")
+                ?? GetSpriteExplicit("Sprites/Background", "background_main scene")
+                ?? GetSpriteExplicit("Sprites/Background", "Background main play");
+
+            if (bg != null) return bg;
+
+            // 3. Fallback: search Background directory on disk for any png
+            string[] bgDirs = new string[]
+            {
+                Path.Combine(Application.dataPath, "Sprites", "Background"),
+                "D:/BlockMergePuzzle/Assets/Sprites/Background"
+            };
+
+            foreach (string dir in bgDirs)
+            {
+                if (Directory.Exists(dir))
+                {
+                    string[] files = Directory.GetFiles(dir, "*.png");
+                    if (files.Length > 0)
+                    {
+                        string fileNameWithoutExt = Path.GetFileNameWithoutExtension(files[0]);
+                        bg = GetSpriteExplicit("Sprites/Background", fileNameWithoutExt);
+                        if (bg != null) return bg;
+                    }
+                }
+            }
+
+            return null;
         }
 
         public static Sprite GetPieceSprite(PieceColor color, PieceShape shape)
