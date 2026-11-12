@@ -16,6 +16,15 @@ namespace BlockMergePuzzle.Gameplay
         private Vector3 _grabOffset;
         private bool _isDragging;
 
+        public bool IsDragging => _isDragging;
+        public PuzzlePiece SelectedPiece => _selectedPiece;
+
+        public void ResetSelection()
+        {
+            _isDragging = false;
+            _selectedPiece = null;
+        }
+
         private void Awake()
         {
             if (Instance != null)
@@ -58,7 +67,7 @@ namespace BlockMergePuzzle.Gameplay
 
                         // Game feel: Lift block on touch
                         _selectedPiece.SetLifted(true);
-                        Audio.SoundManager.Instance.PlayPickup();
+                        Audio.SoundManager.Instance?.PlayPickup();
 
                         // Temporarily clear from grid so piece can move through its own start cells
                         LevelManager.Instance.ClearPieceFromGrid(_selectedPiece);
@@ -235,10 +244,9 @@ namespace BlockMergePuzzle.Gameplay
                     if (!actionExecuted)
                     {
                         LevelManager.Instance.ExecuteSlide(_selectedPiece, _currentOrigin);
+                        _selectedPiece.SetLifted(false);
+                        _selectedPiece.SetTilt(0f);
                     }
-
-                    _selectedPiece.SetLifted(false);
-                    _selectedPiece.SetTilt(0f);
                 }
 
                 _isDragging = false;

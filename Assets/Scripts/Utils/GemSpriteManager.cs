@@ -37,6 +37,14 @@ namespace BlockMergePuzzle.Utils
             // 2. Try loading raw PNG bytes from disk across all directories
             string[] searchDirs = new string[]
             {
+                Path.Combine(Application.dataPath, "Sprites", "Main Scene", "UI"),
+                "D:/BlockMergePuzzle/Assets/Sprites/Main Scene/UI",
+                Path.Combine(Application.dataPath, "Sprites", "Main Scene", "UI", "setting"),
+                "D:/BlockMergePuzzle/Assets/Sprites/Main Scene/UI/setting",
+                Path.Combine(Application.dataPath, "Sprites", "Main Scene", "Block", "Block"),
+                "D:/BlockMergePuzzle/Assets/Sprites/Main Scene/Block/Block",
+                Path.Combine(Application.dataPath, "Sprites", "Main Scene", "Map"),
+                "D:/BlockMergePuzzle/Assets/Sprites/Main Scene/Map",
                 Path.Combine(Application.dataPath, "Sprites", "Main Scene", "Pause game"),
                 "D:/BlockMergePuzzle/Assets/Sprites/Main Scene/Pause game",
                 Path.Combine(Application.dataPath, "Sprites", "Background"),
@@ -137,11 +145,53 @@ namespace BlockMergePuzzle.Utils
             return GetSpriteExplicit("Sprites/Main Scene/Pause game", spriteName) ?? GetSprite(spriteName);
         }
 
+        public static Sprite GetMainUISprite(string spriteName)
+        {
+#if UNITY_EDITOR
+            string editorPath = $"Assets/Sprites/Main Scene/UI/{spriteName}.png";
+            Sprite es = UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>(editorPath);
+            if (es != null) return es;
+#endif
+            return GetSpriteExplicit("Sprites/Main Scene/UI", spriteName) ?? GetSprite(spriteName);
+        }
+
+        public static Sprite GetBoosterSprite(string spriteName)
+        {
+#if UNITY_EDITOR
+            string editorPath = $"Assets/Sprites/Main Scene/UI/booster/{spriteName}.png";
+            Sprite es = UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>(editorPath);
+            if (es != null) return es;
+#endif
+            return GetSpriteExplicit("Sprites/Main Scene/UI/booster", spriteName);
+        }
+
+        public static Sprite GetSettingSprite(string spriteName)
+        {
+#if UNITY_EDITOR
+            string editorPath = $"Assets/Sprites/Main Scene/UI/setting/{spriteName}.png";
+            Sprite es = UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>(editorPath);
+            if (es != null) return es;
+#endif
+            return GetSpriteExplicit("Sprites/Main Scene/UI/setting", spriteName);
+        }
+
         public static Sprite GetHeaderReturnSprite()
         {
             return GetSpriteExplicit("Resources/Sprites/LevelAssets", "Return")
                 ?? GetSpriteExplicit("Sprites/LevelAssets", "Return")
                 ?? GetSprite("Return");
+        }
+
+        public static Sprite GetMapSprite(int levelIndex)
+        {
+#if UNITY_EDITOR
+            string editorPath = $"Assets/Sprites/Main Scene/Map/map_lv{levelIndex}.png";
+            Sprite es = UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>(editorPath);
+            if (es != null) return es;
+#endif
+            return GetSpriteExplicit("Sprites/Main Scene/Map", $"map_lv{levelIndex}")
+                ?? GetSpriteExplicit("Sprites/Main Scene/Map", $"map_lv{levelIndex}.png")
+                ?? GetSprite($"map_lv{levelIndex}");
         }
 
         public static Sprite GetFrameSprite()
@@ -150,6 +200,33 @@ namespace BlockMergePuzzle.Utils
             Sprite frame = GetSprite("Group 23");
             if (frame == null) frame = GetSprite("wall_frame_clean");
             return frame;
+        }
+
+        public static Sprite GetTechGateHoloPadSprite()
+        {
+#if UNITY_EDITOR
+            Sprite s = UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Sprites/Main Scene/tech_gate_holo_pad.png");
+            if (s != null) return s;
+#endif
+            return GetSpriteExplicit("Sprites/Main Scene", "tech_gate_holo_pad");
+        }
+
+        public static Sprite GetTechGateRingSprite()
+        {
+#if UNITY_EDITOR
+            Sprite s = UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Sprites/Main Scene/tech_gate_ring.png");
+            if (s != null) return s;
+#endif
+            return GetSpriteExplicit("Sprites/Main Scene", "tech_gate_ring");
+        }
+
+        public static Sprite GetTechGateInnerRingSprite()
+        {
+#if UNITY_EDITOR
+            Sprite s = UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Sprites/Main Scene/tech_gate_inner_ring.png");
+            if (s != null) return s;
+#endif
+            return GetSpriteExplicit("Sprites/Main Scene", "tech_gate_inner_ring");
         }
 
         public static Sprite GetBackgroundSprite()
@@ -214,6 +291,16 @@ namespace BlockMergePuzzle.Utils
             return null;
         }
 
+        public static Sprite GetNewBlockSprite(string spriteName)
+        {
+#if UNITY_EDITOR
+            string editorPath = $"Assets/Sprites/Main Scene/Block/Block/{spriteName}.png";
+            Sprite es = UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>(editorPath);
+            if (es != null) return es;
+#endif
+            return GetSpriteExplicit("Sprites/Main Scene/Block/Block", spriteName);
+        }
+
         public static Sprite GetPieceSprite(PieceColor color, PieceShape shape)
         {
             switch (shape)
@@ -221,26 +308,27 @@ namespace BlockMergePuzzle.Utils
                 case PieceShape.Single_1x1:
                     switch (color)
                     {
-                        case PieceColor.Green: return GetSprite("Vector 109") ?? GetSprite("gem_green");
-                        case PieceColor.Pink: return GetSprite("Vector 112") ?? GetSprite("gem_magenta");
-                        case PieceColor.Red: return GetSprite("Vector 113") ?? GetSprite("gem_red");
-                        case PieceColor.Yellow: return GetSprite("gem_yellow");
+                        case PieceColor.Green: return GetNewBlockSprite("Group 346") ?? GetSprite("Vector 109") ?? GetSprite("gem_green");
+                        case PieceColor.Pink: return GetNewBlockSprite("Group 344") ?? GetSprite("Vector 112") ?? GetSprite("gem_magenta");
+                        case PieceColor.Red: return GetNewBlockSprite("Group 345") ?? GetSprite("Vector 113") ?? GetSprite("gem_red");
+                        case PieceColor.Yellow: return GetNewBlockSprite("Group 347") ?? GetSprite("gem_yellow");
                         case PieceColor.Purple: return GetSprite("gem_purple");
-                        case PieceColor.Orange: return GetSprite("gem_orange_1x1");
+                        case PieceColor.Orange: return GetNewBlockSprite("Group 348") ?? GetSprite("gem_orange_1x1");
                         case PieceColor.Blue: return GetSprite("gem_blue_1x1");
-                        default: return GetSprite("Vector 109") ?? GetSprite("gem_green");
+                        default: return GetNewBlockSprite("Group 346") ?? GetSprite("Vector 109") ?? GetSprite("gem_green");
                     }
 
                 case PieceShape.Vertical_1x2:
                     switch (color)
                     {
-                        case PieceColor.Red: return GetSprite("Vector 110") ?? GetSprite("gem_red_1x2");
-                        case PieceColor.Yellow: return GetSprite("Vector 111") ?? GetSprite("gem_yellow_1x2");
-                        case PieceColor.Blue: return GetSprite("Vector 116") ?? GetSprite("gem_blue_1x2");
-                        case PieceColor.Purple: return GetSprite("Vector 117") ?? GetSprite("gem_purple_1x2");
-                        case PieceColor.Green: return GetSprite("gem_green_1x2");
-                        case PieceColor.Orange: return GetSprite("gem_orange_1x2");
-                        default: return GetSprite("Vector 116") ?? GetSprite("gem_blue_1x2");
+                        case PieceColor.Red: return GetNewBlockSprite("Group 352") ?? GetSprite("Vector 110") ?? GetSprite("gem_red_1x2");
+                        case PieceColor.Yellow: return GetNewBlockSprite("Group 354") ?? GetSprite("Vector 111") ?? GetSprite("gem_yellow_1x2");
+                        case PieceColor.Blue: return GetNewBlockSprite("Group 349") ?? GetSprite("Vector 116") ?? GetSprite("gem_blue_1x2");
+                        case PieceColor.Purple: return GetNewBlockSprite("Group 350") ?? GetSprite("Vector 117") ?? GetSprite("gem_purple_1x2");
+                        case PieceColor.Green: return GetNewBlockSprite("Group 353") ?? GetSprite("gem_green_1x2");
+                        case PieceColor.Orange: return GetNewBlockSprite("Group 355") ?? GetSprite("gem_orange_1x2");
+                        case PieceColor.Pink: return GetNewBlockSprite("Group 351") ?? GetSprite("gem_magenta");
+                        default: return GetNewBlockSprite("Group 349") ?? GetSprite("Vector 116") ?? GetSprite("gem_blue_1x2");
                     }
 
                 case PieceShape.Horizontal_2x1:
@@ -256,13 +344,13 @@ namespace BlockMergePuzzle.Utils
                     }
 
                 case PieceShape.ShapeL_TopRight:
-                    return GetSprite("Vector 114") ?? GetSprite("gem_green_L");
+                    return GetNewBlockSprite("Group 356 (2)") ?? GetSprite("Vector 114") ?? GetSprite("gem_green_L");
 
                 case PieceShape.ShapeL_BottomLeft:
-                    return GetSprite("Vector 115") ?? GetSprite("gem_orange_L");
+                    return GetNewBlockSprite("Group 358") ?? GetSprite("Vector 115") ?? GetSprite("gem_orange_L");
 
                 default:
-                    return GetSprite("Vector 109") ?? GetSprite("gem_green");
+                    return GetNewBlockSprite("Group 346") ?? GetSprite("Vector 109") ?? GetSprite("gem_green");
             }
         }
     }

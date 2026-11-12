@@ -1,4 +1,5 @@
-using System;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using BlockMergePuzzle.Audio;
@@ -10,29 +11,41 @@ namespace BlockMergePuzzle.Core
 {
     public enum LevelId
     {
-        Level1_TutorialCross,
-        Level2_ReferenceBoard
+        Level1 = 1,
+        Level2 = 2,
+        Level3 = 3,
+        Level4 = 4,
+        Level5 = 5,
+        Level6 = 6,
+        Level7 = 7,
+        Level8 = 8,
+        Level9 = 9,
+        Level10 = 10,
+
+        // Backwards compatibility aliases
+        Level1_TutorialCross = 1,
+        Level2_ReferenceBoard = 2
     }
 
     public class LevelManager : MonoBehaviour
     {
         public static LevelManager Instance { get; private set; }
 
-        [SerializeField] private LevelId _currentLevel = LevelId.Level1_TutorialCross;
+        [SerializeField] private LevelId _currentLevel = LevelId.Level1;
         public LevelId CurrentLevel
         {
             get => _currentLevel;
             set => _currentLevel = value;
         }
 
-        public int CurrentColumns => _currentLevel == LevelId.Level1_TutorialCross ? 7 : GameConfig.Columns;
-        public int CurrentRows => _currentLevel == LevelId.Level1_TutorialCross ? 6 : GameConfig.Rows;
+        public int CurrentColumns => GetLevelColumns(_currentLevel);
+        public int CurrentRows => GetLevelRows(_currentLevel);
 
-        public float CurrentCellWidth => _currentLevel == LevelId.Level1_TutorialCross ? 1.066f : GameConfig.CellWidth;
-        public float CurrentCellHeight => _currentLevel == LevelId.Level1_TutorialCross ? 1.066f : GameConfig.CellHeight;
+        public float CurrentCellWidth => GetLevelCellWidth(_currentLevel);
+        public float CurrentCellHeight => GetLevelCellHeight(_currentLevel);
 
-        public float CurrentFrameWidth => _currentLevel == LevelId.Level1_TutorialCross ? 8.304f : GameConfig.FrameWidth;
-        public float CurrentFrameHeight => _currentLevel == LevelId.Level1_TutorialCross ? 7.193f : GameConfig.FrameHeight;
+        public float CurrentFrameWidth => GetLevelFrameWidth(_currentLevel);
+        public float CurrentFrameHeight => GetLevelFrameHeight(_currentLevel);
 
         private Vector3 _boardCenter = new Vector3(0.015f, 0.073f, 0f);
         private PuzzlePiece[,] _grid;
@@ -43,13 +56,19 @@ namespace BlockMergePuzzle.Core
         private Transform _frameRoot;
         private Transform _gatesRoot;
         private Transform _piecesRoot;
+        private GameObject _initialPiecesTemplate;
+        private LevelId _snapshotLevel;
+
+        public LevelId InitialSceneLevel { get; private set; }
 
         public int Score { get; private set; }
         public int RemainingBlocksCount => _activePieces.Count;
         public IReadOnlyList<ExitGateView> Gates => _activeGates;
+        public IReadOnlyList<PuzzlePiece> ActivePieces => _activePieces;
 
         public event Action<int> OnScoreChanged;
         public event Action<int> OnRemainingBlocksChanged;
+        public event Action OnLevelInitialized;
 
         private void Awake()
         {
@@ -59,6 +78,7 @@ namespace BlockMergePuzzle.Core
                 return;
             }
             Instance = this;
+            InitialSceneLevel = _currentLevel;
         }
 
         private void Start()
@@ -91,14 +111,19 @@ namespace BlockMergePuzzle.Core
             BuildBackground();
             BuildBoardFrame();
             BuildExitGates();
-            SpawnPieces();
+            if (_currentLevel == LevelId.Level1)
+            {
+                SpawnPieces();
+            }
             FitCameraToBoard();
             FitBackgroundToCamera();
         }
 #endif
 
-        public void InitializeLevel()
+        public void InitializeLevel(bool forceRebuild = false)
         {
+            StopAllCoroutines();
+            PlayerPieceController.Instance?.ResetSelection();
             Score = 0;
 
             _backgroundRoot = transform.Find("Background");
@@ -106,7 +131,36 @@ namespace BlockMergePuzzle.Core
             _gatesRoot = transform.Find("Exit_Gates");
             _piecesRoot = transform.Find("Active_Pieces");
 
-            bool hasSceneObjects = (_frameRoot != null && _gatesRoot != null && _piecesRoot != null && _piecesRoot.childCount > 0);
+            if (forceRebuild && _initialPiecesTemplate != null && _snapshotLevel == _currentLevel && _frameRoot != null && _gatesRoot != null)
+            {
+                if (_piecesRoot != null)
+                {
+                    _piecesRoot.name = "__DestroyedPieces";
+                    _piecesRoot.gameObject.SetActive(false);
+                    Destroy(_piecesRoot.gameObject);
+                }
+
+                GameObject restored = Instantiate(_initialPiecesTemplate, transform);
+                restored.name = "Active_Pieces";
+                restored.SetActive(true);
+                _piecesRoot = restored.transform;
+
+                if (_backgroundRoot == null || _backgroundRoot.childCount == 0)
+                {
+                    BuildBackground();
+                }
+
+                BindSceneObjects();
+                OnScoreChanged?.Invoke(Score);
+                OnRemainingBlocksChanged?.Invoke(RemainingBlocksCount);
+                SoundManager.Instance?.ResetMergeCombo();
+                FitCameraToBoard();
+                FitBackgroundToCamera();
+                OnLevelInitialized?.Invoke();
+                return;
+            }
+
+            bool hasSceneObjects = !forceRebuild && (_frameRoot != null && _gatesRoot != null);
 
             if (!hasSceneObjects)
             {
@@ -122,13 +176,32 @@ namespace BlockMergePuzzle.Core
                 {
                     BuildBackground();
                 }
+                if (_piecesRoot == null || _piecesRoot.childCount == 0)
+                {
+                    if (_piecesRoot == null)
+                    {
+                        _piecesRoot = new GameObject("Active_Pieces").transform;
+                        _piecesRoot.SetParent(transform);
+                    }
+                    SpawnPieces();
+                }
                 BindSceneObjects();
+            }
+
+            if (_initialPiecesTemplate == null && _piecesRoot != null)
+            {
+                _snapshotLevel = _currentLevel;
+                _initialPiecesTemplate = Instantiate(_piecesRoot.gameObject, transform);
+                _initialPiecesTemplate.name = "_InitialPiecesSnapshot";
+                _initialPiecesTemplate.SetActive(false);
             }
 
             OnScoreChanged?.Invoke(Score);
             OnRemainingBlocksChanged?.Invoke(RemainingBlocksCount);
+            SoundManager.Instance?.ResetMergeCombo();
             FitCameraToBoard();
             FitBackgroundToCamera();
+            OnLevelInitialized?.Invoke();
         }
 
         private void FitCameraToBoard()
@@ -137,8 +210,8 @@ namespace BlockMergePuzzle.Core
             if (cam == null) return;
             float screenRatio = cam.aspect > 0.05f ? cam.aspect : (1440f / 3200f);
             if (screenRatio > 0.75f) screenRatio = 1440f / 3200f; // Force target portrait ratio (0.45) in Edit Mode
-            float paddingX = 0.55f;
-            float paddingY = 0.85f;
+            float paddingX = 0.12f;
+            float paddingY = 0.40f;
             float sizeByWidth  = (CurrentFrameWidth  / 2f + paddingX) / screenRatio;
             float sizeByHeight =  CurrentFrameHeight / 2f + paddingY;
             cam.orthographicSize = Mathf.Max(sizeByWidth, sizeByHeight);
@@ -171,10 +244,10 @@ namespace BlockMergePuzzle.Core
 
         private void ClearCurrentLevel()
         {
-            if (_backgroundRoot != null) Destroy(_backgroundRoot.gameObject);
-            if (_frameRoot != null) Destroy(_frameRoot.gameObject);
-            if (_gatesRoot != null) Destroy(_gatesRoot.gameObject);
-            if (_piecesRoot != null) Destroy(_piecesRoot.gameObject);
+            DestroyRootSafely(ref _backgroundRoot);
+            DestroyRootSafely(ref _frameRoot);
+            DestroyRootSafely(ref _gatesRoot);
+            DestroyRootSafely(ref _piecesRoot);
 
             _activePieces.Clear();
             _activeGates.Clear();
@@ -188,6 +261,15 @@ namespace BlockMergePuzzle.Core
 
             _piecesRoot = new GameObject("Active_Pieces").transform;
             _piecesRoot.SetParent(transform);
+        }
+
+        private static void DestroyRootSafely(ref Transform root)
+        {
+            if (root == null) return;
+            root.name = "__Destroyed";
+            root.gameObject.SetActive(false);
+            Destroy(root.gameObject);
+            root = null;
         }
 
         private void BuildBackground()
@@ -210,6 +292,7 @@ namespace BlockMergePuzzle.Core
             SpriteRenderer sr = bgObj.GetComponent<SpriteRenderer>();
             if (sr == null) sr = bgObj.AddComponent<SpriteRenderer>();
             sr.sortingOrder = -10;
+            sr.color = new Color(0.42f, 0.42f, 0.48f, 1f);
 
             Sprite bgSprite = GemSpriteManager.GetBackgroundSprite();
             if (bgSprite != null) sr.sprite = bgSprite;
@@ -227,6 +310,7 @@ namespace BlockMergePuzzle.Core
 
             SpriteRenderer sr = _backgroundRoot.GetComponentInChildren<SpriteRenderer>();
             if (sr == null || sr.sprite == null) return;
+            sr.color = new Color(0.42f, 0.42f, 0.48f, 1f);
 
             var cam = Camera.main;
             if (cam == null) return;
@@ -253,173 +337,327 @@ namespace BlockMergePuzzle.Core
             SpriteRenderer sr = frameObj.AddComponent<SpriteRenderer>();
             sr.sortingOrder = 2;
 
-            if (_currentLevel == LevelId.Level1_TutorialCross)
-            {
-                sr.sprite = GemSpriteManager.GetSprite("map_lv1") ?? GemSpriteManager.GetSprite("Map lv1");
-                frameObj.transform.position = new Vector3(0f, -0.23f, 0f);
+            int levelIndex = (int)_currentLevel;
+            Sprite mapSprite = GemSpriteManager.GetMapSprite(levelIndex);
+            sr.sprite = mapSprite;
 
-                if (sr.sprite != null)
-                {
-                    float nativeW = sr.sprite.rect.width / sr.sprite.pixelsPerUnit;
-                    float nativeH = sr.sprite.rect.height / sr.sprite.pixelsPerUnit;
-                    frameObj.transform.localScale = new Vector3(
-                        CurrentFrameWidth / nativeW,
-                        CurrentFrameHeight / nativeH,
-                        1f);
-                }
-            }
-            else
-            {
-                frameObj.transform.position = Vector3.zero;
-                sr.sprite = GemSpriteManager.GetFrameSprite();
+            Vector3 frameOffset = GetLevelFrameOffset(_currentLevel);
+            frameObj.transform.position = _boardCenter + frameOffset;
 
-                if (sr.sprite != null)
-                {
-                    float nativeW = sr.sprite.rect.width / sr.sprite.pixelsPerUnit;
-                    float nativeH = sr.sprite.rect.height / sr.sprite.pixelsPerUnit;
-                    frameObj.transform.localScale = new Vector3(
-                        GameConfig.FrameWidth / nativeW,
-                        GameConfig.FrameHeight / nativeH,
-                        1f);
-                }
+            if (sr.sprite != null)
+            {
+                float nativeW = sr.sprite.rect.width / sr.sprite.pixelsPerUnit;
+                float nativeH = sr.sprite.rect.height / sr.sprite.pixelsPerUnit;
+                frameObj.transform.localScale = new Vector3(
+                    CurrentFrameWidth / nativeW,
+                    CurrentFrameHeight / nativeH,
+                    1f);
             }
         }
 
         private void BuildExitGates()
         {
-            if (_currentLevel == LevelId.Level1_TutorialCross)
+            BuildLevelGates(_currentLevel);
+        }
+
+        private void BuildLevelGates(LevelId level)
+        {
+            float cw = CurrentCellWidth;
+            float ch = CurrentCellHeight;
+            Vector2 hGateSize = new Vector2(cw * 1.25f, 0.70f);
+            Vector2 vGateSize = new Vector2(0.70f, ch * 1.25f);
+
+            switch (level)
             {
-                // 1. Top Green Gate (Col 3, Row 0): Needs 2
-                Vector3 topGreenPos = new Vector3(0f, 3.15f, 0f);
-                _activeGates.Add(ExitGateView.Create(
-                    PieceColor.Green, 2, GateSide.Top, Vector2.up, topGreenPos, new Vector2(CurrentCellWidth * 1.2f, 0.6f), _gatesRoot));
+                case LevelId.Level1:
+                    // Top Red Gate (col 2, row 0 -> exit at (2, -1)) with High-Tech Holographic Glowing Display
+                    _activeGates.Add(ExitGateView.Create(
+                        PieceColor.Red, 2, GateSide.Top, Vector2.up,
+                        _boardCenter + GetLevelFrameOffset(LevelId.Level1) + new Vector3(0f, 1.409f, 0f),
+                        new Vector2(1.15f, 0.90f), _gatesRoot,
+                        new[] { new Vector2Int(2, -1) },
+                        default,
+                        true));
+                    break;
 
-                // 2. Left Red Gate (Col 0, Row 2): Needs 3
-                Vector3 leftRedPos = new Vector3(-3.90f, 0f, 0f);
-                _activeGates.Add(ExitGateView.Create(
-                    PieceColor.Red, 3, GateSide.Left, Vector2.left, leftRedPos, new Vector2(0.6f, CurrentCellHeight * 1.2f), _gatesRoot));
-            }
-            else
-            {
-                float cw = GameConfig.CellWidth;
-                float ch = GameConfig.CellHeight;
-                float bw = GameConfig.InnerBoardWidth;
-                float bh = GameConfig.InnerBoardHeight;
+                case LevelId.Level2:
+                    // Top Green Gate (col 3, row 0)
+                    _activeGates.Add(ExitGateView.Create(
+                        PieceColor.Green, 2, GateSide.Top, Vector2.up,
+                        GridToWorld(3, 0) + Vector3.up * (ch * 0.85f), hGateSize, _gatesRoot,
+                        new[] { new Vector2Int(3, -1) }));
+                    // Right Red Gate (col 6, row 3)
+                    _activeGates.Add(ExitGateView.Create(
+                        PieceColor.Red, 2, GateSide.Right, Vector2.right,
+                        GridToWorld(6, 3) + Vector3.right * (cw * 0.85f), vGateSize, _gatesRoot,
+                        new[] { new Vector2Int(7, 3) }));
+                    break;
 
-                // 1. Top Blue Gate (Cols 1..2, Row -1): Needs 2
-                Vector3 topBluePos = new Vector3(
-                    (GridToWorld(1, 0).x + GridToWorld(2, 0).x) * 0.5f,
-                    _boardCenter.y + bh * 0.5f + 0.48f,
-                    0f);
-                _activeGates.Add(ExitGateView.Create(
-                    PieceColor.Blue, 2, GateSide.Top, Vector2.up, topBluePos, new Vector2(cw * 2.1f, 0.95f), _gatesRoot));
+                case LevelId.Level3:
+                    // Top-Left Green Gate (col 1, row 0)
+                    _activeGates.Add(ExitGateView.Create(
+                        PieceColor.Green, 2, GateSide.Top, Vector2.up,
+                        GridToWorld(1, 0) + Vector3.up * (ch * 0.85f), hGateSize, _gatesRoot,
+                        new[] { new Vector2Int(1, -1) }));
+                    // Right Red Gate (col 2, row 2)
+                    _activeGates.Add(ExitGateView.Create(
+                        PieceColor.Red, 2, GateSide.Right, Vector2.right,
+                        GridToWorld(2, 2) + Vector3.right * (cw * 0.85f), vGateSize, _gatesRoot,
+                        new[] { new Vector2Int(3, 2) }));
+                    break;
 
-                // 2. Top Green Gate (Cols 3..4, Row -1): Needs 3
-                Vector3 topGreenPos = new Vector3(
-                    (GridToWorld(3, 0).x + GridToWorld(4, 0).x) * 0.5f,
-                    _boardCenter.y + bh * 0.5f + 0.48f,
-                    0f);
-                _activeGates.Add(ExitGateView.Create(
-                    PieceColor.Green, 3, GateSide.Top, Vector2.up, topGreenPos, new Vector2(cw * 2.1f, 0.95f), _gatesRoot));
+                case LevelId.Level4:
+                    // Right Red Gate (col 3, row 1)
+                    _activeGates.Add(ExitGateView.Create(
+                        PieceColor.Red, 2, GateSide.Right, Vector2.right,
+                        GridToWorld(3, 1) + Vector3.right * (cw * 0.85f), vGateSize, _gatesRoot,
+                        new[] { new Vector2Int(4, 1) }));
+                    // Right Green Gate (col 3, row 3)
+                    _activeGates.Add(ExitGateView.Create(
+                        PieceColor.Green, 2, GateSide.Right, Vector2.right,
+                        GridToWorld(3, 3) + Vector3.right * (cw * 0.85f), vGateSize, _gatesRoot,
+                        new[] { new Vector2Int(4, 3) }));
+                    // Right Pink Gate (col 3, row 5)
+                    _activeGates.Add(ExitGateView.Create(
+                        PieceColor.Pink, 2, GateSide.Right, Vector2.right,
+                        GridToWorld(3, 5) + Vector3.right * (cw * 0.85f), vGateSize, _gatesRoot,
+                        new[] { new Vector2Int(4, 5) }));
+                    break;
 
-                // 3. Right Red Gate (Rows 0..1, Col 6): Needs 2
-                Vector3 rightRedPos = new Vector3(
-                    _boardCenter.x + bw * 0.5f + 0.48f,
-                    (GridToWorld(0, 0).y + GridToWorld(0, 1).y) * 0.5f,
-                    0f);
-                _activeGates.Add(ExitGateView.Create(
-                    PieceColor.Red, 2, GateSide.Right, Vector2.right, rightRedPos, new Vector2(0.95f, ch * 2.1f), _gatesRoot));
+                case LevelId.Level5:
+                    // Top Orange Gate (col 2, row 0)
+                    _activeGates.Add(ExitGateView.Create(
+                        PieceColor.Orange, 2, GateSide.Top, Vector2.up,
+                        GridToWorld(2, 0) + Vector3.up * (ch * 0.85f), hGateSize, _gatesRoot,
+                        new[] { new Vector2Int(2, -1) }));
+                    // Bottom Green Gate (col 2, row 6)
+                    _activeGates.Add(ExitGateView.Create(
+                        PieceColor.Green, 2, GateSide.Bottom, Vector2.down,
+                        GridToWorld(2, 6) + Vector3.down * (ch * 0.85f), hGateSize, _gatesRoot,
+                        new[] { new Vector2Int(2, 7) }));
+                    break;
 
-                // 4. Right Pink Gate (Rows 2..3, Col 6): Needs 3
-                Vector3 rightPinkPos = new Vector3(
-                    _boardCenter.x + bw * 0.5f + 0.48f,
-                    (GridToWorld(0, 2).y + GridToWorld(0, 3).y) * 0.5f,
-                    0f);
-                _activeGates.Add(ExitGateView.Create(
-                    PieceColor.Pink, 3, GateSide.Right, Vector2.right, rightPinkPos, new Vector2(0.95f, ch * 2.1f), _gatesRoot));
+                case LevelId.Level6:
+                    // Top Red Gate (col 2, row 1)
+                    _activeGates.Add(ExitGateView.Create(
+                        PieceColor.Red, 2, GateSide.Top, Vector2.up,
+                        GridToWorld(2, 1) + Vector3.up * (ch * 0.85f), hGateSize, _gatesRoot,
+                        new[] { new Vector2Int(2, 0) }));
+                    // Right Green Gate (col 4, row 2)
+                    _activeGates.Add(ExitGateView.Create(
+                        PieceColor.Green, 2, GateSide.Right, Vector2.right,
+                        GridToWorld(4, 2) + Vector3.right * (cw * 0.85f), vGateSize, _gatesRoot,
+                        new[] { new Vector2Int(5, 2) }));
+                    // Left Orange Gate (col 0, row 4)
+                    _activeGates.Add(ExitGateView.Create(
+                        PieceColor.Orange, 2, GateSide.Left, Vector2.left,
+                        GridToWorld(0, 4) + Vector3.left * (cw * 0.85f), vGateSize, _gatesRoot,
+                        new[] { new Vector2Int(-1, 4) }));
+                    // Left Pink Gate (col 0, row 5)
+                    _activeGates.Add(ExitGateView.Create(
+                        PieceColor.Pink, 2, GateSide.Left, Vector2.left,
+                        GridToWorld(0, 5) + Vector3.left * (cw * 0.85f), vGateSize, _gatesRoot,
+                        new[] { new Vector2Int(-1, 5) }));
+                    break;
 
-                // 5. Bottom Orange Gate (Cols 3..4, Row 8): Needs 2
-                Vector3 botOrangePos = new Vector3(
-                    (GridToWorld(3, 7).x + GridToWorld(4, 7).x) * 0.5f,
-                    _boardCenter.y - bh * 0.5f - 0.48f,
-                    0f);
-                _activeGates.Add(ExitGateView.Create(
-                    PieceColor.Orange, 2, GateSide.Bottom, Vector2.down, botOrangePos, new Vector2(cw * 2.1f, 0.95f), _gatesRoot));
+                case LevelId.Level7:
+                    // Top Green Gate (col 3, row 0)
+                    _activeGates.Add(ExitGateView.Create(
+                        PieceColor.Green, 2, GateSide.Top, Vector2.up,
+                        GridToWorld(3, 0) + Vector3.up * (ch * 0.85f), hGateSize, _gatesRoot,
+                        new[] { new Vector2Int(3, -1) }));
+                    // Left Orange Gate (col 0, row 2)
+                    _activeGates.Add(ExitGateView.Create(
+                        PieceColor.Orange, 2, GateSide.Left, Vector2.left,
+                        GridToWorld(0, 2) + Vector3.left * (cw * 0.85f), vGateSize, _gatesRoot,
+                        new[] { new Vector2Int(-1, 2) }));
+                    // Right Pink Gate (col 6, row 2)
+                    _activeGates.Add(ExitGateView.Create(
+                        PieceColor.Pink, 2, GateSide.Right, Vector2.right,
+                        GridToWorld(6, 2) + Vector3.right * (cw * 0.85f), vGateSize, _gatesRoot,
+                        new[] { new Vector2Int(7, 2) }));
+                    break;
 
-                // 6. Left Purple Gate (Rows 1..2, Col -1): Needs 4
-                Vector3 leftPurplePos = new Vector3(
-                    _boardCenter.x - bw * 0.5f - 0.48f,
-                    (GridToWorld(0, 1).y + GridToWorld(0, 2).y) * 0.5f,
-                    0f);
-                _activeGates.Add(ExitGateView.Create(
-                    PieceColor.Purple, 4, GateSide.Left, Vector2.left, leftPurplePos, new Vector2(0.95f, ch * 2.1f), _gatesRoot));
+                case LevelId.Level8:
+                    // Top Red Gate (col 0, row 0)
+                    _activeGates.Add(ExitGateView.Create(
+                        PieceColor.Red, 2, GateSide.Top, Vector2.up,
+                        GridToWorld(0, 0) + Vector3.up * (ch * 0.85f), hGateSize, _gatesRoot,
+                        new[] { new Vector2Int(0, -1) }));
+                    // Right Pink Gate (col 3, row 2)
+                    _activeGates.Add(ExitGateView.Create(
+                        PieceColor.Pink, 2, GateSide.Right, Vector2.right,
+                        GridToWorld(3, 2) + Vector3.right * (cw * 0.85f), vGateSize, _gatesRoot,
+                        new[] { new Vector2Int(4, 2) }));
+                    // Right Blue Gate (col 3, row 4)
+                    _activeGates.Add(ExitGateView.Create(
+                        PieceColor.Blue, 2, GateSide.Right, Vector2.right,
+                        GridToWorld(3, 4) + Vector3.right * (cw * 0.85f), vGateSize, _gatesRoot,
+                        new[] { new Vector2Int(4, 4) }));
+                    // Bottom Green Gate (col 1, row 5)
+                    _activeGates.Add(ExitGateView.Create(
+                        PieceColor.Green, 2, GateSide.Bottom, Vector2.down,
+                        GridToWorld(1, 5) + Vector3.down * (ch * 0.85f), hGateSize, _gatesRoot,
+                        new[] { new Vector2Int(1, 6) }));
+                    break;
 
-                // 7. Left Yellow Gate (Rows 6..7, Col -1): Needs 2
-                Vector3 leftYellowPos = new Vector3(
-                    _boardCenter.x - bw * 0.5f - 0.48f,
-                    (GridToWorld(0, 6).y + GridToWorld(0, 7).y) * 0.5f,
-                    0f);
-                _activeGates.Add(ExitGateView.Create(
-                    PieceColor.Yellow, 2, GateSide.Left, Vector2.left, leftYellowPos, new Vector2(0.95f, ch * 2.1f), _gatesRoot));
+                case LevelId.Level9:
+                    // Top Purple Gate (col 2, row 0)
+                    _activeGates.Add(ExitGateView.Create(
+                        PieceColor.Purple, 2, GateSide.Top, Vector2.up,
+                        GridToWorld(2, 0) + Vector3.up * (ch * 0.85f), hGateSize, _gatesRoot,
+                        new[] { new Vector2Int(2, -1) }));
+                    // Left Orange Gate (col 0, row 2)
+                    _activeGates.Add(ExitGateView.Create(
+                        PieceColor.Orange, 2, GateSide.Left, Vector2.left,
+                        GridToWorld(0, 2) + Vector3.left * (cw * 0.85f), vGateSize, _gatesRoot,
+                        new[] { new Vector2Int(-1, 2) }));
+                    // Right Green Gate (col 4, row 2)
+                    _activeGates.Add(ExitGateView.Create(
+                        PieceColor.Green, 2, GateSide.Right, Vector2.right,
+                        GridToWorld(4, 2) + Vector3.right * (cw * 0.85f), vGateSize, _gatesRoot,
+                        new[] { new Vector2Int(5, 2) }));
+                    // Bottom-Left Red Gate (col 1, row 6)
+                    _activeGates.Add(ExitGateView.Create(
+                        PieceColor.Red, 2, GateSide.Bottom, Vector2.down,
+                        GridToWorld(1, 6) + Vector3.down * (ch * 0.85f), hGateSize, _gatesRoot,
+                        new[] { new Vector2Int(1, 7) }));
+                    // Bottom-Right Blue Gate (col 3, row 6)
+                    _activeGates.Add(ExitGateView.Create(
+                        PieceColor.Blue, 2, GateSide.Bottom, Vector2.down,
+                        GridToWorld(3, 6) + Vector3.down * (ch * 0.85f), hGateSize, _gatesRoot,
+                        new[] { new Vector2Int(3, 7) }));
+                    break;
+
+                case LevelId.Level10:
+                    // Top Red Gate (col 3, row 0): Needs 3
+                    _activeGates.Add(ExitGateView.Create(
+                        PieceColor.Red, 3, GateSide.Top, Vector2.up,
+                        GridToWorld(3, 0) + Vector3.up * (ch * 0.85f), hGateSize, _gatesRoot,
+                        new[] { new Vector2Int(3, -1) }));
+                    // Left Green Gate (col 1, row 3): Needs 2
+                    _activeGates.Add(ExitGateView.Create(
+                        PieceColor.Green, 2, GateSide.Left, Vector2.left,
+                        GridToWorld(1, 3) + Vector3.left * (cw * 0.85f), vGateSize, _gatesRoot,
+                        new[] { new Vector2Int(0, 3) }));
+                    // Right Green Gate (col 5, row 3): Needs 2
+                    _activeGates.Add(ExitGateView.Create(
+                        PieceColor.Green, 2, GateSide.Right, Vector2.right,
+                        GridToWorld(5, 3) + Vector3.right * (cw * 0.85f), vGateSize, _gatesRoot,
+                        new[] { new Vector2Int(6, 3) }));
+                    break;
             }
         }
 
         private void SpawnPieces()
         {
-            if (_currentLevel == LevelId.Level1_TutorialCross)
-            {
-                SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 1, new Vector2Int(3, 0));
-                SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 1, new Vector2Int(3, 5));
-                SpawnPiece(PieceColor.Red, PieceShape.Single_1x1, 1, new Vector2Int(0, 2));
-                SpawnPiece(PieceColor.Red, PieceShape.Single_1x1, 1, new Vector2Int(6, 2));
-                SpawnPiece(PieceColor.Red, PieceShape.Single_1x1, 2, new Vector2Int(3, 2));
-            }
-            else
-            {
-                SpawnReferenceLevelPieces();
-            }
+            SpawnLevelPieces(_currentLevel);
         }
 
-        private void SpawnReferenceLevelPieces()
+        private void SpawnLevelPieces(LevelId level)
         {
-            // 21 Pieces mapped strictly from reference layout:
+            switch (level)
+            {
+                case LevelId.Level1:
+                    SpawnPiece(PieceColor.Red, PieceShape.Single_1x1, 1, new Vector2Int(0, 1));
+                    SpawnPiece(PieceColor.Red, PieceShape.Single_1x1, 1, new Vector2Int(4, 1));
+                    break;
 
-            // Row 0 & 1
-            SpawnPiece(PieceColor.Red, PieceShape.Vertical_1x2, 1, new Vector2Int(0, 0));
-            SpawnPiece(PieceColor.Pink, PieceShape.Single_1x1, 2, new Vector2Int(1, 0));
-            SpawnPiece(PieceColor.Purple, PieceShape.Vertical_1x2, 3, new Vector2Int(2, 0));
-            SpawnPiece(PieceColor.Orange, PieceShape.ShapeL_BottomLeft, 1, new Vector2Int(3, 0));
-            SpawnPiece(PieceColor.Green, PieceShape.ShapeL_TopRight, 2, new Vector2Int(4, 0));
-            SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 2, new Vector2Int(1, 1));
+                case LevelId.Level2:
+                    SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 1, new Vector2Int(3, 1));
+                    SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 1, new Vector2Int(3, 5));
+                    SpawnPiece(PieceColor.Red, PieceShape.Single_1x1, 1, new Vector2Int(1, 3));
+                    SpawnPiece(PieceColor.Red, PieceShape.Single_1x1, 1, new Vector2Int(5, 3));
+                    break;
 
-            // Row 2 & 3
-            SpawnPiece(PieceColor.Yellow, PieceShape.Horizontal_2x1, 1, new Vector2Int(0, 2));
-            SpawnPiece(PieceColor.Red, PieceShape.Vertical_1x2, 2, new Vector2Int(2, 2));
-            SpawnPiece(PieceColor.Blue, PieceShape.Horizontal_2x1, 1, new Vector2Int(3, 2));
-            SpawnPiece(PieceColor.Red, PieceShape.Vertical_1x2, 1, new Vector2Int(5, 2));
+                case LevelId.Level3:
+                    SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 1, new Vector2Int(2, 0));
+                    SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 1, new Vector2Int(2, 4));
+                    SpawnPiece(PieceColor.Red, PieceShape.Single_1x1, 1, new Vector2Int(1, 5));
+                    SpawnPiece(PieceColor.Red, PieceShape.Single_1x1, 1, new Vector2Int(3, 5));
+                    break;
 
-            // Row 3 & 4
-            SpawnPiece(PieceColor.Green, PieceShape.ShapeL_TopRight, 1, new Vector2Int(0, 3));
-            SpawnPiece(PieceColor.Purple, PieceShape.Vertical_1x2, 2, new Vector2Int(3, 3));
+                case LevelId.Level4:
+                    SpawnPiece(PieceColor.Red, PieceShape.Single_1x1, 1, new Vector2Int(1, 1));
+                    SpawnPiece(PieceColor.Red, PieceShape.Single_1x1, 1, new Vector2Int(0, 0));
+                    SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 1, new Vector2Int(1, 3));
+                    SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 1, new Vector2Int(0, 2));
+                    SpawnPiece(PieceColor.Pink, PieceShape.Single_1x1, 1, new Vector2Int(1, 5));
+                    SpawnPiece(PieceColor.Pink, PieceShape.Single_1x1, 1, new Vector2Int(0, 6));
+                    break;
 
-            // Row 4 & 5
-            SpawnPiece(PieceColor.Purple, PieceShape.Vertical_1x2, 1, new Vector2Int(0, 4));
-            SpawnPiece(PieceColor.Pink, PieceShape.Single_1x1, 1, new Vector2Int(5, 4));
-            SpawnPiece(PieceColor.Blue, PieceShape.Horizontal_2x1, 1, new Vector2Int(2, 5));
-            SpawnPiece(PieceColor.Yellow, PieceShape.Horizontal_2x1, 1, new Vector2Int(4, 5));
+                case LevelId.Level5:
+                    SpawnPiece(PieceColor.Orange, PieceShape.Single_1x1, 1, new Vector2Int(1, 2));
+                    SpawnPiece(PieceColor.Orange, PieceShape.Single_1x1, 1, new Vector2Int(3, 2));
+                    SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 1, new Vector2Int(1, 4));
+                    SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 1, new Vector2Int(3, 4));
+                    SpawnPiece(PieceColor.Blue, PieceShape.Horizontal_2x1, 1, new Vector2Int(1, 3));
+                    break;
 
-            // Row 6 & 7
-            SpawnPiece(PieceColor.Orange, PieceShape.ShapeL_BottomLeft, 1, new Vector2Int(0, 6));
-            SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 2, new Vector2Int(1, 6));
-            SpawnPiece(PieceColor.Purple, PieceShape.Vertical_1x2, 1, new Vector2Int(2, 6));
-            SpawnPiece(PieceColor.Green, PieceShape.ShapeL_TopRight, 1, new Vector2Int(4, 6));
-            SpawnPiece(PieceColor.Pink, PieceShape.Single_1x1, 1, new Vector2Int(4, 7));
+                case LevelId.Level6:
+                    SpawnPiece(PieceColor.Red, PieceShape.Single_1x1, 1, new Vector2Int(1, 1));
+                    SpawnPiece(PieceColor.Red, PieceShape.Single_1x1, 1, new Vector2Int(3, 1));
+                    SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 1, new Vector2Int(2, 2));
+                    SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 1, new Vector2Int(3, 3));
+                    SpawnPiece(PieceColor.Orange, PieceShape.Single_1x1, 1, new Vector2Int(1, 4));
+                    SpawnPiece(PieceColor.Orange, PieceShape.Single_1x1, 1, new Vector2Int(2, 4));
+                    SpawnPiece(PieceColor.Pink, PieceShape.Single_1x1, 1, new Vector2Int(1, 5));
+                    SpawnPiece(PieceColor.Pink, PieceShape.Single_1x1, 1, new Vector2Int(2, 5));
+                    break;
+
+                case LevelId.Level7:
+                    SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 1, new Vector2Int(2, 1));
+                    SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 1, new Vector2Int(4, 1));
+                    SpawnPiece(PieceColor.Orange, PieceShape.Single_1x1, 1, new Vector2Int(1, 2));
+                    SpawnPiece(PieceColor.Orange, PieceShape.Single_1x1, 1, new Vector2Int(2, 3));
+                    SpawnPiece(PieceColor.Pink, PieceShape.Single_1x1, 1, new Vector2Int(5, 2));
+                    SpawnPiece(PieceColor.Pink, PieceShape.Single_1x1, 1, new Vector2Int(4, 3));
+                    break;
+
+                case LevelId.Level8:
+                    SpawnPiece(PieceColor.Red, PieceShape.Single_1x1, 1, new Vector2Int(0, 1));
+                    SpawnPiece(PieceColor.Red, PieceShape.Single_1x1, 1, new Vector2Int(1, 1));
+                    SpawnPiece(PieceColor.Pink, PieceShape.Single_1x1, 1, new Vector2Int(2, 2));
+                    SpawnPiece(PieceColor.Pink, PieceShape.Single_1x1, 1, new Vector2Int(2, 3));
+                    SpawnPiece(PieceColor.Blue, PieceShape.Single_1x1, 1, new Vector2Int(2, 4));
+                    SpawnPiece(PieceColor.Blue, PieceShape.Single_1x1, 1, new Vector2Int(1, 4));
+                    SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 1, new Vector2Int(0, 5));
+                    SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 1, new Vector2Int(1, 3));
+                    break;
+
+                case LevelId.Level9:
+                    SpawnPiece(PieceColor.Purple, PieceShape.Single_1x1, 1, new Vector2Int(1, 1));
+                    SpawnPiece(PieceColor.Purple, PieceShape.Single_1x1, 1, new Vector2Int(3, 1));
+                    SpawnPiece(PieceColor.Orange, PieceShape.Single_1x1, 1, new Vector2Int(1, 2));
+                    SpawnPiece(PieceColor.Orange, PieceShape.Single_1x1, 1, new Vector2Int(2, 3));
+                    SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 1, new Vector2Int(3, 2));
+                    SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 1, new Vector2Int(2, 1));
+                    SpawnPiece(PieceColor.Red, PieceShape.Single_1x1, 1, new Vector2Int(1, 5));
+                    SpawnPiece(PieceColor.Red, PieceShape.Single_1x1, 1, new Vector2Int(2, 4));
+                    SpawnPiece(PieceColor.Blue, PieceShape.Single_1x1, 1, new Vector2Int(3, 5));
+                    SpawnPiece(PieceColor.Blue, PieceShape.Single_1x1, 1, new Vector2Int(2, 5));
+                    break;
+
+                case LevelId.Level10:
+                    SpawnPiece(PieceColor.Red, PieceShape.Single_1x1, 2, new Vector2Int(3, 1));
+                    SpawnPiece(PieceColor.Red, PieceShape.Single_1x1, 1, new Vector2Int(3, 2));
+                    SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 1, new Vector2Int(2, 3));
+                    SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 1, new Vector2Int(1, 4));
+                    SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 1, new Vector2Int(4, 3));
+                    SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 1, new Vector2Int(5, 4));
+                    SpawnPiece(PieceColor.Blue, PieceShape.Horizontal_2x1, 1, new Vector2Int(2, 5));
+                    SpawnPiece(PieceColor.Yellow, PieceShape.Vertical_1x2, 1, new Vector2Int(4, 5));
+                    break;
+            }
         }
 
         private PuzzlePiece SpawnPiece(PieceColor color, PieceShape shape, int value, Vector2Int origin)
         {
             Vector3 worldPos = CalculatePieceWorldCenter(shape, origin);
-            PuzzlePiece piece = PuzzlePiece.Create(color, shape, value, origin, worldPos, _piecesRoot);
+            Vector2? customCellSize = _currentLevel == LevelId.Level1
+                ? new Vector2(1.125f, 1.06f)
+                : (Vector2?)null;
+            PuzzlePiece piece = PuzzlePiece.Create(color, shape, value, origin, worldPos, _piecesRoot, customCellSize);
 
             foreach (var cell in piece.OccupiedCells)
             {
@@ -458,28 +696,213 @@ namespace BlockMergePuzzle.Core
 
         public Vector3 GridToWorld(int col, int row)
         {
-            if (_currentLevel == LevelId.Level1_TutorialCross)
-            {
-                float x = (col - 3) * CurrentCellWidth;
-                float y = (2 - row) * CurrentCellHeight;
-                return new Vector3(x, y, 0f);
-            }
-            else
-            {
-                float x = _boardCenter.x - (GameConfig.InnerBoardWidth * 0.5f) + (col + 0.5f) * GameConfig.CellWidth;
-                float y = _boardCenter.y + (GameConfig.InnerBoardHeight * 0.5f) - (row + 0.5f) * GameConfig.CellHeight;
-                return new Vector3(x, y, 0f);
-            }
+            float cw = CurrentCellWidth;
+            float ch = CurrentCellHeight;
+            float totalW = CurrentColumns * cw;
+            float totalH = CurrentRows * ch;
+
+            Vector3 center = _boardCenter + GetLevelGridOffset(_currentLevel);
+            float x = center.x - (totalW * 0.5f) + (col + 0.5f) * cw;
+            float y = center.y + (totalH * 0.5f) - (row + 0.5f) * ch;
+            return new Vector3(x, y, 0f);
         }
 
         public bool IsValidCoord(int col, int row)
         {
-            if (_currentLevel == LevelId.Level1_TutorialCross)
+            return CheckLevelValidCoord(_currentLevel, col, row);
+        }
+
+        // ==================== 10 LEVEL STATIC CONFIGURATION ====================
+
+        public static int GetLevelColumns(LevelId level)
+        {
+            switch (level)
             {
-                // Cross corridors: column 3 (rows 0..5) or row 2 (cols 0..6)
-                return (col == 3 && row >= 0 && row < 6) || (row == 2 && col >= 0 && col < 7);
+                case LevelId.Level1: return 5;
+                case LevelId.Level2: return 7;
+                case LevelId.Level3: return 5;
+                case LevelId.Level4: return 4;
+                case LevelId.Level5: return 5;
+                case LevelId.Level6: return 5;
+                case LevelId.Level7: return 7;
+                case LevelId.Level8: return 4;
+                case LevelId.Level9: return 5;
+                case LevelId.Level10: return 7;
+                default: return 7;
             }
-            return col >= 0 && col < CurrentColumns && row >= 0 && row < CurrentRows;
+        }
+
+        public static int GetLevelRows(LevelId level)
+        {
+            switch (level)
+            {
+                case LevelId.Level1: return 2;
+                case LevelId.Level2: return 6;
+                case LevelId.Level3: return 6;
+                case LevelId.Level4: return 7;
+                case LevelId.Level5: return 7;
+                case LevelId.Level6: return 7;
+                case LevelId.Level7: return 4;
+                case LevelId.Level8: return 6;
+                case LevelId.Level9: return 7;
+                case LevelId.Level10: return 7;
+                default: return 6;
+            }
+        }
+
+        public static float GetLevelCellWidth(LevelId level)
+        {
+            switch (level)
+            {
+                case LevelId.Level1: return 1.36f;
+                case LevelId.Level2: return 1.00f;
+                case LevelId.Level3: return 1.10f;
+                case LevelId.Level4: return 1.10f;
+                case LevelId.Level5: return 1.10f;
+                case LevelId.Level6: return 1.05f;
+                case LevelId.Level7: return 0.98f;
+                case LevelId.Level8: return 1.15f;
+                case LevelId.Level9: return 1.05f;
+                case LevelId.Level10: return 0.98f;
+                default: return 1.00f;
+            }
+        }
+
+        public static float GetLevelCellHeight(LevelId level)
+        {
+            switch (level)
+            {
+                case LevelId.Level1: return 1.20f;
+                case LevelId.Level2: return 1.00f;
+                case LevelId.Level3: return 1.10f;
+                case LevelId.Level4: return 1.10f;
+                case LevelId.Level5: return 1.10f;
+                case LevelId.Level6: return 1.05f;
+                case LevelId.Level7: return 0.85f;
+                case LevelId.Level8: return 1.10f;
+                case LevelId.Level9: return 1.05f;
+                case LevelId.Level10: return 0.98f;
+                default: return 1.00f;
+            }
+        }
+
+        public static float GetLevelFrameWidth(LevelId level)
+        {
+            switch (level)
+            {
+                case LevelId.Level1: return 8.000f;
+                case LevelId.Level2: return 8.000f;
+                case LevelId.Level3: return 8.000f;
+                case LevelId.Level4: return 7.459f;
+                case LevelId.Level5: return 8.000f;
+                case LevelId.Level6: return 7.519f;
+                case LevelId.Level7: return 8.000f;
+                case LevelId.Level8: return 8.000f;
+                case LevelId.Level9: return 7.947f;
+                case LevelId.Level10: return 8.000f;
+                default: return 8.000f;
+            }
+        }
+
+        public static float GetLevelFrameHeight(LevelId level)
+        {
+            switch (level)
+            {
+                case LevelId.Level1: return 4.413f;
+                case LevelId.Level2: return 7.699f;
+                case LevelId.Level3: return 8.808f;
+                case LevelId.Level4: return 10.000f;
+                case LevelId.Level5: return 9.890f;
+                case LevelId.Level6: return 10.000f;
+                case LevelId.Level7: return 3.878f;
+                case LevelId.Level8: return 9.811f;
+                case LevelId.Level9: return 10.000f;
+                case LevelId.Level10: return 8.209f;
+                default: return 7.535f;
+            }
+        }
+
+        public static Vector3 GetLevelFrameOffset(LevelId level)
+        {
+            switch (level)
+            {
+                case LevelId.Level1: return new Vector3(0f, -0.20f, 0f);
+                case LevelId.Level7: return new Vector3(0f, -0.15f, 0f);
+                default: return Vector3.zero;
+            }
+        }
+
+        public static Vector3 GetLevelGridOffset(LevelId level)
+        {
+            switch (level)
+            {
+                case LevelId.Level1: return new Vector3(0f, -0.526f, 0f);
+                case LevelId.Level7: return new Vector3(0f, -0.15f, 0f);
+                default: return Vector3.zero;
+            }
+        }
+
+        public static bool CheckLevelValidCoord(LevelId level, int col, int row)
+        {
+            switch (level)
+            {
+                case LevelId.Level1:
+                    return (col == 2 && row == 0) || (row == 1 && col >= 0 && col < 5);
+
+                case LevelId.Level2:
+                    return (col == 3 && row >= 0 && row < 6) || (row == 3 && col >= 0 && col < 7);
+
+                case LevelId.Level3:
+                    return (col == 1 && row >= 0 && row <= 1) || (col == 2 && row >= 0 && row <= 5) || (row == 5 && col >= 0 && col <= 4);
+
+                case LevelId.Level4:
+                    return (col == 0 && row >= 0 && row <= 6) ||
+                           (row == 1 && col >= 0 && col <= 3) ||
+                           (row == 3 && col >= 0 && col <= 3) ||
+                           (row == 5 && col >= 0 && col <= 3);
+
+                case LevelId.Level5:
+                    if (row == 0 || row == 6) return col == 2;
+                    if (row == 1 || row == 5) return col >= 1 && col <= 3;
+                    if (row >= 2 && row <= 4) return col >= 0 && col <= 4;
+                    return false;
+
+                case LevelId.Level6:
+                    if (row == 0) return false;
+                    if (row == 1) return col >= 1 && col <= 3;
+                    if (row == 2) return col >= 2 && col <= 4;
+                    if (row == 3) return col >= 1 && col <= 4;
+                    if (row == 4 || row == 5) return col >= 0 && col <= 3;
+                    if (row == 6) return col >= 0 && col <= 2;
+                    return false;
+
+                case LevelId.Level7:
+                    if (row == 0) return col >= 2 && col <= 4;
+                    if (row == 1) return col >= 1 && col <= 5;
+                    if (row == 2 || row == 3) return col >= 0 && col <= 6;
+                    return false;
+
+                case LevelId.Level8:
+                    if (col >= 0 && col <= 1 && row >= 0 && row <= 5) return true;
+                    if (col >= 2 && col <= 3 && row >= 1 && row <= 5) return true;
+                    return false;
+
+                case LevelId.Level9:
+                    if (col >= 1 && col <= 3 && row >= 0 && row <= 6) return true;
+                    if ((row == 2 || row == 5) && col >= 0 && col <= 4) return true;
+                    return false;
+
+                case LevelId.Level10:
+                    if (row == 0) return col == 3;
+                    if (row == 1 || row == 2) return col >= 2 && col <= 4;
+                    if (row == 3 || row == 4) return col >= 1 && col <= 5;
+                    if (row == 5) return col >= 0 && col <= 6;
+                    if (row == 6) return col >= 2 && col <= 4;
+                    return false;
+
+                default:
+                    return col >= 0 && col < GetLevelColumns(level) && row >= 0 && row < GetLevelRows(level);
+            }
         }
 
         public PuzzlePiece GetPieceAt(int col, int row)
@@ -660,12 +1083,12 @@ namespace BlockMergePuzzle.Core
                         // Check gate conditions: matching color & sufficient value
                         if (piece.PieceColor != gate.GateColor)
                         {
-                            result.FailReason = $"Sai màu cổng! Cổng này màu {gate.ColorDisplayName}, khối của bạn màu {piece.ColorDisplayName}.";
+                            result.FailReason = $"Sai mÃ u cá»•ng! Cá»•ng nÃ y mÃ u {gate.ColorDisplayName}, khá»‘i cá»§a báº¡n mÃ u {piece.ColorDisplayName}.";
                             break; // Gate acts as a wall
                         }
                         if (piece.Value < gate.RequiredValue)
                         {
-                            result.FailReason = $"Chưa đủ số yêu cầu! Cổng cần số {gate.RequiredValue}, khối mới có số {piece.Value}.";
+                            result.FailReason = $"ChÆ°a Ä‘á»§ sá»‘ yÃªu cáº§u! Cá»•ng cáº§n sá»‘ {gate.RequiredValue}, khá»‘i má»›i cÃ³ sá»‘ {piece.Value}.";
                             break; // Gate acts as a wall
                         }
 
@@ -706,10 +1129,10 @@ namespace BlockMergePuzzle.Core
                 if (hitPiece != null)
                 {
                     // Check merge condition on straight-line collision:
-                    // 1) Cùng Shape
-                    // 2) Cùng Color
-                    // 3) Cùng Number
-                    // 4) Thẳng nhau trên dưới trái phải (KHÔNG ĐƯỢC MERGE CHÉO)
+                    // 1) CÃ¹ng Shape
+                    // 2) CÃ¹ng Color
+                    // 3) CÃ¹ng Number
+                    // 4) Tháº³ng nhau trÃªn dÆ°á»›i trÃ¡i pháº£i (KHÃ”NG ÄÆ¯á»¢C MERGE CHÃ‰O)
                     bool sameShape = (piece.Shape == hitPiece.Shape);
                     bool sameColor = (piece.PieceColor == hitPiece.PieceColor);
                     bool sameValue = (piece.Value == hitPiece.Value);
@@ -733,19 +1156,19 @@ namespace BlockMergePuzzle.Core
                         // Incompatible or misaligned: acts as obstacle, stop before it
                         if (sameColor && sameShape && sameValue && !isAligned)
                         {
-                            result.FailReason = "Khối bị lệch hàng/cột, không thể gộp!";
+                            result.FailReason = "Khá»‘i bá»‹ lá»‡ch hÃ ng/cá»™t, khÃ´ng thá»ƒ gá»™p!";
                         }
                         else if (sameColor && !sameValue && sameShape)
                         {
-                            result.FailReason = $"Khác số! Chỉ gộp được 2 khối cùng số ({piece.Value} != {hitPiece.Value}).";
+                            result.FailReason = $"KhÃ¡c sá»‘! Chá»‰ gá»™p Ä‘Æ°á»£c 2 khá»‘i cÃ¹ng sá»‘ ({piece.Value} != {hitPiece.Value}).";
                         }
                         else if (!sameColor && sameShape && sameValue)
                         {
-                            result.FailReason = $"Khác màu! Không thể gộp khối màu {piece.ColorDisplayName} với màu {hitPiece.ColorDisplayName}.";
+                            result.FailReason = $"KhÃ¡c mÃ u! KhÃ´ng thá»ƒ gá»™p khá»‘i mÃ u {piece.ColorDisplayName} vá»›i mÃ u {hitPiece.ColorDisplayName}.";
                         }
                         else if (!sameShape && sameColor && sameValue)
                         {
-                            result.FailReason = "Khác hình dạng! Chỉ gộp được 2 khối cùng hình dáng.";
+                            result.FailReason = "KhÃ¡c hÃ¬nh dáº¡ng! Chá»‰ gá»™p Ä‘Æ°á»£c 2 khá»‘i cÃ¹ng hÃ¬nh dÃ¡ng.";
                         }
                         break;
                     }
@@ -762,96 +1185,19 @@ namespace BlockMergePuzzle.Core
 
         private ExitGateView CheckGateAlignment(PuzzlePiece piece, Vector2Int direction, List<Vector2Int> candidateCells)
         {
-            if (_currentLevel == LevelId.Level1_TutorialCross)
+            foreach (var gate in _activeGates)
             {
-                if (direction == new Vector2Int(0, -1)) // Up (towards row -1)
+                if (gate == null) continue;
+                if (gate.TriggerDirection != direction) continue;
+
+                foreach (var c in candidateCells)
                 {
-                    bool hasExitCell = false;
-                    foreach (var c in candidateCells)
+                    if (gate.TriggerCoords != null && gate.TriggerCoords.Contains(c))
                     {
-                        if (c.y < 0 && c.x == 3) hasExitCell = true;
+                        return gate;
                     }
-                    if (hasExitCell) return FindGate(PieceColor.Green, GateSide.Top);
                 }
-                else if (direction == new Vector2Int(-1, 0)) // Left (towards col -1)
-                {
-                    bool hasExitCell = false;
-                    foreach (var c in candidateCells)
-                    {
-                        if (c.x < 0 && c.y == 2) hasExitCell = true;
-                    }
-                    if (hasExitCell) return FindGate(PieceColor.Red, GateSide.Left);
-                }
-                return null;
             }
-
-            if (direction == new Vector2Int(0, -1)) // Up (towards row -1)
-            {
-                int minCol = int.MaxValue, maxCol = int.MinValue;
-                bool hasExitCell = false;
-                foreach (var c in candidateCells)
-                {
-                    if (c.y < 0) hasExitCell = true;
-                    if (c.x < minCol) minCol = c.x;
-                    if (c.x > maxCol) maxCol = c.x;
-                }
-                if (!hasExitCell) return null;
-
-                // Blue Gate: Cols [1, 2]
-                if (minCol >= 1 && maxCol <= 2) return FindGate(PieceColor.Blue, GateSide.Top);
-                // Green Gate: Cols [3, 4]
-                if (minCol >= 3 && maxCol <= 4) return FindGate(PieceColor.Green, GateSide.Top);
-            }
-            else if (direction == new Vector2Int(1, 0)) // Right
-            {
-                int minRow = int.MaxValue, maxRow = int.MinValue;
-                bool hasExitCell = false;
-                foreach (var c in candidateCells)
-                {
-                    if (c.x >= CurrentColumns) hasExitCell = true;
-                    if (c.y < minRow) minRow = c.y;
-                    if (c.y > maxRow) maxRow = c.y;
-                }
-                if (!hasExitCell) return null;
-
-                // Red Gate: Rows [0, 1]
-                if (minRow >= 0 && maxRow <= 1) return FindGate(PieceColor.Red, GateSide.Right);
-                // Pink Gate: Rows [2, 3]
-                if (minRow >= 2 && maxRow <= 3) return FindGate(PieceColor.Pink, GateSide.Right);
-            }
-            else if (direction == new Vector2Int(0, 1)) // Down (towards row CurrentRows)
-            {
-                int minCol = int.MaxValue, maxCol = int.MinValue;
-                bool hasExitCell = false;
-                foreach (var c in candidateCells)
-                {
-                    if (c.y >= CurrentRows) hasExitCell = true;
-                    if (c.x < minCol) minCol = c.x;
-                    if (c.x > maxCol) maxCol = c.x;
-                }
-                if (!hasExitCell) return null;
-
-                // Orange Gate: Cols [3, 4]
-                if (minCol >= 3 && maxCol <= 4) return FindGate(PieceColor.Orange, GateSide.Bottom);
-            }
-            else if (direction == new Vector2Int(-1, 0)) // Left
-            {
-                int minRow = int.MaxValue, maxRow = int.MinValue;
-                bool hasExitCell = false;
-                foreach (var c in candidateCells)
-                {
-                    if (c.x < 0) hasExitCell = true;
-                    if (c.y < minRow) minRow = c.y;
-                    if (c.y > maxRow) maxRow = c.y;
-                }
-                if (!hasExitCell) return null;
-
-                // Purple Gate: Rows [1, 2]
-                if (minRow >= 1 && maxRow <= 2) return FindGate(PieceColor.Purple, GateSide.Left);
-                // Yellow Gate: Rows [6, 7]
-                if (minRow >= 6 && maxRow <= 7) return FindGate(PieceColor.Yellow, GateSide.Left);
-            }
-
             return null;
         }
 
@@ -950,24 +1296,109 @@ namespace BlockMergePuzzle.Core
             float actualDuration = Mathf.Clamp(actualDist / 9.5f, 0.05f, duration);
 
             ClearPieceFromGrid(piece);
-            SoundManager.Instance.PlayDrop();
-            piece.SlideTo(targetWorldPos, targetOrigin, actualDuration, () =>
+            target.LockForMerge();
+            SoundManager.Instance?.PlayDrop();
+
+            piece.SlideAndSlamMerge(targetWorldPos, targetOrigin, target,
+                onImpact: () =>
+                {
+                    if (target != null)
+                    {
+                        ClearPieceFromGrid(target);
+                        _activePieces.Remove(target);
+                        Destroy(target.gameObject);
+                    }
+
+                    piece.SetValue(piece.Value + 1);
+                    AssignPieceToGrid(piece, targetOrigin);
+
+                    Score += piece.Value * 50;
+                    OnScoreChanged?.Invoke(Score);
+                    OnRemainingBlocksChanged?.Invoke(RemainingBlocksCount);
+
+                    SoundManager.Instance?.PlayMerge(piece.Value);
+                    SpawnMergeFlash(targetWorldPos);
+                    GameUI.Instance?.ShowFloatingText($"+50 HỢP NHẤT [{piece.Value}]!", targetWorldPos, UnityEngine.Color.cyan);
+                },
+                onArrival: null,
+                approachDuration: actualDuration);
+        }
+
+        public void SpawnMergeFlash(Vector3 worldPos)
+        {
+            StartCoroutine(CoMergeFlash(worldPos));
+        }
+
+        private IEnumerator CoMergeFlash(Vector3 worldPos)
+        {
+            GameObject flashObj = new GameObject("MergeFlashEffect");
+            flashObj.transform.position = new Vector3(worldPos.x, worldPos.y, -0.5f);
+
+            GameObject glowObj = new GameObject("RadialGlow");
+            glowObj.transform.SetParent(flashObj.transform, false);
+            SpriteRenderer glowSr = glowObj.AddComponent<SpriteRenderer>();
+            glowSr.sprite = SpriteGenerator.GetRadialGlowSprite();
+            glowSr.sortingOrder = 90;
+            glowSr.color = new UnityEngine.Color(1f, 0.98f, 0.82f, 0.95f);
+
+            GameObject flareObj = new GameObject("StarFlare");
+            flareObj.transform.SetParent(flashObj.transform, false);
+            SpriteRenderer flareSr = flareObj.AddComponent<SpriteRenderer>();
+            flareSr.sprite = SpriteGenerator.GetStarFlareSprite();
+            flareSr.sortingOrder = 92;
+            flareSr.color = new UnityEngine.Color(1f, 1f, 1f, 1.0f);
+
+            KickCameraImpact(0.045f, 0.07f);
+
+            float duration = 0.22f;
+            float elapsed = 0f;
+
+            while (elapsed < duration)
             {
-                ClearPieceFromGrid(target);
-                _activePieces.Remove(target);
-                Destroy(target.gameObject);
+                elapsed += Time.deltaTime;
+                float t = Mathf.Clamp01(elapsed / duration);
 
-                piece.SetValue(piece.Value + 1);
-                piece.PlayMergeEffect();
-                AssignPieceToGrid(piece, targetOrigin);
+                float haloScale = Mathf.Lerp(0.40f, 2.40f, Mathf.Sqrt(t));
+                glowObj.transform.localScale = new Vector3(haloScale, haloScale, 1f);
+                glowSr.color = new UnityEngine.Color(1f, 0.98f, 0.82f, (1f - t) * 0.95f);
 
-                Score += piece.Value * 50;
-                OnScoreChanged?.Invoke(Score);
-                OnRemainingBlocksChanged?.Invoke(RemainingBlocksCount);
+                float flareScale = Mathf.Lerp(0.25f, 1.75f, Mathf.Sqrt(t));
+                flareObj.transform.localScale = new Vector3(flareScale, flareScale, 1f);
+                flareObj.transform.localRotation = Quaternion.Euler(0f, 0f, t * 30f);
+                flareSr.color = new UnityEngine.Color(1f, 1f, 1f, Mathf.Pow(1f - t, 1.5f));
 
-                SoundManager.Instance.PlayMerge(piece.Value);
-                GameUI.Instance.ShowFloatingText($"+50 HỢP NHẤT [{piece.Value}]!", targetWorldPos, UnityEngine.Color.cyan);
-            });
+                yield return null;
+            }
+
+            Destroy(flashObj);
+        }
+
+        private Coroutine _cameraKickCoroutine;
+
+        public void KickCameraImpact(float intensity = 0.045f, float duration = 0.07f)
+        {
+            if (_cameraKickCoroutine != null) StopCoroutine(_cameraKickCoroutine);
+            _cameraKickCoroutine = StartCoroutine(CoCameraKick(intensity, duration));
+        }
+
+        private IEnumerator CoCameraKick(float intensity, float duration)
+        {
+            Camera cam = Camera.main;
+            if (cam == null) yield break;
+            Vector3 basePos = cam.transform.position;
+            float elapsed = 0f;
+
+            while (elapsed < duration)
+            {
+                elapsed += Time.deltaTime;
+                float t = Mathf.Clamp01(elapsed / duration);
+                float kickY = -Mathf.Sin(t * Mathf.PI) * intensity;
+                cam.transform.position = new Vector3(basePos.x, basePos.y + kickY, basePos.z);
+                yield return null;
+            }
+
+            cam.transform.position = basePos;
+            _cameraKickCoroutine = null;
         }
 
         public void ExecuteEscape(PuzzlePiece piece, ExitGateView gate, float duration = 0.12f)
@@ -991,7 +1422,7 @@ namespace BlockMergePuzzle.Core
                 });
 
                 SoundManager.Instance.PlayEscape();
-                GameUI.Instance.ShowFloatingText("+150 ĐÃ THOÁT CỔNG!", gatePos, UnityEngine.Color.yellow);
+                GameUI.Instance.ShowFloatingText("+150 ÄÃƒ THOÃT Cá»”NG!", gatePos, UnityEngine.Color.yellow);
             });
         }
 
@@ -1007,11 +1438,19 @@ namespace BlockMergePuzzle.Core
         public void SwitchLevel(LevelId level)
         {
             _currentLevel = level;
+            if (_initialPiecesTemplate != null)
+            {
+                Destroy(_initialPiecesTemplate);
+                _initialPiecesTemplate = null;
+            }
 #if UNITY_EDITOR
             BakeEditModeLevel();
 #else
-            InitializeLevel();
+            InitializeLevel(true);
 #endif
         }
     }
 }
+
+
+

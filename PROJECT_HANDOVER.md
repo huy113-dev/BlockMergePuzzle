@@ -18,9 +18,17 @@
   - `feat/smooth-multi-directional-drag`: Di chuyển đa hướng theo ngón tay qua mọi khoảng trống (corridor navigation, quẹo góc mượt mà, snap/merge/escape linh hoạt).
   - `feat/level-1`: Cấu hình Level 1 Tutorial Cross, lưu scene và prefab riêng, bỏ gạch sàn, đồng bộ chuyển đổi Level 1 và Level 2, tích hợp background vũ trụ.
   - `feat/header-ui-controls`: Thiết kế thanh Header UI (Return đá, Time neon 1:40 đếm ngược, Pause đá).
-  - `feat/pause-game-panel`: **[Branch mới nhất]** Thiết kế hoàn chỉnh popup Pause Game Panel ([Image #7]) với background game tối mờ, 14 assets sci-fi, 3 toggle settings (Sound, Music, Vibration), nút No Ads, Return và Home.
+  - `feat/pause-game-panel`: Thiết kế hoàn chỉnh popup Pause Game Panel ([Image #7]) với background game tối mờ, 14 assets sci-fi, 3 toggle settings (Sound, Music, Vibration), nút No Ads, Return và Home.
+  - `feat/header-ui-and-tutorial`: **[Branch mới nhất]**
+    - Tăng thời gian Level 1 lên 5 phút (`300f` / `05:00`).
+    - Làm dịu nền game (`Color(0.42, 0.42, 0.48, 1)`) giúp khối và bàn cờ nổi bật.
+    - Sửa nút Replay (`Btn_Replay`) khôi phục 100% đồ họa và trạng thái ban đầu của scene qua `SceneManager.LoadScene(activeScene.buildIndex)`.
+    - Thêm Banner Level (`Banner_Level`), Thanh Booster 3 slot bị khóa (mở ở Level 6, 12, 16).
+    - Khắc phục triệt để âm thanh: sửa toàn bộ `.meta` sang `preloadAudioData: 1`, `3D: 0` (2D), âm lượng combo merge tăng dần, âm thanh pickup/drop/vanish.
+    - Lưu trực tiếp toàn bộ layout UI người dùng xếp vào `MainScene.unity` và gắn cố định `TimeVal` (`05:00`) hiển thị cả ở Edit Mode lẫn Play Mode.
 - **Hệ thống kết nối Unity MCP**: FastMCP HTTP bridge hoạt động ổn định trên `http://127.0.0.1:8080/mcp`. Tự động kết nối lại khi domain reload nhờ `AutoMcpStarter` trong `SceneSetupHelper.cs`.
 - **Screenshot kiểm chứng**:
+  - `Assets/Screenshots/level1_final_preview.png`: Ảnh chụp Game View mới nhất hiển thị layout hoàn chỉnh do user xếp: nút Replay, LEVEL 1, thời gian 05:00, nút Pause, bàn cờ Level 1 và thanh 3 Booster khóa dưới đáy.
   - `Assets/Screenshots/pause_panel_preview.png`: Ảnh chụp popup Pause Game hoàn thiện chuẩn xác theo Image #7 với nền game tối mờ phía sau.
   - `Assets/Screenshots/pause_panel_toggled.png`: Ảnh chụp trạng thái toggle OFF của Sound & Music (icon xám + switch xám).
   - `Assets/Screenshots/normal_gameplay_preview.png`: Ảnh chụp màn chơi bình thường với thanh Header UI và nền vũ trụ.
@@ -131,3 +139,28 @@
      - `uv run --with mcp python test_level1_flow.py`: Kiểm tra layout, khối, cổng Level 1.
      - `uv run --with mcp python test_logic.py`: Kiểm tra logic di chuyển, merge và escape.
      - `uv run --with mcp python bake_and_screenshot.py`: Bake và chụp ảnh Game View.
+
+---
+
+## 5. Quy Trình Các Bước Chuẩn Để Tạo & Hoàn Thiện Các Level Sau
+
+Áp dụng đúng các bước đã thực hiện ở Level 1 để mở rộng cho Level 2..10+ mà không làm lệch UI hay mất tính năng:
+
+1. **Thiết kế dữ liệu bàn cờ (`LevelManager.cs` + `GameConfig.cs`)**:
+   - Khai báo `LevelId` mới (nếu chưa có), cấu trúc lưới/hình dạng map, danh sách cổng thoát (`ExitGateView`) và khối khởi đầu (`PuzzlePiece`).
+   - Thiết lập thời gian cho màn trong `GameUI.GetLevelDurationSeconds()` (ví dụ Level 1 = `300f`, các level khác tùy chỉnh).
+2. **Bảo toàn bố cục UI người dùng (`MainScene.unity` & `GameUI.cs`)**:
+   - **Không gọi `GameUI.RebuildUI()`** khi scene đã có sẵn UI đã xếp tay (`HeaderPanel`, `BoosterBar`, `PausePanel`, `TutorialLayer`).
+   - Sử dụng `GameUI.BindExistingUI()` để tự động liên kết lại các nút, banner và text từ hierarchy sẵn có.
+   - Đảm bảo `Banner_Time` có con `TimeVal` (tạo bằng `new GameObject("TimeVal", typeof(RectTransform))`, hoặc chạy menu `Tools/Block Merge Puzzle/Ensure Time Text on Banner`) để hiển thị đồng hồ cả ở Edit Mode và Play Mode.
+   - Cập nhật mở khóa Booster theo tiến độ cấp độ (`Level 6`, `Level 12`, `Level 16` trong `GameUI.UpdateBoosterUnlockStates()`).
+3. **Background & Camera Fit (`LevelManager.cs`)**:
+   - Giữ màu tint dịu `new Color(0.42f, 0.42f, 0.48f, 1f)` cho `BackgroundSprite` (cả ở Edit Mode và trong `BuildBackground()`/`FitBackgroundToCamera()`) để bàn cờ và khối đá nổi bật.
+   - Giữ `FitCameraToBoard()` với `Mathf.Max(sizeByWidth, sizeByHeight)` và ép ratio `0.45` khi Edit Mode để không bị crop 2 bên.
+4. **Cơ chế Replay giữ nguyên 100% trạng thái ban đầu**:
+   - Đảm bảo scene nằm trong Build Settings (`EditorBuildSettings`) để `GameUI.RestartLevel()` gọi `SceneManager.LoadScene(activeScene.buildIndex)` khi đang ở `InitialSceneLevel` (nếu không nằm trong build index sẽ fallback về `_initialPiecesTemplate` snapshot trong `LevelManager`).
+5. **Âm thanh (2D & Preload)**:
+   - Mọi file `.wav`/`.mp3` mới trong `Assets/Resources/Sound/` và `Assets/Sound/` phải có `.meta` thiết lập `preloadAudioData: 1` và `3D: 0`.
+   - Phát toàn bộ SFX qua `SoundManager.Instance` (đã cấu hình `DontDestroyOnLoad`, `spatialBlend = 0f`, tự đảm bảo `AudioListener` và `EditorUtility.audioMasterMute = false`).
+6. **Bake & Lưu Scene**:
+   - Chạy `Tools/Block Merge Puzzle/Bake Level to Scene (Idle Display)` (hoặc `Bake All 10 Levels`) sau khi chỉnh map, rồi `File -> Save` & `File -> Save Project` trước khi kiểm thử Play Mode và chụp ảnh nghiệm thu vào `Assets/Screenshots/`.

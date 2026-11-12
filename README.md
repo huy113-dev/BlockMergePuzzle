@@ -51,43 +51,47 @@ Game hỗ trợ chuyển đổi linh hoạt giữa các màn chơi cả trong **
 
 ---
 
-## 📱 Tối Ưu Màn Hình Dọc 1440×3200 & Header UI Controls
+## 📱 Tối Ưu Màn Hình Dọc 1440×3200 & Hệ Thống UI
 
-- **Thanh Header UI đỉnh cao (Return, Time 1:40, Pause)**:
-  - Nút **Return**: Đá cổ viền tím, mũi tên undo xoay ngược, chạm để chơi lại màn và hồi thời gian.
-  - Hộp **Time**: Hộp kim loại viền neon cyan với icon đồng hồ và bộ đếm ngược 1:40 (100 giây).
-  - Nút **Pause**: Đá cổ viền tím, biểu tượng ||, chạm để tạm dừng game và mở menu tùy chọn.
-- **Hộp thoại Pause Game Sci-Fi (Darkened Game Background)**:
-  - Phủ mờ khung cảnh game phía sau (`#03050ECC`), giữ trọn vẹn bàn cờ và không gian vũ trụ tối sâu.
-  - Bộ 14 assets chuyên biệt: Khung `panel.png`, vương miện băng tuyết `Panel game pause.png`, nút đóng đỏ `X.png`.
-  - 3 hàng tùy chỉnh có thể bật/tắt động và tự lưu: **Sound** (Group 308/314), **Music** (Group 312/315), **Vibration** (Group 313/316) với công tắc switch xanh/xám (`on.png`/`off.png`).
-  - Nút vàng ánh kim **No Ads** (`No Ads.png`), nút **Return** tròn cyan và nút **Home** lục giác xanh lá.
-- **Background vũ trụ (`Background main play.png`)**:
-  - Tự động phủ kín toàn bộ màn hình với thuật toán Aspect-Fill (`Mathf.Max(camH / nativeH, camW / nativeW)`).
-  - Tọa độ gắn liền với Camera (`Z = 0`, `sortingOrder = -10`) đảm bảo không bị đen viền trên mọi kích thước thiết bị.
+- **Thanh Header UI (`HeaderPanel`)**:
+  - **Nút Replay (`Btn_Replay`)**: Khối đá cổ bên trái, bấm để load lại đúng trạng thái đồ họa, bố cục bàn cờ và bộ đếm thời gian ban đầu của màn chơi (`SceneManager.LoadScene` + snapshot fallback).
+  - **Banner Level (`Banner_Level`)**: Hiển thị cấp độ hiện tại (`LEVEL 1`, đồng bộ tông màu phía trên banner thời gian).
+  - **Banner Time (`Banner_Time` + `TimeVal`)**: Hộp thời gian với icon đồng hồ và chữ số `05:00` (Level 1 = 300 giây, các màn khác = 100 giây), hiển thị sẵn cả ở **Edit Mode** lẫn đếm ngược **Play Mode**, chuyển đỏ cảnh báo khi còn dưới 20 giây.
+  - **Nút Pause (`Btn_Pause`)**: Khối đá cổ bên phải, mở modal Settings/Pause.
+- **Thanh Booster (`BoosterBar`)**:
+  - 3 ô booster ở đáy màn hình (Freeze, Magnet, Wand), hiển thị mờ + ổ khóa khi chưa mở khóa (mở lần lượt ở Level 6, Level 12, Level 16).
+- **Hướng dẫn trực quan (`TutorialHandGuide`)**:
+  - Tay chỉ dẫn động và chữ hướng dẫn *Swipe block to merge* -> chỉ dẫn thoát cổng khi đủ điều kiện.
+- **Hộp thoại Setting / Pause Panel (`PausePanel`)**:
+  - Phủ mờ khung cảnh game phía sau (`#03050ECC`), giữ trọn vẹn bàn cờ.
+  - Công tắc **Sound**, **Music**, **Vibration** tự động lưu vào `PlayerPrefs`, nút đóng `X (1)` mới, nút **No Ads**, **Return**, **Home**.
+- **Âm thanh & Hiệu ứng (Audio & VFX)**:
+  - **SoundManager (`DontDestroyOnLoad`)**: Âm thanh 2D (`preloadAudioData: 1`, `3D: 0`), phát âm thanh nhấc/đặt block (`block_move`), âm thanh merge tăng dần âm lượng theo combo tối đa 4 lần (timeout 1.5s), âm thanh biến mất khi qua cổng (`block_vanish`).
+  - **VFX**: Số khắc chìm trên đá, hiệu ứng dập slam + flash khi merge, hiệu ứng tan biến dần qua cổng.
+- **Background vũ trụ (`background_main scene .png`)**:
+  - Tự động phủ kín màn hình với Aspect-Fill, làm dịu sắc độ (`Color(0.42, 0.42, 0.48, 1)`) để làm nổi bật bàn cờ và các khối đá quý.
 - **Camera Auto-Fit**:
-  - Tự động tính toán khung nhìn camera theo cả chiều rộng và chiều cao:
-  ```csharp
-  float sizeByWidth = (CurrentFrameWidth / 2f + paddingX) / screenRatio;
-  float sizeByHeight = CurrentFrameHeight / 2f + paddingY;
-  cam.orthographicSize = Mathf.Max(sizeByWidth, sizeByHeight);
-  ```
-  - Bộ lọc `screenRatio` bảo vệ trong Edit Mode: Luôn ép tỷ lệ 9:20 (0.45) để bàn cờ không bao giờ bị cắt 2 bên viền khi mở trên màn hình máy tính landscape.
+  - Tự động tính toán khung nhìn camera theo cả chiều rộng và chiều cao (`Mathf.Max(sizeByWidth, sizeByHeight)`), ép tỷ lệ 9:20 (`0.45`) trong Edit Mode để không bị cắt 2 bên viền.
 
 ---
 
-## 🚀 Hướng Dẫn Sử Dụng
+## 🚀 Hướng Dẫn Sử Dụng & Quy Trình Làm Level Mới
 
 ### 1. Mở dự án trong Unity
-- Mở **Unity Hub** -> chọn **Add project from disk**.
-- Trỏ tới thư mục `D:\BlockMergePuzzle`.
+- Mở **Unity Hub** -> chọn **Add project from disk** -> `D:\BlockMergePuzzle`.
 - Mở scene chính: `Assets/Scenes/MainScene.unity`.
 
-### 2. Chuyển đổi màn chơi trên Unity Editor
-Thanh menu trên cùng hỗ trợ thao tác nhanh:
-- `Tools/Block Merge Puzzle/Load Level 1 (Tutorial Cross)`: Nạp và bake Level 1 vào scene.
-- `Tools/Block Merge Puzzle/Load Level 2 (Reference 6x8)`: Nạp và bake Level 2 vào scene.
-- `Tools/Block Merge Puzzle/Bake Level to Scene (Idle Display)`: Làm mới và lưu trạng thái bàn cờ hiện tại.
+### 2. Công cụ Editor (`Tools/Block Merge Puzzle/...`)
+- `Load Level 1` .. `Load Level 10`: Nạp nhanh bàn cờ từng level.
+- `Bake Level to Scene (Idle Display)`: Bake bàn cờ hiện tại vào scene để hiển thị ở Edit Mode.
+- `Ensure Time Text on Banner`: Tạo/khôi phục `TimeVal` (`05:00`) trên `Banner_Time` và lưu scene mà không làm lệch vị trí UI đã xếp.
+
+### 3. Quy trình chuẩn khi tạo / chỉnh Level mới
+1. **Định nghĩa map**: Thêm dữ liệu lưới, cổng thoát và khối khởi đầu trong `LevelManager.cs` + hằng số/thời lượng trong `GameConfig.cs` / `GameUI.GetLevelDurationSeconds()`.
+2. **UI & Header**: Dùng layout UI chuẩn trong `MainScene.unity` (`HeaderPanel` gồm `Btn_Replay`, `Banner_Level`, `Banner_Time/TimeVal`, `Btn_Pause`; `BoosterBar`; `PausePanel`; `TutorialLayer`). Khi kéo xếp lại UI trên Editor, chỉ lưu trực tiếp scene (`File -> Save`), không chạy `RebuildUI()` để giữ nguyên tọa độ đã xếp.
+3. **Nền & Ánh sáng**: Giữ tint background tối dịu `(0.42, 0.42, 0.48, 1)` qua `LevelManager.BuildBackground()`/`FitBackgroundToCamera()` để khối nổi bật.
+4. **Âm thanh**: Mọi file audio mới phải để `preloadAudioData: 1` và `3D: 0` trong `.meta`, phát qua `SoundManager.Instance`.
+5. **Kiểm tra Replay & Bake**: Chạy Play Mode thử kéo, merge, thoát cổng và bấm `Btn_Replay` đảm bảo reload đúng đồ họa/vị trí ban đầu; cuối cùng lưu scene (`MainScene.unity` / `LevelX.unity`) và prefab tương ứng.
 
 ### 3. Chạy game
 - Nhấn nút **Play (▶)** trên Editor để trải nghiệm trực tiếp.
