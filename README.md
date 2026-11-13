@@ -50,7 +50,7 @@ Game hỗ trợ chuyển đổi linh hoạt giữa các màn chơi cả trong **
   - 3 khối Đỏ: Đỏ [2] tại `(2, 1)`, Đỏ [1] tại `(2, 3)`, Đỏ [2] tại `(2, 5)`.
   - 2 khối Xanh lá: Xanh lá [1] tại `(0, 3)`, Xanh lá [1] tại `(4, 3)`.
 - **Độ giải đố**: Đã kiểm chứng 100% tính giải được (Đỏ 1 trượt xuống mở giao điểm -> Xanh 1 trượt sang phải gộp thành Xanh 2 -> Đỏ 2 trượt qua cổng Đỏ 1 -> các khối Đỏ lần lượt thoát -> Xanh 2 thoát cổng Xanh 2).
-- **Asset riêng**: Scene `Assets/Scenes/Level2.unity` và Prefab `Assets/Prefabs/Levels/Level2_Board.prefab`.
+- **Asset riêng**: Scene `Assets/Scenes/Level2.unity`, Prefab `Assets/Prefabs/Levels/Level2_Board.prefab` và ảnh nghiệm thu `Assets/Screenshots/level2_current_saved.png`.
 
 ---
 

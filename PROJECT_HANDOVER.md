@@ -29,6 +29,7 @@
     - Bake scene vào `MainScene.unity`, `Assets/Scenes/Level2.unity` và xuất `Assets/Prefabs/Levels/Level2_Board.prefab`.
 - **Hệ thống kết nối Unity MCP**: FastMCP HTTP bridge hoạt động ổn định trên `http://127.0.0.1:8080/mcp`. Tự động kết nối lại khi domain reload nhờ `AutoMcpStarter` trong `SceneSetupHelper.cs`.
 - **Screenshot kiểm chứng**:
+  - `Assets/Screenshots/level2_current_saved.png`: Ảnh chụp Game View chính thức của Level 2 được lưu trực tiếp từ bố cục của người dùng (khối xanh lá căn giữa chuẩn xác, 2 cổng hologram, thanh Header và 3 booster).
   - `Assets/Screenshots/level2_final_preview.png`: Ảnh chụp Game View hoàn thiện Level 2 với map_lv2, 2 cổng hologram, 5 khối xếp chuẩn Image #12, thời gian 05:00 và banner LEVEL 2.
   - `Assets/Screenshots/level1_final_preview.png`: Ảnh chụp Game View Level 1 hoàn chỉnh do user xếp: nút Replay, LEVEL 1, thời gian 05:00, nút Pause, bàn cờ Level 1 và thanh 3 Booster khóa dưới đáy.
   - `Assets/Screenshots/pause_panel_preview.png`: Ảnh chụp popup Pause Game hoàn thiện chuẩn xác theo Image #7 với nền game tối mờ phía sau.
