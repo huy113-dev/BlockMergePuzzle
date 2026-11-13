@@ -161,6 +161,14 @@
   - Banner hiển thị chuẩn `LEVEL 2`.
   - `TutorialHandGuide` tự động ẩn (chỉ kích hoạt ở Level 1).
 
+### l. Căn Chỉnh Vị Trí Ô Chuẩn Pixel Cho Bản Đồ Vẽ Tay Level 2 (Non-Linear Grid Mapping)
+- **Vấn đề [Image #13]**: Asset `map_lv2.png` là bản vẽ tay bất đối xứng (nhánh hành lang trái 2 ô chiếm 430 px, nhánh phải 3 ô chiếm 526 px). Khi dùng công thức bước nhảy tuyến tính `col * cw`, khối xanh lá ngoài cùng bên trái `(0, 3)` bị lệch sang phải ~0.40 units, đè lên vạch ngăn ô của hành lang.
+- **Giải pháp & Triển khai**:
+  - Dùng Python đo tọa độ pixel các vạch ngăn thực tế trên ảnh gốc `map_lv2.png`.
+  - Bổ sung bảng ánh xạ vị trí pixel chuẩn xác `Level2CellPositions` trong `LevelManager.cs` cho toàn bộ 11 ô của Level 2.
+  - Cập nhật `GridToWorld(col, row)`: Đối với Level 2, tra cứu trực tiếp từ `Level2CellPositions` (tọa độ ô `(0, 3)` chuẩn là `(-2.672f, -0.047f)`).
+  - Cập nhật lại vị trí khối và cổng trong `MainScene.unity`, `Assets/Scenes/Level2.unity` và `Assets/Prefabs/Levels/Level2_Board.prefab`. Khối xanh lá [1] nằm chính giữa ô hành lang với lề đều 2 bên viền đá.
+
 ---
 
 ## 3. Bản Đồ File Quan Trọng

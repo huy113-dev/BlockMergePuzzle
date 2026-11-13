@@ -42,7 +42,7 @@ Game hỗ trợ chuyển đổi linh hoạt giữa các màn chơi cả trong **
 
 ### 2. Level 2: Cross Map (`map_lv2.png`)
 - **Bản đồ**: Chữ thập lệch tâm 6 cột × 6 hàng từ asset khung đá `map_lv2.png` / `map_lv2 (3).png` (11 ô hành lang: cột 2 dọc [row 0..5] và hàng 3 ngang [col 0..5]).
-- **Căn gốc tọa độ**: Giao điểm `(col 2, row 3)`, `GridOffset = (0.617f, 0.426f, 0f)`, `CellWidth = 1.16f`, `CellHeight = 1.03f`.
+- **Căn gốc tọa độ**: Giao điểm `(col 2, row 3)`, `GridOffset = (0.617f, 0.426f, 0f)`, `CellWidth = 1.16f`, `CellHeight = 1.03f`. Tích hợp bảng ánh xạ tọa độ pixel chuẩn `Level2CellPositions` giúp căn giữa hoàn hảo từng khối đá quý trong hành lang vẽ tay bất đối xứng (khắc phục hiện tượng khối lệch vạch chia ô).
 - **Cổng thoát công nghệ cao (Tech Hologram - 2 cổng)**:
   - Cổng trên (Top): **Xanh lá (Green)** yêu cầu số **2**, hướng lên `Vector2.up`.
   - Cổng phải (Right): **Đỏ (Red)** yêu cầu số **1**, hướng sang phải `Vector2.right`.

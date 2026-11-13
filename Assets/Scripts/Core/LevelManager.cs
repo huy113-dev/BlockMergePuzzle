@@ -716,8 +716,35 @@ namespace BlockMergePuzzle.Core
             }
         }
 
+        private static readonly Dictionary<Vector2Int, Vector3> Level2CellPositions = new Dictionary<Vector2Int, Vector3>()
+        {
+            { new Vector2Int(2, 0), new Vector3(0.030f, 3.019f, 0f) },
+            { new Vector2Int(2, 1), new Vector3(0.030f, 2.061f, 0f) },
+            { new Vector2Int(2, 2), new Vector3(0.030f, 1.028f, 0f) },
+            { new Vector2Int(0, 3), new Vector3(-2.672f, -0.047f, 0f) },
+            { new Vector2Int(1, 3), new Vector3(-1.300f, -0.047f, 0f) },
+            { new Vector2Int(2, 3), new Vector3(0.030f, -0.047f, 0f) },
+            { new Vector2Int(3, 3), new Vector3(1.284f, -0.047f, 0f) },
+            { new Vector2Int(4, 3), new Vector3(2.496f, -0.047f, 0f) },
+            { new Vector2Int(5, 3), new Vector3(3.508f, -0.047f, 0f) },
+            { new Vector2Int(2, 4), new Vector3(0.030f, -1.137f, 0f) },
+            { new Vector2Int(2, 5), new Vector3(0.030f, -2.240f, 0f) },
+        };
+
         public Vector3 GridToWorld(int col, int row)
         {
+            if (_currentLevel == LevelId.Level2)
+            {
+                if (Level2CellPositions.TryGetValue(new Vector2Int(col, row), out Vector3 pos))
+                {
+                    return pos;
+                }
+                if (col == 2 && row < 0) return Level2CellPositions[new Vector2Int(2, 0)] + Vector3.up * (-row * 1.0f);
+                if (col == 2 && row > 5) return Level2CellPositions[new Vector2Int(2, 5)] + Vector3.down * ((row - 5) * 1.0f);
+                if (row == 3 && col < 0) return Level2CellPositions[new Vector2Int(0, 3)] + Vector3.left * (-col * 1.0f);
+                if (row == 3 && col > 5) return Level2CellPositions[new Vector2Int(5, 3)] + Vector3.right * ((col - 5) * 1.0f);
+            }
+
             float cw = CurrentCellWidth;
             float ch = CurrentCellHeight;
             float totalW = CurrentColumns * cw;
