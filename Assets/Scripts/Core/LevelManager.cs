@@ -220,23 +220,35 @@ namespace BlockMergePuzzle.Core
 
         private void BindSceneObjects()
         {
+            if (_gatesRoot == null) _gatesRoot = transform.Find("Exit_Gates");
+            if (_piecesRoot == null) _piecesRoot = transform.Find("Active_Pieces");
+            if (_frameRoot == null) _frameRoot = transform.Find("Board_Frame");
+            if (_backgroundRoot == null) _backgroundRoot = transform.Find("Background");
+
             _activePieces.Clear();
             _activeGates.Clear();
             _grid = new PuzzlePiece[CurrentColumns, CurrentRows];
 
-            foreach (var gate in _gatesRoot.GetComponentsInChildren<ExitGateView>(true))
+            if (_gatesRoot != null)
             {
-                _activeGates.Add(gate);
+                foreach (var gate in _gatesRoot.GetComponentsInChildren<ExitGateView>(true))
+                {
+                    gate.EnsureGateCoords();
+                    _activeGates.Add(gate);
+                }
             }
 
-            foreach (var piece in _piecesRoot.GetComponentsInChildren<PuzzlePiece>(true))
+            if (_piecesRoot != null)
             {
-                _activePieces.Add(piece);
-                foreach (var cell in piece.OccupiedCells)
+                foreach (var piece in _piecesRoot.GetComponentsInChildren<PuzzlePiece>(true))
                 {
-                    if (IsValidCoord(cell.x, cell.y))
+                    _activePieces.Add(piece);
+                    foreach (var cell in piece.OccupiedCells)
                     {
-                        _grid[cell.x, cell.y] = piece;
+                        if (IsValidCoord(cell.x, cell.y))
+                        {
+                            _grid[cell.x, cell.y] = piece;
+                        }
                     }
                 }
             }
@@ -388,7 +400,8 @@ namespace BlockMergePuzzle.Core
                         new Vector2(1.15f, 0.95f), _gatesRoot,
                         new[] { new Vector2Int(2, -1) },
                         default,
-                        true));
+                        true,
+                        new[] { new Vector2Int(2, 0) }));
 
                     // Right Red Gate (col 5, row 3 -> exit at (6, 3)) with High-Tech Holographic Glowing Display
                     _activeGates.Add(ExitGateView.Create(
@@ -397,7 +410,8 @@ namespace BlockMergePuzzle.Core
                         new Vector2(0.95f, 1.15f), _gatesRoot,
                         new[] { new Vector2Int(6, 3) },
                         default,
-                        true));
+                        true,
+                        new[] { new Vector2Int(5, 3) }));
                     break;
 
                 case LevelId.Level3:
@@ -945,6 +959,16 @@ namespace BlockMergePuzzle.Core
             }
         }
 
+        public ExitGateView GetGateAt(Vector2Int coord)
+        {
+            if (_activeGates == null) return null;
+            foreach (var gate in _activeGates)
+            {
+                if (gate != null && gate.ContainsGateCell(coord)) return gate;
+            }
+            return null;
+        }
+
         public bool CanPieceFitAt(PuzzlePiece piece, Vector2Int origin)
         {
             if (piece == null) return false;
@@ -952,6 +976,7 @@ namespace BlockMergePuzzle.Core
             foreach (var c in cells)
             {
                 if (!IsValidCoord(c.x, c.y)) return false;
+                if (GetGateAt(c) != null) return false;
                 PuzzlePiece occupant = _grid[c.x, c.y];
                 if (occupant != null && occupant != piece) return false;
             }
@@ -1010,24 +1035,34 @@ namespace BlockMergePuzzle.Core
             Vector2Int candidateOrigin = origin + direction;
             List<Vector2Int> candidateCells = piece.GetOccupiedCellsForOrigin(candidateOrigin);
 
-            bool anyOutside = false;
-            foreach (var c in candidateCells)
+            ExitGateView gate = null;
+            foreach (var cell in candidateCells)
             {
-                if (!IsValidCoord(c.x, c.y))
+                gate = GetGateAt(cell);
+                if (gate != null) break;
+            }
+
+            if (gate == null)
+            {
+                bool anyOutside = false;
+                foreach (var c in candidateCells)
                 {
-                    anyOutside = true;
-                    break;
+                    if (!IsValidCoord(c.x, c.y))
+                    {
+                        anyOutside = true;
+                        break;
+                    }
+                }
+                if (anyOutside)
+                {
+                    gate = CheckGateAlignment(piece, direction, candidateCells);
                 }
             }
 
-            if (anyOutside)
+            if (gate != null && gate.TriggerDirection == direction && piece.PieceColor == gate.GateColor && piece.Value >= gate.RequiredValue)
             {
-                ExitGateView gate = CheckGateAlignment(piece, direction, candidateCells);
-                if (gate != null && piece.PieceColor == gate.GateColor && piece.Value >= gate.RequiredValue)
-                {
-                    targetGate = gate;
-                    return true;
-                }
+                targetGate = gate;
+                return true;
             }
             return false;
         }
@@ -1072,7 +1107,14 @@ namespace BlockMergePuzzle.Core
                 Vector2Int candidateOrigin = currentOrigin + direction * s;
                 List<Vector2Int> candidateCells = piece.GetOccupiedCellsForOrigin(candidateOrigin);
 
-                // Check 1: Did we hit or pass the boundary (Wall or Gate)?
+                // Check 1: Did we hit a Gate or Boundary Wall?
+                ExitGateView gate = null;
+                foreach (var cell in candidateCells)
+                {
+                    gate = GetGateAt(cell);
+                    if (gate != null) break;
+                }
+
                 bool anyOutside = false;
                 foreach (var cell in candidateCells)
                 {
@@ -1083,22 +1125,25 @@ namespace BlockMergePuzzle.Core
                     }
                 }
 
-                if (anyOutside)
+                if (gate == null && anyOutside)
                 {
-                    // Check if the entire piece aligns with an active exit gate in this direction
-                    ExitGateView gate = CheckGateAlignment(piece, direction, candidateCells);
-                    if (gate != null)
+                    gate = CheckGateAlignment(piece, direction, candidateCells);
+                }
+
+                if (gate != null)
+                {
+                    if (gate.TriggerDirection == direction)
                     {
                         // Check gate conditions: matching color & sufficient value
                         if (piece.PieceColor != gate.GateColor)
                         {
-                            result.FailReason = $"Sai mÃ u cá»•ng! Cá»•ng nÃ y mÃ u {gate.ColorDisplayName}, khá»‘i cá»§a báº¡n mÃ u {piece.ColorDisplayName}.";
-                            break; // Gate acts as a wall
+                            result.FailReason = $"Sai màu cổng! Cổng này màu {gate.ColorDisplayName}, khối của bạn màu {piece.ColorDisplayName}.";
+                            break; // Gate acts as a wall - DO NOT STEP ON IT
                         }
                         if (piece.Value < gate.RequiredValue)
                         {
-                            result.FailReason = $"ChÆ°a Ä‘á»§ sá»‘ yÃªu cáº§u! Cá»•ng cáº§n sá»‘ {gate.RequiredValue}, khá»‘i má»›i cÃ³ sá»‘ {piece.Value}.";
-                            break; // Gate acts as a wall
+                            result.FailReason = $"Chưa đủ số yêu cầu! Cổng cần số {gate.RequiredValue}, khối mới có số {piece.Value}.";
+                            break; // Gate acts as a wall - DO NOT STEP ON IT
                         }
 
                         // Valid Escape!
@@ -1110,9 +1155,16 @@ namespace BlockMergePuzzle.Core
                     }
                     else
                     {
-                        // Hit outer stone wall
+                        // Wrong direction hitting gate
+                        result.FailReason = "Cổng không mở theo hướng này!";
                         break;
                     }
+                }
+
+                if (anyOutside)
+                {
+                    // Hit outer stone wall
+                    break;
                 }
 
                 // Check 2: Check inside grid cells for other blocks or merge

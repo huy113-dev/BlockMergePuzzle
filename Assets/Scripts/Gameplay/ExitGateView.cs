@@ -15,6 +15,7 @@ namespace BlockMergePuzzle.Gameplay
         [field: SerializeField] public Vector2Int TriggerDirection { get; private set; }
         [field: SerializeField] public bool IsTechHologram { get; private set; }
         [field: SerializeField] public List<Vector2Int> TriggerCoords { get; private set; } = new List<Vector2Int>();
+        [field: SerializeField] public List<Vector2Int> GateCoords { get; private set; } = new List<Vector2Int>();
         [field: SerializeField] public Bounds DetectionBounds { get; private set; }
 
         private TextMesh _numberLabel;
@@ -30,6 +31,32 @@ namespace BlockMergePuzzle.Gameplay
 
         public string ColorDisplayName => GameConfig.GetColorNameVietnamese(GateColor);
 
+        public bool ContainsGateCell(Vector2Int coord)
+        {
+            if (GateCoords != null && GateCoords.Contains(coord)) return true;
+            if (TriggerCoords != null && TriggerDirection != Vector2Int.zero)
+            {
+                foreach (var tc in TriggerCoords)
+                {
+                    if (tc - TriggerDirection == coord) return true;
+                }
+            }
+            return false;
+        }
+
+        public void EnsureGateCoords()
+        {
+            if ((GateCoords == null || GateCoords.Count == 0) && TriggerCoords != null && TriggerDirection != Vector2Int.zero)
+            {
+                if (GateCoords == null) GateCoords = new List<Vector2Int>();
+                foreach (var tc in TriggerCoords)
+                {
+                    Vector2Int gc = tc - TriggerDirection;
+                    if (!GateCoords.Contains(gc)) GateCoords.Add(gc);
+                }
+            }
+        }
+
         public static ExitGateView Create(
             PieceColor gateColor,
             int requiredValue,
@@ -40,14 +67,15 @@ namespace BlockMergePuzzle.Gameplay
             Transform parent,
             Vector2Int[] triggerCoords = null,
             Vector2Int triggerDir = default,
-            bool isTechHologram = false)
+            bool isTechHologram = false,
+            Vector2Int[] gateCoords = null)
         {
             GameObject go = new GameObject($"Gate_{gateColor}_{side}_{requiredValue}");
             go.transform.SetParent(parent);
             go.transform.position = worldPos;
 
             ExitGateView gate = go.AddComponent<ExitGateView>();
-            gate.Initialize(gateColor, requiredValue, side, exitDir, worldPos, gateSize, triggerCoords, triggerDir, isTechHologram);
+            gate.Initialize(gateColor, requiredValue, side, exitDir, worldPos, gateSize, triggerCoords, triggerDir, isTechHologram, gateCoords);
             return gate;
         }
 
@@ -60,7 +88,8 @@ namespace BlockMergePuzzle.Gameplay
             Vector2 gateSize,
             Vector2Int[] triggerCoords,
             Vector2Int triggerDir,
-            bool isTechHologram)
+            bool isTechHologram,
+            Vector2Int[] gateCoords = null)
         {
             GateColor = gateColor;
             RequiredValue = requiredValue;
@@ -87,6 +116,19 @@ namespace BlockMergePuzzle.Gameplay
             if (triggerCoords != null && triggerCoords.Length > 0)
             {
                 TriggerCoords.AddRange(triggerCoords);
+            }
+
+            if (gateCoords != null && gateCoords.Length > 0)
+            {
+                GateCoords.AddRange(gateCoords);
+            }
+            else if (triggerCoords != null && TriggerDirection != Vector2Int.zero)
+            {
+                foreach (var tc in triggerCoords)
+                {
+                    Vector2Int gc = tc - TriggerDirection;
+                    if (!GateCoords.Contains(gc)) GateCoords.Add(gc);
+                }
             }
 
             BoxCollider2D col = gameObject.AddComponent<BoxCollider2D>();
@@ -304,6 +346,7 @@ namespace BlockMergePuzzle.Gameplay
 
         private void Awake()
         {
+            EnsureGateCoords();
             if (_labelRoot == null)
             {
                 _labelRoot = transform.Find("LabelRoot");

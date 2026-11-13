@@ -2,6 +2,7 @@ using System;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using BlockMergePuzzle.Core;
+using BlockMergePuzzle.UI;
 
 namespace BlockMergePuzzle.Gameplay
 {
@@ -243,6 +244,22 @@ namespace BlockMergePuzzle.Gameplay
                     // Otherwise, snap into current cell origin
                     if (!actionExecuted)
                     {
+                        Vector2Int attemptedDir = Vector2Int.zero;
+                        if (Mathf.Abs(offset.x) >= 0.35f * cw)
+                            attemptedDir = (offset.x > 0) ? new Vector2Int(1, 0) : new Vector2Int(-1, 0);
+                        else if (Mathf.Abs(offset.y) >= 0.35f * ch)
+                            attemptedDir = (offset.y > 0) ? new Vector2Int(0, -1) : new Vector2Int(0, 1);
+
+                        if (attemptedDir != Vector2Int.zero)
+                        {
+                            var slideCheck = LevelManager.Instance.RaycastSlide(_selectedPiece, attemptedDir, 1);
+                            if (!string.IsNullOrEmpty(slideCheck.FailReason))
+                            {
+                                GameUI.Instance?.ShowFeedbackError(slideCheck.FailReason);
+                                Audio.SoundManager.Instance?.PlayError();
+                            }
+                        }
+
                         LevelManager.Instance.ExecuteSlide(_selectedPiece, _currentOrigin);
                         _selectedPiece.SetLifted(false);
                         _selectedPiece.SetTilt(0f);

@@ -76,8 +76,27 @@
 ### f. Game Feel: Cảm giác nhấc khối (Lift on Touch & Responsive Drag)
 - **Tính năng**: Khi chạm hoặc kéo khối, khối phóng to nhẹ (1.075x), nhấc nổi lên `Z = -0.1f` và `Y +0.08f`, nâng `sortingOrder = 50` để nổi trên các khối khác; phát âm thanh click nhẹ (`SoundManager.PlayPickup`); nghiêng động (`tilt`) theo vận tốc di chuột và hạ mượt mà về kích thước gốc khi thả.
 
-### g. Di chuyển đa hướng tự do theo ngón tay (Multi-Directional Corridor Navigation)
-- **Tính năng**: Kéo khối qua các ô trống kề cận (`CanPieceFitAt`), tâm ô tự động tịnh tiến theo hành trình ngón tay (`maxAdvances`). Khối có thể rẽ trái, xuống dưới, qua phải linh hoạt trong một lần kéo duy nhất mà không cần nhấc ngón tay.
+### h. Bảo Toàn Layout UI Thủ Công của Người Dùng & Lưu Màn Hình Game
+- **Đã xử lý**:
+  - Người dùng chỉnh sửa thủ công layout UI trên `MainScene.unity` để căn chỉnh trực quan (Nút Replay, Đồng hồ thời gian đếm ngược 5:00, Nút Pause, Banner Level, Booster Bar và Camera `orthoSize = 9.155556f`).
+  - Cập nhật `GameUI.cs` và `SceneSetupHelper.cs`: Bổ sung `BindExistingUI()` để liên kết các thành phần UI sẵn có mà không gọi `RebuildUI()`, bảo toàn 100% tọa độ RectTransform thủ công của người dùng trong mọi lần nạp scene hoặc chuyển đổi chế độ.
+  - Lưu và đồng bộ trạng thái `MainScene.unity`, `Assets/Scenes/Level2.unity` và `Assets/Prefabs/Levels/Level2_Board.prefab`.
+
+### i. Cơ Chế Khóa Cổng: Khối Không Được Dẫm Lên Gate Khi Chưa Đủ Điều Kiện
+- **Vấn đề**:
+  - Trong các bản đồ chữ thập như Level 2 (`map_lv2.png`), cổng thoát nằm trực tiếp trên tọa độ grid vật lý `(col 2, row 0)` (Cổng trên Xanh lá) và `(col 5, row 3)` (Cổng phải Đỏ). Trước đây các ô này được coi như ô hành lang trống thông thường, dẫn tới khối bất kỳ có thể trượt vào hoặc dẫm lên cổng.
+- **Giải pháp & Triển khai**:
+  - `ExitGateView.cs`: Thêm trường `GateCoords`, phương thức `ContainsGateCell(Vector2Int coord)` và `EnsureGateCoords()` tự động nội suy tọa độ ô bàn cờ chứa cổng (`TriggerCoords - TriggerDirection`).
+  - `LevelManager.cs`:
+    - Bổ sung `GetGateAt(Vector2Int coord)` để tra cứu nhanh cổng tại bất kỳ tọa độ nào.
+    - Cập nhật `CanPieceFitAt(piece, origin)`: Trả về `false` ngay lập tức nếu bất kỳ ô chiếm dụng nào của khối trùng với ô cổng (`GetGateAt(c) != null`). Điều này đảm bảo không khối nào có thể đặt vị trí nghỉ hoặc snap lên ô cổng.
+    - Cập nhật `CheckEscapeOpportunity`: Kiểm tra cổng tại các ô ứng viên trước khi cho phép thoát.
+    - Cập nhật `RaycastSlide`: Đưa kiểm tra cổng lên trước kiểm tra tường ngoài. Nếu va chạm cổng và khối cùng hướng:
+      - Nếu khác màu hoặc chưa đủ giá trị: Cổng đóng vai trò như bức tường chắn vững chắc (`result.Action = Blocked`, `result.Steps = 0` hoặc dừng ngay trước cổng), phát âm thanh lỗi và hiển thị thông báo: *"Sai màu cổng!"* hoặc *"Chưa đủ số yêu cầu!"*.
+      - Chỉ khi khối cùng màu VÀ `Value >= RequiredValue`: Cho phép thoát (`result.Action = Escape`), khối trượt vào giữa cổng và biến mất.
+  - `PlayerPieceController.cs`:
+    - Trong khi kéo ngón tay: Khối bị giới hạn rung nhẹ tối đa `0.08 units` nếu cố đẩy vào cổng không hợp lệ.
+    - Khi thả ngón tay: Nếu người dùng cố đẩy khối vào cổng không hợp lệ, hệ thống tự động phát âm thanh lỗi, hiển thị thông báo lỗi cụ thể qua `GameUI.ShowFeedbackError` và snap khối an toàn về ô đứng ngay trước cổng, tuyệt đối không dẫm lên cổng.
 
 ### h. Tích hợp Background vũ trụ pha lê (`background_main scene .png`)
 - **Asset**: `Assets/Sprites/Background/background_main scene .png` (kích thước gốc 1441×3200, TextureType = Sprite 2D and UI, maxTextureSize = 4096px bảo toàn độ phân giải cao).

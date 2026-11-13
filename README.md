@@ -15,7 +15,8 @@ Dự án game giải đố trượt khối đá quý (**Sliding Block Merge & Es
    - Hai khối cùng **màu sắc**, cùng **hình dạng** và cùng **giá trị số** khi va chạm thẳng hàng trên cùng hàng/cột sẽ gộp thành một khối có giá trị tăng thêm 1 (`+50 điểm`).
    - Khóa va chạm lệch trục và chéo để đảm bảo tính giải đố chuẩn xác.
 
-3. **Thoát cổng theo màu và điều kiện (Gate Escape)**:
+3. **Thoát cổng theo màu và điều kiện (Gate Escape & Cell Blocking)**:
+   - **Khóa cổng vật lý (Gate Cell Blocking)**: Các khối **tuyệt đối không được dẫm lên hoặc dừng trên ô cổng** khi chưa đủ điều kiện. Cổng đóng vai trò như bức tường chắn chặn đứng chuyển động nếu khối sai màu hoặc chưa đủ số yêu cầu, đồng thời hiển thị thông báo lỗi cụ thể và phát âm thanh cảnh báo.
    - Mỗi cổng thoát yêu cầu một **màu sắc** và **giá trị số tối thiểu** nhất định.
    - Khi đưa khối đủ điều kiện vào đúng hướng cổng, khối sẽ căn giữa tâm cổng và bay ra ngoài (`+150 điểm`).
    - Giải phóng toàn bộ khối trên bàn cờ để kích hoạt trạng thái chiến thắng.
