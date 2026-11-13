@@ -35,7 +35,7 @@ namespace BlockMergePuzzle.UI
 
         private float GetLevelDurationSeconds()
         {
-            return GetCurrentLevelNumber() <= 3 ? Level1Time : DefaultLevelTime;
+            return GetCurrentLevelNumber() <= 4 ? Level1Time : DefaultLevelTime;
         }
 
         // Modals

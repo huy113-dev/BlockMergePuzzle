@@ -64,9 +64,23 @@ Game hỗ trợ chuyển đổi linh hoạt giữa các màn chơi cả trong **
 - **Độ giải đố**: Đã kiểm chứng 100% giải được qua các bước trượt, dồn hàng và gộp thẳng hàng thành Đỏ 4 và Xanh 4 để thoát cổng.
 - **Asset riêng**: Scene `Assets/Scenes/Level3.unity`, Prefab `Assets/Prefabs/Levels/Level3_Board.prefab` và ảnh nghiệm thu `Assets/Screenshots/verify_level3.png`.
 
-### 4. Cơ Chế Bảo Vệ Độc Lập Scene (Scene Protection Mechanism)
+### 4. Level 4: E-Shape Map (`map_lv4.png`) - [ĐÃ CHỐT HOÀN THIỆN]
+- **Bản đồ**: Cấu trúc chữ E 4 cột × 5 hàng từ asset viền đá `map_lv4.png` (14 ô hợp lệ: 3 hành lang ngang hàng 0, 2, 4 mỗi hàng 4 ô [col 0..3], nối liền qua hành lang dọc cột 0 tại hàng 1 và 3).
+- **Căn gốc tọa độ**: Tích hợp từ điển mapping chuẩn `Level4CellPositions` căn giữa tuyệt đối từng khối đá quý và cổng thoát vào lòng các hốc đá theo đúng vị trí người dùng đã tinh chỉnh.
+- **Cổng thoát công nghệ cao (Tech Hologram - 3 cổng hướng phải `Vector2.right`)**:
+  - Cổng trên (Top-Right): **Đỏ (Red)** yêu cầu số **3** tại `(col 3, row 0)`.
+  - Cổng giữa (Middle-Right): **Xanh lá (Green)** yêu cầu số **3** tại `(col 3, row 2)`.
+  - Cổng dưới (Bottom-Right): **Hồng (Pink)** yêu cầu số **2** tại `(col 3, row 4)`.
+- **Khối khởi đầu (7 khối 1x1 theo thiết kế [Image #18])**:
+  - 3 khối Đỏ: Đỏ [2] tại `(0, 0)`, Đỏ [1] tại `(0, 4)`, Đỏ [1] tại `(2, 4)` (gộp đủ thành Đỏ 3).
+  - 3 khối Xanh lá: Green [2] tại `(1, 0)`, Green [1] tại `(2, 0)`, Green [1] tại `(1, 4)` (gộp đủ thành Green 3).
+  - 1 khối Hồng: Pink [2] tại `(2, 2)` (thoát cổng Hồng 2).
+- **Độ giải đố**: Đã kiểm chứng thuật toán BFS giải được 100% qua 22 bước trượt, dồn hàng và gộp thẳng hàng.
+- **Asset riêng**: Scene `Assets/Scenes/Level4.unity`, Prefab `Assets/Prefabs/Levels/Level4_Board.prefab` và ảnh nghiệm thu `Assets/Screenshots/verify_level4.png`.
+
+### 5. Cơ Chế Bảo Vệ Độc Lập Scene (Scene Protection Mechanism)
 - **Nạp Scene trực tiếp qua `EditorSceneManager.OpenScene`**: `SceneSetupHelper.LoadLevel(LevelId level)` kiểm tra file `Assets/Scenes/{level}.unity`, nếu đã tồn tại thì mở trực tiếp scene đó, **tuyệt đối không chạy `BakeLevelToScene()` nướng đè** lên scene đang mở.
-- **Cách ly tuyệt đối Level 1, Level 2 & Level 3**: Khi tác giả tạo và cấu hình các level sau (Level 4..10), hệ thống chỉ ghi vào scene/prefab của level mới, **bảo toàn 100% Level 1, Level 2 và Level 3** không bị thay đổi layout UI, vị trí khối hay thông số cổng.
+- **Cách ly tuyệt đối Level 1, Level 2, Level 3 & Level 4**: Khi tác giả tạo và cấu hình các level sau (Level 5..10), hệ thống chỉ ghi vào scene/prefab của level mới, **bảo toàn 100% Level 1, Level 2, Level 3 và Level 4** không bị thay đổi layout UI, vị trí khối hay thông số cổng.
 
 ---
 
@@ -128,14 +142,16 @@ D:\BlockMergePuzzle\
 │   │   └── Levels\
 │   │       ├── Level1_Board.prefab          # Prefab nguyên khối Level 1
 │   │       ├── Level2_Board.prefab          # Prefab nguyên khối Level 2
-│   │       └── Level3_Board.prefab          # Prefab nguyên khối Level 3
+│   │       ├── Level3_Board.prefab          # Prefab nguyên khối Level 3
+│   │       └── Level4_Board.prefab          # Prefab nguyên khối Level 4
 │   ├── Resources\
 │   │   └── Sprites\LevelAssets\             # Sprites nạp động (map_lv1, gems, frame)
 │   ├── Scenes\
 │   │   ├── MainScene.unity                  # Scene mặc định đang hoạt động
 │   │   ├── Level1.unity                     # Scene riêng cho Level 1 (Đã chốt)
 │   │   ├── Level2.unity                     # Scene riêng cho Level 2 (Đã chốt)
-│   │   └── Level3.unity                     # Scene riêng cho Level 3 (Đã chốt)
+│   │   ├── Level3.unity                     # Scene riêng cho Level 3 (Đã chốt)
+│   │   └── Level4.unity                     # Scene riêng cho Level 4 (Đã chốt)
 │   ├── Screenshots\                         # Ảnh chụp nghiệm thu tiến độ
 │   ├── Scripts\
 │   │   ├── Audio\SoundManager.cs            # Âm thanh tương tác procedural
