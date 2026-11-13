@@ -201,12 +201,14 @@ namespace BlockMergePuzzle.Editor
             {
                 if (ui.transform.childCount == 0) ui.RebuildUI();
                 else ui.EnsureBoosterBar();
+                ui.UpdateLevelDisplay();
+                ui.EnsureTimeText();
             }
 
             lm.BakeEditModeLevel();
 
-            // Keep Level 1 pieces, clear unfinished residual blocks on other levels
-            if (lm != null && lm.CurrentLevel != LevelId.Level1)
+            // Keep Level 1 & 2 pieces, clear unfinished residual blocks on other levels
+            if (lm != null && lm.CurrentLevel != LevelId.Level1 && lm.CurrentLevel != LevelId.Level2)
             {
                 GameObject piecesObj = GameObject.Find("Active_Pieces");
                 if (piecesObj != null)
@@ -246,6 +248,37 @@ namespace BlockMergePuzzle.Editor
             var activeScene = EditorSceneManager.GetActiveScene();
             EditorSceneManager.MarkSceneDirty(activeScene);
             EditorSceneManager.SaveScene(activeScene);
+
+            if (lm != null)
+            {
+                string prefabsDir = "Assets/Prefabs/Levels";
+                if (!System.IO.Directory.Exists(prefabsDir)) System.IO.Directory.CreateDirectory(prefabsDir);
+
+                GameObject boardFrame = GameObject.Find("Board_Frame");
+                GameObject exitGates = GameObject.Find("Exit_Gates");
+                GameObject activePieces = GameObject.Find("Active_Pieces");
+                if (boardFrame != null && exitGates != null && activePieces != null)
+                {
+                    GameObject levelRoot = new GameObject($"{lm.CurrentLevel}_Board");
+                    GameObject frameClone = Object.Instantiate(boardFrame, levelRoot.transform);
+                    frameClone.name = "Board_Frame";
+                    GameObject gatesClone = Object.Instantiate(exitGates, levelRoot.transform);
+                    gatesClone.name = "Exit_Gates";
+                    GameObject piecesClone = Object.Instantiate(activePieces, levelRoot.transform);
+                    piecesClone.name = "Active_Pieces";
+
+                    string prefabPath = $"{prefabsDir}/{lm.CurrentLevel}_Board.prefab";
+                    PrefabUtility.SaveAsPrefabAsset(levelRoot, prefabPath);
+                    Object.DestroyImmediate(levelRoot);
+                }
+
+                if (lm.CurrentLevel == LevelId.Level2)
+                {
+                    string scenesDir = "Assets/Scenes";
+                    if (!System.IO.Directory.Exists(scenesDir)) System.IO.Directory.CreateDirectory(scenesDir);
+                    EditorSceneManager.SaveScene(activeScene, $"{scenesDir}/Level2.unity", true);
+                }
+            }
 
             Debug.Log($"[Block Merge Puzzle] Level {lm.CurrentLevel} baked successfully to scene {activeScene.name}! Board, gates and blocks are now visible in idle Edit Mode.");
         }

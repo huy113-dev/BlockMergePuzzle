@@ -35,7 +35,7 @@ namespace BlockMergePuzzle.UI
 
         private float GetLevelDurationSeconds()
         {
-            return GetCurrentLevelNumber() == 1 ? Level1Time : DefaultLevelTime;
+            return GetCurrentLevelNumber() <= 2 ? Level1Time : DefaultLevelTime;
         }
 
         // Modals
@@ -306,14 +306,14 @@ namespace BlockMergePuzzle.UI
 
         public void UpdateLevelDisplay()
         {
-            if (_levelText == null && _headerPanel != null)
+            if (_levelText == null)
             {
-                Transform lvlTr = _headerPanel.transform.Find("Banner_Level");
-                if (lvlTr != null)
+                var lvlObj = GameObject.Find("LevelText");
+                if (lvlObj != null) _levelText = lvlObj.GetComponent<Text>();
+                else if (_headerPanel != null)
                 {
-                    _levelBannerObj = lvlTr.gameObject;
-                    _levelBannerImg = lvlTr.GetComponent<Image>();
-                    _levelText = lvlTr.GetComponentInChildren<Text>(true);
+                    Transform lvlTr = _headerPanel.transform.Find("Banner_Level");
+                    if (lvlTr != null) _levelText = lvlTr.GetComponentInChildren<Text>(true);
                 }
             }
 

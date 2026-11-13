@@ -157,6 +157,17 @@ namespace BlockMergePuzzle.UI
 
         public void EvaluatePhase()
         {
+            if (_bannerObj == null)
+            {
+                var banner = GameObject.Find("InstructionBanner");
+                if (banner != null)
+                {
+                    _bannerObj = banner;
+                    _bannerRect = banner.GetComponent<RectTransform>();
+                    _bannerText = banner.GetComponentInChildren<Text>(true);
+                }
+            }
+
             EnsureWorldHand();
 
             LevelManager lm = LevelManager.Instance;
@@ -222,7 +233,17 @@ namespace BlockMergePuzzle.UI
         private void SetVisible(bool visible)
         {
             if (_bannerObj != null) _bannerObj.SetActive(visible);
+            else
+            {
+                var b = GameObject.Find("InstructionBanner");
+                if (b != null) b.SetActive(visible);
+            }
             if (_handRootObj != null) _handRootObj.SetActive(visible);
+            else
+            {
+                var h = GameObject.Find("TutorialHand_World");
+                if (h != null) h.SetActive(visible);
+            }
         }
 
         private void Update()

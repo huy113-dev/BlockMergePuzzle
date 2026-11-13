@@ -111,7 +111,7 @@ namespace BlockMergePuzzle.Core
             BuildBackground();
             BuildBoardFrame();
             BuildExitGates();
-            if (_currentLevel == LevelId.Level1)
+            if (_currentLevel == LevelId.Level1 || _currentLevel == LevelId.Level2)
             {
                 SpawnPieces();
             }
@@ -381,16 +381,23 @@ namespace BlockMergePuzzle.Core
                     break;
 
                 case LevelId.Level2:
-                    // Top Green Gate (col 3, row 0)
+                    // Top Green Gate (col 2, row 0 -> exit at (2, -1)) with High-Tech Holographic Glowing Display
                     _activeGates.Add(ExitGateView.Create(
                         PieceColor.Green, 2, GateSide.Top, Vector2.up,
-                        GridToWorld(3, 0) + Vector3.up * (ch * 0.85f), hGateSize, _gatesRoot,
-                        new[] { new Vector2Int(3, -1) }));
-                    // Right Red Gate (col 6, row 3)
+                        GridToWorld(2, 0),
+                        new Vector2(1.15f, 0.95f), _gatesRoot,
+                        new[] { new Vector2Int(2, -1) },
+                        default,
+                        true));
+
+                    // Right Red Gate (col 5, row 3 -> exit at (6, 3)) with High-Tech Holographic Glowing Display
                     _activeGates.Add(ExitGateView.Create(
-                        PieceColor.Red, 2, GateSide.Right, Vector2.right,
-                        GridToWorld(6, 3) + Vector3.right * (cw * 0.85f), vGateSize, _gatesRoot,
-                        new[] { new Vector2Int(7, 3) }));
+                        PieceColor.Red, 1, GateSide.Right, Vector2.right,
+                        GridToWorld(5, 3),
+                        new Vector2(0.95f, 1.15f), _gatesRoot,
+                        new[] { new Vector2Int(6, 3) },
+                        default,
+                        true));
                     break;
 
                 case LevelId.Level3:
@@ -564,10 +571,11 @@ namespace BlockMergePuzzle.Core
                     break;
 
                 case LevelId.Level2:
-                    SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 1, new Vector2Int(3, 1));
-                    SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 1, new Vector2Int(3, 5));
-                    SpawnPiece(PieceColor.Red, PieceShape.Single_1x1, 1, new Vector2Int(1, 3));
-                    SpawnPiece(PieceColor.Red, PieceShape.Single_1x1, 1, new Vector2Int(5, 3));
+                    SpawnPiece(PieceColor.Red, PieceShape.Single_1x1, 2, new Vector2Int(2, 1));
+                    SpawnPiece(PieceColor.Red, PieceShape.Single_1x1, 1, new Vector2Int(2, 3));
+                    SpawnPiece(PieceColor.Red, PieceShape.Single_1x1, 2, new Vector2Int(2, 5));
+                    SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 1, new Vector2Int(0, 3));
+                    SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 1, new Vector2Int(4, 3));
                     break;
 
                 case LevelId.Level3:
@@ -719,7 +727,7 @@ namespace BlockMergePuzzle.Core
             switch (level)
             {
                 case LevelId.Level1: return 5;
-                case LevelId.Level2: return 7;
+                case LevelId.Level2: return 6;
                 case LevelId.Level3: return 5;
                 case LevelId.Level4: return 4;
                 case LevelId.Level5: return 5;
@@ -755,7 +763,7 @@ namespace BlockMergePuzzle.Core
             switch (level)
             {
                 case LevelId.Level1: return 1.36f;
-                case LevelId.Level2: return 1.00f;
+                case LevelId.Level2: return 1.16f;
                 case LevelId.Level3: return 1.10f;
                 case LevelId.Level4: return 1.10f;
                 case LevelId.Level5: return 1.10f;
@@ -773,7 +781,7 @@ namespace BlockMergePuzzle.Core
             switch (level)
             {
                 case LevelId.Level1: return 1.20f;
-                case LevelId.Level2: return 1.00f;
+                case LevelId.Level2: return 1.03f;
                 case LevelId.Level3: return 1.10f;
                 case LevelId.Level4: return 1.10f;
                 case LevelId.Level5: return 1.10f;
@@ -809,7 +817,7 @@ namespace BlockMergePuzzle.Core
             switch (level)
             {
                 case LevelId.Level1: return 4.413f;
-                case LevelId.Level2: return 7.699f;
+                case LevelId.Level2: return 7.263f;
                 case LevelId.Level3: return 8.808f;
                 case LevelId.Level4: return 10.000f;
                 case LevelId.Level5: return 9.890f;
@@ -837,6 +845,7 @@ namespace BlockMergePuzzle.Core
             switch (level)
             {
                 case LevelId.Level1: return new Vector3(0f, -0.526f, 0f);
+                case LevelId.Level2: return new Vector3(0.617f, 0.426f, 0f);
                 case LevelId.Level7: return new Vector3(0f, -0.15f, 0f);
                 default: return Vector3.zero;
             }
@@ -850,7 +859,7 @@ namespace BlockMergePuzzle.Core
                     return (col == 2 && row == 0) || (row == 1 && col >= 0 && col < 5);
 
                 case LevelId.Level2:
-                    return (col == 3 && row >= 0 && row < 6) || (row == 3 && col >= 0 && col < 7);
+                    return (col == 2 && row >= 0 && row < 6) || (row == 3 && col >= 0 && col < 6);
 
                 case LevelId.Level3:
                     return (col == 1 && row >= 0 && row <= 1) || (col == 2 && row >= 0 && row <= 5) || (row == 5 && col >= 0 && col <= 4);

@@ -188,6 +188,18 @@ namespace BlockMergePuzzle.Utils
             string editorPath = $"Assets/Sprites/Main Scene/Map/map_lv{levelIndex}.png";
             Sprite es = UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>(editorPath);
             if (es != null) return es;
+
+            string mapDir = "Assets/Sprites/Main Scene/Map";
+            if (System.IO.Directory.Exists(mapDir))
+            {
+                string[] files = System.IO.Directory.GetFiles(mapDir, $"map_lv{levelIndex}*.png");
+                foreach (string f in files)
+                {
+                    string p = f.Replace("\\", "/");
+                    Sprite s = UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>(p);
+                    if (s != null) return s;
+                }
+            }
 #endif
             return GetSpriteExplicit("Sprites/Main Scene/Map", $"map_lv{levelIndex}")
                 ?? GetSpriteExplicit("Sprites/Main Scene/Map", $"map_lv{levelIndex}.png")

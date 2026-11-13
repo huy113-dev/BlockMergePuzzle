@@ -3,9 +3,9 @@
 ## 1. Trạng Thái Hiện Tại (Ready for Next Session)
 - **Hệ thống màn chơi hoàn chỉnh (Multi-Level Architecture)**:
   - **Level 1 (Tutorial Cross Map)**: Xây dựng theo asset gốc `Map lv1.png` (bàn cờ hình chữ thập 7×6, tâm tại `(0, 0, 0)`, 5 khối đá 1x1, 2 cổng thoát có badge tương phản số). Đã loại bỏ gạch sàn theo yêu cầu để giữ trọn vẹn nền tím tự nhiên của asset.
-  - **Level 2 (Reference Board 6×8)**: Bàn cờ 6×8 đầy đủ 21 blocks, 7 cổng thoát đa hướng.
+  - **Level 2 (Cross Map - map_lv2.png)**: Bàn cờ chữ thập lệch tâm 6×6 (11 ô hành lang: cột 2 dọc [row 0..5] và hàng 3 ngang [col 0..5]) xây dựng theo asset `map_lv2.png` / `map_lv2 (3).png`. Cổng thoát công nghệ cao (Tech Hologram) và 5 khối 1x1 (3 Đỏ, 2 Xanh lá) sắp xếp chuẩn xác theo thiết kế [Image #12].
 - **Lưu trữ Scene & Prefab độc lập**:
-  - `Assets/Scenes/MainScene.unity`: Scene làm việc mặc định (đang kích hoạt Level 1 sạch sẽ).
+  - `Assets/Scenes/MainScene.unity`: Scene làm việc mặc định (đang kích hoạt Level 2 đã bake hoàn chỉnh).
   - `Assets/Scenes/Level1.unity`: Scene độc lập cho Level 1.
   - `Assets/Scenes/Level2.unity`: Scene độc lập cho Level 2.
   - `Assets/Prefabs/Levels/Level1_Board.prefab`: Prefab nguyên bản bàn cờ Level 1.
@@ -19,16 +19,18 @@
   - `feat/level-1`: Cấu hình Level 1 Tutorial Cross, lưu scene và prefab riêng, bỏ gạch sàn, đồng bộ chuyển đổi Level 1 và Level 2, tích hợp background vũ trụ.
   - `feat/header-ui-controls`: Thiết kế thanh Header UI (Return đá, Time neon 1:40 đếm ngược, Pause đá).
   - `feat/pause-game-panel`: Thiết kế hoàn chỉnh popup Pause Game Panel ([Image #7]) với background game tối mờ, 14 assets sci-fi, 3 toggle settings (Sound, Music, Vibration), nút No Ads, Return và Home.
-  - `feat/header-ui-and-tutorial`: **[Branch mới nhất]**
-    - Tăng thời gian Level 1 lên 5 phút (`300f` / `05:00`).
-    - Làm dịu nền game (`Color(0.42, 0.42, 0.48, 1)`) giúp khối và bàn cờ nổi bật.
-    - Sửa nút Replay (`Btn_Replay`) khôi phục 100% đồ họa và trạng thái ban đầu của scene qua `SceneManager.LoadScene(activeScene.buildIndex)`.
-    - Thêm Banner Level (`Banner_Level`), Thanh Booster 3 slot bị khóa (mở ở Level 6, 12, 16).
-    - Khắc phục triệt để âm thanh: sửa toàn bộ `.meta` sang `preloadAudioData: 1`, `3D: 0` (2D), âm lượng combo merge tăng dần, âm thanh pickup/drop/vanish.
-    - Lưu trực tiếp toàn bộ layout UI người dùng xếp vào `MainScene.unity` và gắn cố định `TimeVal` (`05:00`) hiển thị cả ở Edit Mode lẫn Play Mode.
+  - `feat/header-ui-and-tutorial`: Cấu hình thời gian 5 phút, Replay chuẩn, banner level, khóa booster, tối ưu âm thanh và layout UI.
+  - `feat/level-2-cross-map`: **[Branch mới nhất]**
+    - Nhập và cấu hình TextureImporter cho asset bản đồ `map_lv2 (3).png` / `map_lv2.png` (Sprite 2D, Single, alphaIsTransparency, 4096px).
+    - Cấu hình grid chữ thập 6×6 cho Level 2: `CellWidth = 1.16f`, `CellHeight = 1.03f`, `GridOffset = (0.617f, 0.426f, 0f)` căn chỉnh chuẩn xác sub-pixel vào hành lang đá.
+    - Xây dựng 2 cổng thoát Tech Hologram: Cổng trên (Xanh lá [2]) và Cổng phải (Đỏ [1]).
+    - Thiết lập 5 khối 1x1: Đỏ [2] tại `(2, 1)`, Đỏ [1] tại `(2, 3)`, Đỏ [2] tại `(2, 5)`, Xanh lá [1] tại `(0, 3)`, Xanh lá [1] tại `(4, 3)`.
+    - Bảo toàn thời gian 5:00 (`300s`) và hiển thị `LEVEL 2` trên thanh Header UI; tự động ẩn hướng dẫn Tutorial trên Level 2.
+    - Bake scene vào `MainScene.unity`, `Assets/Scenes/Level2.unity` và xuất `Assets/Prefabs/Levels/Level2_Board.prefab`.
 - **Hệ thống kết nối Unity MCP**: FastMCP HTTP bridge hoạt động ổn định trên `http://127.0.0.1:8080/mcp`. Tự động kết nối lại khi domain reload nhờ `AutoMcpStarter` trong `SceneSetupHelper.cs`.
 - **Screenshot kiểm chứng**:
-  - `Assets/Screenshots/level1_final_preview.png`: Ảnh chụp Game View mới nhất hiển thị layout hoàn chỉnh do user xếp: nút Replay, LEVEL 1, thời gian 05:00, nút Pause, bàn cờ Level 1 và thanh 3 Booster khóa dưới đáy.
+  - `Assets/Screenshots/level2_final_preview.png`: Ảnh chụp Game View hoàn thiện Level 2 với map_lv2, 2 cổng hologram, 5 khối xếp chuẩn Image #12, thời gian 05:00 và banner LEVEL 2.
+  - `Assets/Screenshots/level1_final_preview.png`: Ảnh chụp Game View Level 1 hoàn chỉnh do user xếp: nút Replay, LEVEL 1, thời gian 05:00, nút Pause, bàn cờ Level 1 và thanh 3 Booster khóa dưới đáy.
   - `Assets/Screenshots/pause_panel_preview.png`: Ảnh chụp popup Pause Game hoàn thiện chuẩn xác theo Image #7 với nền game tối mờ phía sau.
   - `Assets/Screenshots/pause_panel_toggled.png`: Ảnh chụp trạng thái toggle OFF của Sound & Music (icon xám + switch xám).
   - `Assets/Screenshots/normal_gameplay_preview.png`: Ảnh chụp màn chơi bình thường với thanh Header UI và nền vũ trụ.
@@ -108,23 +110,55 @@
 - **Đồng bộ bố cục người dùng chỉnh tay (User Custom Layout Sync)**: Tọa độ tinh chỉnh trực tiếp trên scene của người dùng đã được trích xuất và cập nhật vào `GameUI.BuildPausePanel()`, đồng thời bake đồng nhất trên toàn bộ các scene `Level1.unity`, `Level2.unity` và `MainScene.unity`.
 - **Render Mode**: Sử dụng `RenderMode.ScreenSpaceCamera` với `Camera.main`, `planeDistance = 5f`, `sortingOrder = 100`, hiển thị hoàn hảo và ổn định cả trong Edit Mode bake lẫn Runtime.
 
+### k. Hệ thống Level 2 Cross Map (`map_lv2.png` / `map_lv2 (3).png`)
+- **Phân tích hình học asset & Khớp tọa độ (Pixel Alignment)**:
+  - Khung đá kích thước gốc 1303×1183, viền đá xám cổ với 2 cổng thoát (Xanh lá phía trên, Đỏ bên phải).
+  - Phân tích tọa độ tâm cổng theo pixel: Green pad tại `(655.5, 107.0)`, Red pad tại `(1215.5, 613.0)`.
+  - Cấu hình kích thước ô: `CellWidth = 1.16f`, `CellHeight = 1.03f`.
+  - Frame scale: `FrameWidth = 8.000f`, `FrameHeight = 7.263f`.
+  - GridOffset: `Vector3(0.617f, 0.426f, 0f)` căn chỉnh chuẩn xác sub-pixel toàn bộ 11 ô đá hành lang vào khung đá.
+- **Hành lang hợp lệ (Corridor Layout)**:
+  - Grid logic 6 cột (0..5) × 6 hàng (0..5).
+  - Tọa độ hợp lệ: `(col == 2 && row >= 0 && row < 6) || (row == 3 && col >= 0 && col < 6)`.
+  - Giao điểm hành lang tại `(col 2, row 3)`.
+- **Cổng thoát công nghệ cao (Tech Hologram Exit Gates)**:
+  - Áp dụng `ExitGateView.Create(..., isTechHologram: true)` giống phong cách Level 1: vòng xoay cyber ngoài, vòng xoay ngược trong, bóng đổ, chữ số 3D phát sáng và đế holographic.
+  - Cổng trên: Xanh lá (Green), yêu cầu số 2, hướng lên `Vector2.up`, trigger `(2, -1)`.
+  - Cổng phải: Đỏ (Red), yêu cầu số 1, hướng sang phải `Vector2.right`, trigger `(6, 3)`.
+- **Bố cục 5 khối khởi đầu theo [Image #12]**:
+  - Khối Đỏ [2] tại `(2, 1)`.
+  - Khối Đỏ [1] tại `(2, 3)` (ngay giao điểm hành lang).
+  - Khối Đỏ [2] tại `(2, 5)`.
+  - Khối Xanh lá [1] tại `(0, 3)`.
+  - Khối Xanh lá [1] tại `(4, 3)`.
+- **Tính giải được (Solvability Check)**:
+  1. Trượt khối Đỏ [1] từ `(2, 3)` xuống `(2, 4)` để mở giao điểm.
+  2. Trượt khối Xanh lá [1] từ `(0, 3)` sang phải qua giao điểm gộp với Xanh lá [1] tại `(4, 3)` -> tạo thành Xanh lá [2].
+  3. Trượt khối Đỏ [2] tại `(2, 1)` xuống `(2, 3)` rồi rẽ phải qua cổng Đỏ [1] -> thoát cổng.
+  4. Lần lượt trượt khối Đỏ [1] và Đỏ [2] còn lại ra cổng Đỏ.
+  5. Đưa khối Xanh lá [2] về giao điểm và trượt lên cổng Xanh lá [2] -> chiến thắng.
+- **Tự động hóa UI & Tutorial**:
+  - Thời gian màn: 5 phút (`300s` / `05:00`).
+  - Banner hiển thị chuẩn `LEVEL 2`.
+  - `TutorialHandGuide` tự động ẩn (chỉ kích hoạt ở Level 1).
+
 ---
 
 ## 3. Bản Đồ File Quan Trọng
 
 | Đường dẫn | Vai trò | Trạng thái |
 |---|---|---|
-| `Assets/Scenes/MainScene.unity` | Scene chính của game (mặc định nạp Level 1) | Hoàn thiện |
+| `Assets/Scenes/MainScene.unity` | Scene chính của game (mặc định nạp Level 2) | Hoàn thiện |
 | `Assets/Scenes/Level1.unity` | Scene riêng biệt nạp sẵn Level 1 Tutorial | Hoàn thiện |
-| `Assets/Scenes/Level2.unity` | Scene riêng biệt nạp sẵn Level 2 6x8 Board | Hoàn thiện |
+| `Assets/Scenes/Level2.unity` | Scene riêng biệt nạp sẵn Level 2 Cross Map | Hoàn thiện |
 | `Assets/Prefabs/Levels/Level1_Board.prefab` | Prefab trọn bộ bàn cờ, cổng, khối Level 1 | Hoàn thiện |
 | `Assets/Prefabs/Levels/Level2_Board.prefab` | Prefab trọn bộ bàn cờ, cổng, khối Level 2 | Hoàn thiện |
 | `Assets/Scripts/Core/LevelManager.cs` | Logic bàn cờ đa level, raycast, merge thẳng hàng, thoát cổng, auto-fit camera | Hoàn thiện |
 | `Assets/Scripts/Gameplay/PlayerPieceController.cs` | Kéo thả đa hướng trực quan Drag & Snap, dynamic tilt | Hoàn thiện |
 | `Assets/Scripts/Gameplay/PuzzlePiece.cs` | Visual khối, render mảnh con, nhãn số, animation EaseOutQuad | Hoàn thiện |
-| `Assets/Scripts/Gameplay/ExitGateView.cs` | Render cổng thoát, đĩa badge tương phản số | Hoàn thiện |
+| `Assets/Scripts/Gameplay/ExitGateView.cs` | Render cổng thoát, đĩa badge tương phản số, tech hologram | Hoàn thiện |
 | `Assets/Scripts/Editor/SceneSetupHelper.cs` | Menu items chuyển đổi level + AutoMcpStarter tự reconnect | Hoàn thiện |
-| `Assets/Scripts/Utils/GemSpriteManager.cs` | Nạp sprite động từ Resources/Disk cho mọi level | Hoàn thiện |
+| `Assets/Scripts/Utils/GemSpriteManager.cs` | Nạp sprite động từ Resources/Disk cho mọi level (hỗ trợ pattern matching map) | Hoàn thiện |
 
 ---
 
@@ -132,7 +166,7 @@
 
 1. **Chuyển đổi màn chơi trên Unity Editor**:
    - `Tools/Block Merge Puzzle/Load Level 1 (Tutorial Cross)`: Nạp Level 1.
-   - `Tools/Block Merge Puzzle/Load Level 2 (Reference 6x8)`: Nạp Level 2.
+   - `Tools/Block Merge Puzzle/Load Level 2`: Nạp Level 2 (Cross Map).
    - `Tools/Block Merge Puzzle/Bake Level to Scene (Idle Display)`: Cập nhật lại màn đang chọn.
 2. **Kiểm tra tự động bằng Python qua FastMCP**:
    - Chạy các script test trong `C:\Users\OS\.claude\jobs\fb04934c\tmp\`:

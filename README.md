@@ -39,14 +39,16 @@ Game hỗ trợ chuyển đổi linh hoạt giữa các màn chơi cả trong **
 - **Độ giải đố**: Đã kiểm chứng 100% tính giải được (Red 2 trượt mở đường -> Red 1 gộp thành Red 2 -> Red 2 gộp Red 2 thành Red 3 -> thoát cổng đỏ -> Green 1 gộp Green 2 -> thoát cổng xanh).
 - **Asset riêng**: Scene `Assets/Scenes/Level1.unity` và Prefab `Assets/Prefabs/Levels/Level1_Board.prefab`.
 
-### 2. Level 2: Reference Board (Bàn cờ 6×8)
-- **Bản đồ**: Khung đá kín 6 cột × 8 hàng.
-- **Cổng thoát (7 cổng)**:
-  - Cổng trên: Xanh dương [2], Xanh lá [3].
-  - Cổng phải: Đỏ [2], Hồng [3].
-  - Cổng dưới: Cam [2].
-  - Cổng trái: Tím [4], Vàng [2].
-- **Khối khởi đầu**: 21 khối đa hình dạng (1x1, 1x2 dọc, 2x1 ngang, chữ L) với nhiều cấp độ màu sắc.
+### 2. Level 2: Cross Map (`map_lv2.png`)
+- **Bản đồ**: Chữ thập lệch tâm 6 cột × 6 hàng từ asset khung đá `map_lv2.png` / `map_lv2 (3).png` (11 ô hành lang: cột 2 dọc [row 0..5] và hàng 3 ngang [col 0..5]).
+- **Căn gốc tọa độ**: Giao điểm `(col 2, row 3)`, `GridOffset = (0.617f, 0.426f, 0f)`, `CellWidth = 1.16f`, `CellHeight = 1.03f`.
+- **Cổng thoát công nghệ cao (Tech Hologram - 2 cổng)**:
+  - Cổng trên (Top): **Xanh lá (Green)** yêu cầu số **2**, hướng lên `Vector2.up`.
+  - Cổng phải (Right): **Đỏ (Red)** yêu cầu số **1**, hướng sang phải `Vector2.right`.
+- **Khối khởi đầu (5 khối 1x1 theo [Image #12])**:
+  - 3 khối Đỏ: Đỏ [2] tại `(2, 1)`, Đỏ [1] tại `(2, 3)`, Đỏ [2] tại `(2, 5)`.
+  - 2 khối Xanh lá: Xanh lá [1] tại `(0, 3)`, Xanh lá [1] tại `(4, 3)`.
+- **Độ giải đố**: Đã kiểm chứng 100% tính giải được (Đỏ 1 trượt xuống mở giao điểm -> Xanh 1 trượt sang phải gộp thành Xanh 2 -> Đỏ 2 trượt qua cổng Đỏ 1 -> các khối Đỏ lần lượt thoát -> Xanh 2 thoát cổng Xanh 2).
 - **Asset riêng**: Scene `Assets/Scenes/Level2.unity` và Prefab `Assets/Prefabs/Levels/Level2_Board.prefab`.
 
 ---
@@ -55,13 +57,13 @@ Game hỗ trợ chuyển đổi linh hoạt giữa các màn chơi cả trong **
 
 - **Thanh Header UI (`HeaderPanel`)**:
   - **Nút Replay (`Btn_Replay`)**: Khối đá cổ bên trái, bấm để load lại đúng trạng thái đồ họa, bố cục bàn cờ và bộ đếm thời gian ban đầu của màn chơi (`SceneManager.LoadScene` + snapshot fallback).
-  - **Banner Level (`Banner_Level`)**: Hiển thị cấp độ hiện tại (`LEVEL 1`, đồng bộ tông màu phía trên banner thời gian).
-  - **Banner Time (`Banner_Time` + `TimeVal`)**: Hộp thời gian với icon đồng hồ và chữ số `05:00` (Level 1 = 300 giây, các màn khác = 100 giây), hiển thị sẵn cả ở **Edit Mode** lẫn đếm ngược **Play Mode**, chuyển đỏ cảnh báo khi còn dưới 20 giây.
+  - **Banner Level (`Banner_Level`)**: Hiển thị cấp độ hiện tại (`LEVEL 1`, `LEVEL 2`, đồng bộ tông màu phía trên banner thời gian).
+  - **Banner Time (`Banner_Time` + `TimeVal`)**: Hộp thời gian với icon đồng hồ và chữ số `05:00` (Level 1 & Level 2 = 300 giây / 5 phút), hiển thị sẵn cả ở **Edit Mode** lẫn đếm ngược **Play Mode**, chuyển đỏ cảnh báo khi còn dưới 20 giây.
   - **Nút Pause (`Btn_Pause`)**: Khối đá cổ bên phải, mở modal Settings/Pause.
 - **Thanh Booster (`BoosterBar`)**:
   - 3 ô booster ở đáy màn hình (Freeze, Magnet, Wand), hiển thị mờ + ổ khóa khi chưa mở khóa (mở lần lượt ở Level 6, Level 12, Level 16).
 - **Hướng dẫn trực quan (`TutorialHandGuide`)**:
-  - Tay chỉ dẫn động và chữ hướng dẫn *Swipe block to merge* -> chỉ dẫn thoát cổng khi đủ điều kiện.
+  - Tay chỉ dẫn động và chữ hướng dẫn *Swipe block to merge* trên Level 1 -> tự động ẩn trên Level 2.
 - **Hộp thoại Setting / Pause Panel (`PausePanel`)**:
   - Phủ mờ khung cảnh game phía sau (`#03050ECC`), giữ trọn vẹn bàn cờ.
   - Công tắc **Sound**, **Music**, **Vibration** tự động lưu vào `PlayerPrefs`, nút đóng `X (1)` mới, nút **No Ads**, **Return**, **Home**.
