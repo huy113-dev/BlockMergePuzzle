@@ -54,12 +54,26 @@ namespace BlockMergePuzzle.Editor
 
         public static void LoadLevel(LevelId level)
         {
-            LevelManager lm = FindObj<LevelManager>();
-            if (lm != null)
+            string scenePath = $"Assets/Scenes/{level}.unity";
+            if (System.IO.File.Exists(scenePath))
             {
-                lm.CurrentLevel = level;
+                var activeScene = EditorSceneManager.GetActiveScene();
+                if (activeScene.isDirty)
+                {
+                    EditorSceneManager.SaveScene(activeScene);
+                }
+                EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
+                Debug.Log($"[Block Merge Puzzle] Loaded saved scene: {scenePath}");
             }
-            BakeLevelToScene();
+            else
+            {
+                LevelManager lm = FindObj<LevelManager>();
+                if (lm != null)
+                {
+                    lm.CurrentLevel = level;
+                }
+                BakeLevelToScene();
+            }
         }
 
         [MenuItem("Tools/Block Merge Puzzle/Bake All 10 Levels (Scenes & Prefabs)")]
@@ -270,13 +284,6 @@ namespace BlockMergePuzzle.Editor
                     string prefabPath = $"{prefabsDir}/{lm.CurrentLevel}_Board.prefab";
                     PrefabUtility.SaveAsPrefabAsset(levelRoot, prefabPath);
                     Object.DestroyImmediate(levelRoot);
-                }
-
-                if (lm.CurrentLevel == LevelId.Level2)
-                {
-                    string scenesDir = "Assets/Scenes";
-                    if (!System.IO.Directory.Exists(scenesDir)) System.IO.Directory.CreateDirectory(scenesDir);
-                    EditorSceneManager.SaveScene(activeScene, $"{scenesDir}/Level2.unity", true);
                 }
             }
 

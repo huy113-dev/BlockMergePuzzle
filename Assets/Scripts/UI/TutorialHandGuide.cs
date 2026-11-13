@@ -112,11 +112,26 @@ namespace BlockMergePuzzle.UI
         {
             if (_handRootObj == null)
             {
-                GameObject existing = GameObject.Find("TutorialHand_World");
-                if (existing != null)
+                var scene = gameObject.scene;
+                if (scene.isLoaded)
                 {
-                    _handRootObj = existing;
-                    _handSr = _handRootObj.GetComponentInChildren<SpriteRenderer>(true);
+                    var roots = scene.GetRootGameObjects();
+                    foreach (var go in roots)
+                    {
+                        if (go.name == "TutorialHand_World")
+                        {
+                            if (_handRootObj == null)
+                            {
+                                _handRootObj = go;
+                                _handSr = _handRootObj.GetComponentInChildren<SpriteRenderer>(true);
+                            }
+                            else
+                            {
+                                if (Application.isPlaying) Destroy(go);
+                                else DestroyImmediate(go);
+                            }
+                        }
+                    }
                 }
             }
 
