@@ -186,13 +186,14 @@ namespace BlockMergePuzzle.Utils
         {
 #if UNITY_EDITOR
             string editorPath = $"Assets/Sprites/Main Scene/Map/map_lv{levelIndex}.png";
-            Sprite es = UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>(editorPath);
+            Sprite es = UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>(editorPath)
+                ?? UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>($"Assets/Sprites/Main Scene/Map/Map_lv{levelIndex}.png");
             if (es != null) return es;
 
             string mapDir = "Assets/Sprites/Main Scene/Map";
             if (System.IO.Directory.Exists(mapDir))
             {
-                string[] files = System.IO.Directory.GetFiles(mapDir, $"map_lv{levelIndex}*.png");
+                string[] files = System.IO.Directory.GetFiles(mapDir, $"*map_lv{levelIndex}*.png", System.IO.SearchOption.TopDirectoryOnly);
                 foreach (string f in files)
                 {
                     string p = f.Replace("\\", "/");
@@ -201,7 +202,9 @@ namespace BlockMergePuzzle.Utils
                 }
             }
 #endif
-            return GetSpriteExplicit("Sprites/Main Scene/Map", $"map_lv{levelIndex}")
+            return GetSpriteExplicit("Sprites/Main Scene/Map", $"Map_lv{levelIndex}")
+                ?? GetSpriteExplicit("Sprites/Main Scene/Map", $"map_lv{levelIndex}")
+                ?? GetSpriteExplicit("Sprites/Main Scene/Map", $"Map_lv{levelIndex}.png")
                 ?? GetSpriteExplicit("Sprites/Main Scene/Map", $"map_lv{levelIndex}.png")
                 ?? GetSprite($"map_lv{levelIndex}");
         }

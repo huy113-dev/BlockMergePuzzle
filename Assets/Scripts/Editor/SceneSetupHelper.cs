@@ -93,6 +93,8 @@ namespace BlockMergePuzzle.Editor
 
             for (int i = 1; i <= 10; i++)
             {
+                if (i == 1 || i == 2) continue; // Protect finalized Level 1 and Level 2 scenes
+
                 LevelId lid = (LevelId)i;
                 string scenePath = $"{scenesDir}/Level{i}.unity";
 

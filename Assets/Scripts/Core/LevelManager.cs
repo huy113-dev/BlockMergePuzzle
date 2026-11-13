@@ -111,7 +111,7 @@ namespace BlockMergePuzzle.Core
             BuildBackground();
             BuildBoardFrame();
             BuildExitGates();
-            if (_currentLevel == LevelId.Level1 || _currentLevel == LevelId.Level2)
+            if (_currentLevel == LevelId.Level1 || _currentLevel == LevelId.Level2 || _currentLevel == LevelId.Level3)
             {
                 SpawnPieces();
             }
@@ -415,16 +415,25 @@ namespace BlockMergePuzzle.Core
                     break;
 
                 case LevelId.Level3:
-                    // Top-Left Green Gate (col 1, row 0)
+                    // Top-Left Green Gate (col 0, row 0 -> exit at (-1, 0)) with High-Tech Holographic Glowing Display
                     _activeGates.Add(ExitGateView.Create(
-                        PieceColor.Green, 2, GateSide.Top, Vector2.up,
-                        GridToWorld(1, 0) + Vector3.up * (ch * 0.85f), hGateSize, _gatesRoot,
-                        new[] { new Vector2Int(1, -1) }));
-                    // Right Red Gate (col 2, row 2)
+                        PieceColor.Green, 4, GateSide.Left, Vector2.left,
+                        GridToWorld(0, 0),
+                        new Vector2(0.95f, 1.15f), _gatesRoot,
+                        new[] { new Vector2Int(-1, 0) },
+                        default,
+                        true,
+                        new[] { new Vector2Int(0, 0) }));
+
+                    // Right Red Gate (col 4, row 3 -> exit at (5, 3)) with High-Tech Holographic Glowing Display
                     _activeGates.Add(ExitGateView.Create(
-                        PieceColor.Red, 2, GateSide.Right, Vector2.right,
-                        GridToWorld(2, 2) + Vector3.right * (cw * 0.85f), vGateSize, _gatesRoot,
-                        new[] { new Vector2Int(3, 2) }));
+                        PieceColor.Red, 4, GateSide.Right, Vector2.right,
+                        GridToWorld(4, 3),
+                        new Vector2(0.95f, 1.15f), _gatesRoot,
+                        new[] { new Vector2Int(5, 3) },
+                        default,
+                        true,
+                        new[] { new Vector2Int(4, 3) }));
                     break;
 
                 case LevelId.Level4:
@@ -593,10 +602,17 @@ namespace BlockMergePuzzle.Core
                     break;
 
                 case LevelId.Level3:
-                    SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 1, new Vector2Int(2, 0));
-                    SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 1, new Vector2Int(2, 4));
-                    SpawnPiece(PieceColor.Red, PieceShape.Single_1x1, 1, new Vector2Int(1, 5));
-                    SpawnPiece(PieceColor.Red, PieceShape.Single_1x1, 1, new Vector2Int(3, 5));
+                    // 4 Red pieces: 1, 1, 2, 3 -> Merges into Red 4
+                    SpawnPiece(PieceColor.Red, PieceShape.Single_1x1, 1, new Vector2Int(0, 6));
+                    SpawnPiece(PieceColor.Red, PieceShape.Single_1x1, 1, new Vector2Int(2, 4));
+                    SpawnPiece(PieceColor.Red, PieceShape.Single_1x1, 2, new Vector2Int(2, 5));
+                    SpawnPiece(PieceColor.Red, PieceShape.Single_1x1, 3, new Vector2Int(2, 6));
+
+                    // 4 Green pieces: 1, 1, 2, 3 -> Merges into Green 4
+                    SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 1, new Vector2Int(3, 3));
+                    SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 1, new Vector2Int(3, 6));
+                    SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 2, new Vector2Int(1, 6));
+                    SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 3, new Vector2Int(4, 6));
                     break;
 
                 case LevelId.Level4:
@@ -678,7 +694,7 @@ namespace BlockMergePuzzle.Core
             Vector3 worldPos = CalculatePieceWorldCenter(shape, origin);
             Vector2? customCellSize = _currentLevel == LevelId.Level1
                 ? new Vector2(1.125f, 1.06f)
-                : (Vector2?)null;
+                : (_currentLevel == LevelId.Level3 ? new Vector2(1.05f, 1.00f) : (Vector2?)null);
             PuzzlePiece piece = PuzzlePiece.Create(color, shape, value, origin, worldPos, _piecesRoot, customCellSize);
 
             foreach (var cell in piece.OccupiedCells)
@@ -731,6 +747,25 @@ namespace BlockMergePuzzle.Core
             { new Vector2Int(2, 5), new Vector3(0.030f, -2.240f, 0f) },
         };
 
+        private static readonly Dictionary<Vector2Int, Vector3> Level3CellPositions = new Dictionary<Vector2Int, Vector3>()
+        {
+            { new Vector2Int(0, 0), new Vector3( -2.385f,   3.627f, 0f) },
+            { new Vector2Int(1, 0), new Vector3( -1.116f,   3.627f, 0f) },
+            { new Vector2Int(2, 0), new Vector3(  0.153f,   3.621f, 0f) },
+            { new Vector2Int(2, 1), new Vector3(  0.153f,   2.418f, 0f) },
+            { new Vector2Int(2, 2), new Vector3(  0.159f,   1.222f, 0f) },
+            { new Vector2Int(2, 3), new Vector3(  0.159f,   0.027f, 0f) },
+            { new Vector2Int(3, 3), new Vector3(  1.422f,   0.086f, 0f) },
+            { new Vector2Int(4, 3), new Vector3(  2.691f,   0.086f, 0f) },
+            { new Vector2Int(2, 4), new Vector3(  0.179f,  -1.169f, 0f) },
+            { new Vector2Int(2, 5), new Vector3(  0.186f,  -2.358f, 0f) },
+            { new Vector2Int(0, 6), new Vector3( -2.385f,  -3.528f, 0f) },
+            { new Vector2Int(1, 6), new Vector3( -1.116f,  -3.528f, 0f) },
+            { new Vector2Int(2, 6), new Vector3(  0.153f,  -3.528f, 0f) },
+            { new Vector2Int(3, 6), new Vector3(  1.422f,  -3.528f, 0f) },
+            { new Vector2Int(4, 6), new Vector3(  2.691f,  -3.528f, 0f) },
+        };
+
         public Vector3 GridToWorld(int col, int row)
         {
             if (_currentLevel == LevelId.Level2)
@@ -743,6 +778,16 @@ namespace BlockMergePuzzle.Core
                 if (col == 2 && row > 5) return Level2CellPositions[new Vector2Int(2, 5)] + Vector3.down * ((row - 5) * 1.0f);
                 if (row == 3 && col < 0) return Level2CellPositions[new Vector2Int(0, 3)] + Vector3.left * (-col * 1.0f);
                 if (row == 3 && col > 5) return Level2CellPositions[new Vector2Int(5, 3)] + Vector3.right * ((col - 5) * 1.0f);
+            }
+
+            if (_currentLevel == LevelId.Level3)
+            {
+                if (Level3CellPositions.TryGetValue(new Vector2Int(col, row), out Vector3 pos))
+                {
+                    return _boardCenter + pos;
+                }
+                if (col < 0 && row == 0) return _boardCenter + Level3CellPositions[new Vector2Int(0, 0)] + Vector3.left * (-col * 1.25f);
+                if (col > 4 && row == 3) return _boardCenter + Level3CellPositions[new Vector2Int(4, 3)] + Vector3.right * ((col - 4) * 1.25f);
             }
 
             float cw = CurrentCellWidth;
@@ -787,7 +832,7 @@ namespace BlockMergePuzzle.Core
             {
                 case LevelId.Level1: return 2;
                 case LevelId.Level2: return 6;
-                case LevelId.Level3: return 6;
+                case LevelId.Level3: return 7;
                 case LevelId.Level4: return 7;
                 case LevelId.Level5: return 7;
                 case LevelId.Level6: return 7;
@@ -805,7 +850,7 @@ namespace BlockMergePuzzle.Core
             {
                 case LevelId.Level1: return 1.36f;
                 case LevelId.Level2: return 1.16f;
-                case LevelId.Level3: return 1.10f;
+                case LevelId.Level3: return 1.269f;
                 case LevelId.Level4: return 1.10f;
                 case LevelId.Level5: return 1.10f;
                 case LevelId.Level6: return 1.05f;
@@ -823,7 +868,7 @@ namespace BlockMergePuzzle.Core
             {
                 case LevelId.Level1: return 1.20f;
                 case LevelId.Level2: return 1.03f;
-                case LevelId.Level3: return 1.10f;
+                case LevelId.Level3: return 1.192f;
                 case LevelId.Level4: return 1.10f;
                 case LevelId.Level5: return 1.10f;
                 case LevelId.Level6: return 1.05f;
@@ -841,7 +886,7 @@ namespace BlockMergePuzzle.Core
             {
                 case LevelId.Level1: return 8.000f;
                 case LevelId.Level2: return 8.000f;
-                case LevelId.Level3: return 8.000f;
+                case LevelId.Level3: return 7.600f;
                 case LevelId.Level4: return 7.459f;
                 case LevelId.Level5: return 8.000f;
                 case LevelId.Level6: return 7.519f;
@@ -859,7 +904,7 @@ namespace BlockMergePuzzle.Core
             {
                 case LevelId.Level1: return 4.413f;
                 case LevelId.Level2: return 7.263f;
-                case LevelId.Level3: return 8.808f;
+                case LevelId.Level3: return 9.673f;
                 case LevelId.Level4: return 10.000f;
                 case LevelId.Level5: return 9.890f;
                 case LevelId.Level6: return 10.000f;
@@ -903,7 +948,12 @@ namespace BlockMergePuzzle.Core
                     return (col == 2 && row >= 0 && row < 6) || (row == 3 && col >= 0 && col < 6);
 
                 case LevelId.Level3:
-                    return (col == 1 && row >= 0 && row <= 1) || (col == 2 && row >= 0 && row <= 5) || (row == 5 && col >= 0 && col <= 4);
+                    if (row == 0) return col >= 0 && col <= 2;
+                    if (row == 1 || row == 2) return col == 2;
+                    if (row == 3) return col >= 2 && col <= 4;
+                    if (row == 4 || row == 5) return col == 2;
+                    if (row == 6) return col >= 0 && col <= 4;
+                    return false;
 
                 case LevelId.Level4:
                     return (col == 0 && row >= 0 && row <= 6) ||
