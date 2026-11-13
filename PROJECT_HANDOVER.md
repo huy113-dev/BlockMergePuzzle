@@ -1,26 +1,35 @@
 # BÁO CÁO TIẾN ĐỘ & BÀN GIAO DỰ ÁN BLOCK MERGE PUZZLE
 
-## 1. Trạng Thái Hiện Tại (Ready for Next Session)
-- **Hệ thống màn chơi hoàn chỉnh (Multi-Level Architecture)**:
-  - **Level 1 (Tutorial Cross Map)**: Xây dựng theo asset gốc `Map lv1.png` (bàn cờ hình chữ thập 7×6, tâm tại `(0, 0, 0)`, 5 khối đá 1x1, 2 cổng thoát có badge tương phản số). Đã loại bỏ gạch sàn theo yêu cầu để giữ trọn vẹn nền tím tự nhiên của asset.
-  - **Level 2 (Cross Map - map_lv2.png)**: Bàn cờ chữ thập lệch tâm 6×6 (11 ô hành lang: cột 2 dọc [row 0..5] và hàng 3 ngang [col 0..5]) xây dựng theo asset `map_lv2.png` / `map_lv2 (3).png`. Cổng thoát công nghệ cao (Tech Hologram) và 5 khối 1x1 (3 Đỏ, 2 Xanh lá) sắp xếp chuẩn xác theo thiết kế [Image #12].
+## 1. Trạng Thái Hiện Tại (Ready for Next Session - Level 1 & Level 2 ĐÃ CHỐT)
+- **Hệ thống màn chơi hoàn chỉnh & Đã khóa nghiệm thu (Finalized & Frozen)**:
+  - **Level 1 (Tutorial Cross Map - ĐÃ CHỐT)**: Bàn cờ chữ thập 7×6, giữ trọn vẹn nền tím tự nhiên của asset `Map lv1.png`. Hiển thị đầy đủ chữ hướng dẫn `InstructionBanner` ("Ghép 2 khối cùng màu và số") tại pos `(-24.76, 375.68)`, banner `LEVEL 1`, đồng bộ 100% bố cục UI với Level 2.
+  - **Level 2 (Cross Map - map_lv2.png - ĐÃ CHỐT)**: Bàn cờ chữ thập lệch tâm 6×6 (11 ô hành lang: cột 2 dọc [row 0..5] và hàng 3 ngang [col 0..5]) xây dựng theo asset `map_lv2.png` / `map_lv2 (3).png`. Cổng thoát công nghệ cao (Tech Hologram) và 5 khối 1x1 (3 Đỏ, 2 Xanh lá) sắp xếp chuẩn xác theo thiết kế [Image #12]. Tích hợp bảng ánh xạ tọa độ pixel chuẩn `Level2CellPositions` căn giữa tuyệt đối trong lòng ô đá.
+- **Bảo Vệ Độc Lập Scene (Scene Protection Mechanism)**:
+  - `SceneSetupHelper.LoadLevel(LevelId level)` đã chuyển hoàn toàn sang nạp trực tiếp file `Assets/Scenes/{level}.unity` qua `EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single)`, **tuyệt đối không chạy procedural bake đè lên scene đang mở**.
+  - Đã loại bỏ hoàn toàn các hook tự động ghi đè scene, đảm bảo khi tác giả làm các level sau (Level 3..10) thì **Level 1 và Level 2 được cô lập 100%, không bị sửa đổi, không bị giật lệch UI, không bị reset khối hay cổng**.
+- **Bộ Hợp Đồng Tọa Độ UI Chuẩn (UI Layout Contract)**:
+  - `HeaderPanel`: pos `(0, -50)`, size `(1000, 190)`
+    - `Btn_Replay`: pos `(-378.00, 5.50)`, size `(215.94, 201.01)`
+    - `Banner_Time`: pos `(16.00, -80.00)`, size `(430.00, 154.00)` (thời gian 5:00)
+    - `Btn_Pause`: pos `(374.00, 0.00)`, size `(171.29, 190.00)`
+    - `Banner_Level`: pos `(21.00, 32.00)`, size `(276.00, 64.00)` (`LEVEL 1` / `LEVEL 2`)
+  - `TutorialLayer`:
+    - `InstructionBanner`: pos `(-24.76, 375.68)`, size `(600.47, 92.64)`
+  - `BoosterBar`: pos `(0.00, 60.00)`, size `(900.00, 260.00)`
+    - `Booster_Freeze`: pos `(-318.00, 101.00)`, size `(321.29, 339.44)`
+    - `Booster_Magnet`: pos `(0.00, 104.76)`, size `(366.55, 331.93)`
+    - `Booster_Wand`: pos `(311.00, 93.38)`, size `(323.64, 354.69)`
+  - `PausePanel`: pos `(0, 0)`, `DialogBox`: pos `(0, 0)`, size `(880, 756)`
+  - `VictoryPanel`: pos `(0, 0)`, `DialogBox`: pos `(0, 0)`, size `(760, 580)`
+  - `FeedbackBanner`: pos `(0, 140)`, size `(960, 110)`
 - **Lưu trữ Scene & Prefab độc lập**:
-  - `Assets/Scenes/MainScene.unity`: Scene làm việc mặc định (đang kích hoạt Level 2 đã bake hoàn chỉnh).
-  - `Assets/Scenes/Level1.unity`: Scene độc lập cho Level 1.
-  - `Assets/Scenes/Level2.unity`: Scene độc lập cho Level 2.
+  - `Assets/Scenes/MainScene.unity`: Scene làm việc mặc định.
+  - `Assets/Scenes/Level1.unity`: Scene độc lập cho Level 1 (Đã khóa nghiệm thu).
+  - `Assets/Scenes/Level2.unity`: Scene độc lập cho Level 2 (Đã khóa nghiệm thu).
   - `Assets/Prefabs/Levels/Level1_Board.prefab`: Prefab nguyên bản bàn cờ Level 1.
   - `Assets/Prefabs/Levels/Level2_Board.prefab`: Prefab nguyên bản bàn cờ Level 2.
 - **Git Repository**: `https://github.com/huy113-dev/BlockMergePuzzle.git`
-  - `main`: Branch gốc tích hợp gitignore chuẩn Unity.
-  - `feat/core-puzzle-mechanics`: Core gameplay sliding, collinear merge, gate escape.
-  - `fix/screen-fit-1440x3200`: Auto-fit camera portrait 1440x3200 (ratio 0.45) không bị crop viền.
-  - `feat/block-lift-and-drag-gamefeel`: Game feel nhấc khối khi chạm (scale pop 1.075x, nâng sorting order 50, âm thanh pickup, dynamic tilt).
-  - `feat/smooth-multi-directional-drag`: Di chuyển đa hướng theo ngón tay qua mọi khoảng trống (corridor navigation, quẹo góc mượt mà, snap/merge/escape linh hoạt).
-  - `feat/level-1`: Cấu hình Level 1 Tutorial Cross, lưu scene và prefab riêng, bỏ gạch sàn, đồng bộ chuyển đổi Level 1 và Level 2, tích hợp background vũ trụ.
-  - `feat/header-ui-controls`: Thiết kế thanh Header UI (Return đá, Time neon 1:40 đếm ngược, Pause đá).
-  - `feat/pause-game-panel`: Thiết kế hoàn chỉnh popup Pause Game Panel ([Image #7]) với background game tối mờ, 14 assets sci-fi, 3 toggle settings (Sound, Music, Vibration), nút No Ads, Return và Home.
-  - `feat/header-ui-and-tutorial`: Cấu hình thời gian 5 phút, Replay chuẩn, banner level, khóa booster, tối ưu âm thanh và layout UI.
-  - `feat/level-2-cross-map`: **[Branch mới nhất]**
+  - Nhánh hiện tại: `feat/level-2-cross-map` (đã commit và push đồng bộ).
     - Nhập và cấu hình TextureImporter cho asset bản đồ `map_lv2 (3).png` / `map_lv2.png` (Sprite 2D, Single, alphaIsTransparency, 4096px).
     - Cấu hình grid chữ thập 6×6 cho Level 2: `CellWidth = 1.16f`, `CellHeight = 1.03f`, `GridOffset = (0.617f, 0.426f, 0f)` căn chỉnh chuẩn xác sub-pixel vào hành lang đá.
     - Xây dựng 2 cổng thoát Tech Hologram: Cổng trên (Xanh lá [2]) và Cổng phải (Đỏ [1]).
@@ -204,25 +213,30 @@
 
 ---
 
-## 5. Quy Trình Các Bước Chuẩn Để Tạo & Hoàn Thiện Các Level Sau
+## 5. Quy Trình Các Bước Chuẩn Để Tạo & Hoàn Thiện Các Level Sau (Bảo Vệ Tuyệt Đối Level 1 & Level 2)
 
-Áp dụng đúng các bước đã thực hiện ở Level 1 để mở rộng cho Level 2..10+ mà không làm lệch UI hay mất tính năng:
+Áp dụng đúng các bước chuẩn dưới đây để mở rộng cho Level 3..10+ mà **tuyệt đối không sửa đổi, không nướng đè và không làm ảnh hưởng đến Level 1 và Level 2 đã chốt**:
 
-1. **Thiết kế dữ liệu bàn cờ (`LevelManager.cs` + `GameConfig.cs`)**:
-   - Khai báo `LevelId` mới (nếu chưa có), cấu trúc lưới/hình dạng map, danh sách cổng thoát (`ExitGateView`) và khối khởi đầu (`PuzzlePiece`).
-   - Thiết lập thời gian cho màn trong `GameUI.GetLevelDurationSeconds()` (ví dụ Level 1 = `300f`, các level khác tùy chỉnh).
-2. **Bảo toàn bố cục UI người dùng (`MainScene.unity` & `GameUI.cs`)**:
-   - **Không gọi `GameUI.RebuildUI()`** khi scene đã có sẵn UI đã xếp tay (`HeaderPanel`, `BoosterBar`, `PausePanel`, `TutorialLayer`).
-   - Sử dụng `GameUI.BindExistingUI()` để tự động liên kết lại các nút, banner và text từ hierarchy sẵn có.
-   - Đảm bảo `Banner_Time` có con `TimeVal` (tạo bằng `new GameObject("TimeVal", typeof(RectTransform))`, hoặc chạy menu `Tools/Block Merge Puzzle/Ensure Time Text on Banner`) để hiển thị đồng hồ cả ở Edit Mode và Play Mode.
-   - Cập nhật mở khóa Booster theo tiến độ cấp độ (`Level 6`, `Level 12`, `Level 16` trong `GameUI.UpdateBoosterUnlockStates()`).
-3. **Background & Camera Fit (`LevelManager.cs`)**:
-   - Giữ màu tint dịu `new Color(0.42f, 0.42f, 0.48f, 1f)` cho `BackgroundSprite` (cả ở Edit Mode và trong `BuildBackground()`/`FitBackgroundToCamera()`) để bàn cờ và khối đá nổi bật.
+1. **Cô lập Scene & Prefab riêng biệt**:
+   - Mỗi level tạo file scene riêng: `Assets/Scenes/Level{n}.unity` và board prefab riêng: `Assets/Prefabs/Levels/Level{n}_Board.prefab`.
+   - **Tuyệt đối KHÔNG chạy các lệnh bake hàng loạt đè lên `Level1.unity` và `Level2.unity`**.
+   - Dùng menu `Tools/Block Merge Puzzle/Load Level {n}`: Hệ thống tự động mở trực tiếp scene file nếu đã tồn tại, tránh ghi đè scene đang mở.
+2. **Thiết kế dữ liệu bàn cờ (`LevelManager.cs` + `GameConfig.cs`)**:
+   - Khai báo `LevelId` mới trong enum `LevelId` (ví dụ `Level3`), cấu trúc lưới/hình dạng map, danh sách cổng thoát (`ExitGateView`) và khối khởi đầu (`PuzzlePiece`).
+   - Thiết lập thời gian cho màn trong `GameUI.GetLevelDurationSeconds()` (ví dụ Level 3 = `300f`).
+3. **Áp dụng Bộ Hợp Đồng UI Chuẩn từ Level 1 & 2**:
+   - Sử dụng đúng hierarchy UI chuẩn đã chốt:
+     - `HeaderPanel`: pos `(0, -50)` với `Btn_Replay` pos `(-378, 5.5)`, `Banner_Time` pos `(16, -80)`, `Btn_Pause` pos `(374, 0)`, `Banner_Level` pos `(21, 32)` hiển thị `LEVEL {n}`.
+     - `BoosterBar`: pos `(0, 60)` với 3 nút Freeze `(-318, 101)`, Magnet `(0, 104.76)`, Wand `(311, 93.38)`.
+     - `InstructionBanner`: pos `(-24.76, 375.68)` (tự động bật nếu có hướng dẫn hoặc tắt ở các level nâng cao).
+   - Khi chỉnh sửa scene mới, chỉ lưu file scene đó (`File -> Save`), không gọi `RebuildUI()`.
+4. **Background & Camera Fit (`LevelManager.cs`)**:
+   - Giữ màu tint dịu `new Color(0.42f, 0.42f, 0.48f, 1f)` cho `BackgroundSprite` để bàn cờ và khối đá nổi bật.
    - Giữ `FitCameraToBoard()` với `Mathf.Max(sizeByWidth, sizeByHeight)` và ép ratio `0.45` khi Edit Mode để không bị crop 2 bên.
-4. **Cơ chế Replay giữ nguyên 100% trạng thái ban đầu**:
-   - Đảm bảo scene nằm trong Build Settings (`EditorBuildSettings`) để `GameUI.RestartLevel()` gọi `SceneManager.LoadScene(activeScene.buildIndex)` khi đang ở `InitialSceneLevel` (nếu không nằm trong build index sẽ fallback về `_initialPiecesTemplate` snapshot trong `LevelManager`).
-5. **Âm thanh (2D & Preload)**:
-   - Mọi file `.wav`/`.mp3` mới trong `Assets/Resources/Sound/` và `Assets/Sound/` phải có `.meta` thiết lập `preloadAudioData: 1` và `3D: 0`.
-   - Phát toàn bộ SFX qua `SoundManager.Instance` (đã cấu hình `DontDestroyOnLoad`, `spatialBlend = 0f`, tự đảm bảo `AudioListener` và `EditorUtility.audioMasterMute = false`).
-6. **Bake & Lưu Scene**:
-   - Chạy `Tools/Block Merge Puzzle/Bake Level to Scene (Idle Display)` (hoặc `Bake All 10 Levels`) sau khi chỉnh map, rồi `File -> Save` & `File -> Save Project` trước khi kiểm thử Play Mode và chụp ảnh nghiệm thu vào `Assets/Screenshots/`.
+5. **Cơ chế Replay & Chuyển Level**:
+   - Thêm scene mới vào `EditorBuildSettings` để `GameUI.RestartLevel()` gọi `SceneManager.LoadScene(activeScene.buildIndex)`.
+   - Chuyển level bằng cách mở scene tương ứng, đảm bảo mỗi level hoàn toàn độc lập và khép kín.
+6. **Âm thanh (2D & Preload)**:
+   - Mọi file audio mới phải có `.meta` thiết lập `preloadAudioData: 1` và `3D: 0`. Phát toàn bộ SFX qua `SoundManager.Instance`.
+7. **Lưu Scene & Kiểm Thử**:
+   - Kiểm tra Play Mode, chụp ảnh nghiệm thu Game View và commit lên git theo branch riêng cho level đó.
