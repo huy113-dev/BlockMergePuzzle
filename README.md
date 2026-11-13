@@ -52,9 +52,21 @@ Game hỗ trợ chuyển đổi linh hoạt giữa các màn chơi cả trong **
 - **Độ giải đố**: Đã kiểm chứng 100% tính giải được (Đỏ 1 trượt xuống mở giao điểm -> Xanh 1 trượt sang phải gộp thành Xanh 2 -> Đỏ 2 trượt qua cổng Đỏ 1 -> các khối Đỏ lần lượt thoát -> Xanh 2 thoát cổng Xanh 2).
 - **Asset riêng**: Scene `Assets/Scenes/Level2.unity`, Prefab `Assets/Prefabs/Levels/Level2_Board.prefab` và ảnh nghiệm thu `Assets/Screenshots/level2_current_saved.png`.
 
-### 3. Cơ Chế Bảo Vệ Độc Lập Scene (Scene Protection Mechanism)
+### 3. Level 3: Branching Map (`Map_lv3.png`) - [ĐÃ CHỐT HOÀN THIỆN]
+- **Bản đồ**: Cấu trúc phân nhánh 5 cột × 7 hàng từ asset viền đá `Map_lv3.png` (15 ô hợp lệ: hàng 0 có 3 ô [0..2], cột 2 dọc [hàng 0..6], nhánh phải hàng 3 có 3 ô [2..4], hàng đáy 6 có 5 ô [0..4]).
+- **Căn gốc tọa độ**: Tích hợp từ điển pixel mapping chuẩn `Level3CellPositions` căn giữa tuyệt đối từng khối trong lòng các ô đá vẽ tay bất đối xứng.
+- **Cổng thoát công nghệ cao (Tech Hologram - 2 cổng)**:
+  - Cổng trái trên (Top-Left): **Xanh lá (Green)** yêu cầu số **4**, hướng sang trái `Vector2.left` tại `(col 0, row 0)`.
+  - Cổng phải giữa (Middle-Right): **Đỏ (Red)** yêu cầu số **4**, hướng sang phải `Vector2.right` tại `(col 4, row 3)`.
+- **Khối khởi đầu (8 khối 1x1 theo thiết kế [Image #17])**:
+  - 4 khối Đỏ: Đỏ [1] tại `(0, 6)`, Đỏ [1] tại `(2, 4)`, Đỏ [2] tại `(2, 5)`, Đỏ [3] tại `(2, 6)` (gộp đủ thành Đỏ 4).
+  - 4 khối Xanh lá: Xanh [1] tại `(3, 3)`, Xanh [1] tại `(3, 6)`, Xanh [2] tại `(1, 6)`, Xanh [3] tại `(4, 6)` (gộp đủ thành Xanh 4).
+- **Độ giải đố**: Đã kiểm chứng 100% giải được qua các bước trượt, dồn hàng và gộp thẳng hàng thành Đỏ 4 và Xanh 4 để thoát cổng.
+- **Asset riêng**: Scene `Assets/Scenes/Level3.unity`, Prefab `Assets/Prefabs/Levels/Level3_Board.prefab` và ảnh nghiệm thu `Assets/Screenshots/verify_level3.png`.
+
+### 4. Cơ Chế Bảo Vệ Độc Lập Scene (Scene Protection Mechanism)
 - **Nạp Scene trực tiếp qua `EditorSceneManager.OpenScene`**: `SceneSetupHelper.LoadLevel(LevelId level)` kiểm tra file `Assets/Scenes/{level}.unity`, nếu đã tồn tại thì mở trực tiếp scene đó, **tuyệt đối không chạy `BakeLevelToScene()` nướng đè** lên scene đang mở.
-- **Cách ly tuyệt đối Level 1 & Level 2**: Khi tác giả tạo và cấu hình các level sau (Level 3..10), hệ thống chỉ ghi vào scene/prefab của level mới, **bảo toàn 100% Level 1 và Level 2** không bị thay đổi layout UI, vị trí khối hay thông số cổng.
+- **Cách ly tuyệt đối Level 1, Level 2 & Level 3**: Khi tác giả tạo và cấu hình các level sau (Level 4..10), hệ thống chỉ ghi vào scene/prefab của level mới, **bảo toàn 100% Level 1, Level 2 và Level 3** không bị thay đổi layout UI, vị trí khối hay thông số cổng.
 
 ---
 
@@ -95,8 +107,8 @@ Game hỗ trợ chuyển đổi linh hoạt giữa các màn chơi cả trong **
 
 ### 3. Quy trình chuẩn khi tạo / chỉnh Level mới (Không ảnh hưởng Level 1 & Level 2)
 1. **Định nghĩa map**: Thêm dữ liệu lưới, cổng thoát và khối khởi đầu trong `LevelManager.cs` + hằng số/thời lượng trong `GameConfig.cs` / `GameUI.GetLevelDurationSeconds()`.
-2. **Cô lập Scene & Prefab**: Mỗi level mới tạo một scene riêng `Assets/Scenes/Level{n}.unity` và prefab `Assets/Prefabs/Levels/Level{n}_Board.prefab`. **Tuyệt đối không chạy nướng đè hay sửa đổi `Level1.unity` và `Level2.unity`**.
-3. **UI chuẩn đồng bộ**: Dùng nguyên vẹn hierarchy GameUI chuẩn đã chốt từ Level 1 & 2 (`HeaderPanel` pos `(0, -50)` với `Btn_Replay` pos `(-378, 5.5)`, `Banner_Time` pos `(16, -80)`, `Btn_Pause` pos `(374, 0)`, `Banner_Level` pos `(21, 32)`; `InstructionBanner` pos `(-24.76, 375.68)`; `BoosterBar` pos `(0, 60)`). Khi chỉnh sửa, chỉ lưu scene riêng của level đó.
+2. **Cô lập Scene & Prefab**: Mỗi level mới tạo một scene riêng `Assets/Scenes/Level{n}.unity` và prefab `Assets/Prefabs/Levels/Level{n}_Board.prefab`. **Tuyệt đối không chạy nướng đè hay sửa đổi `Level1.unity`, `Level2.unity` và `Level3.unity`**.
+3. **UI chuẩn đồng bộ**: Dùng nguyên vẹn hierarchy GameUI chuẩn đã chốt từ Level 1, 2 & 3 (`HeaderPanel` pos `(0, -50)` với `Btn_Replay` pos `(-378, 5.5)`, `Banner_Time` pos `(16, -80)`, `Btn_Pause` pos `(374, 0)`, `Banner_Level` pos `(21, 32)`; `InstructionBanner` pos `(-24.76, 375.68)`; `BoosterBar` pos `(0, 60)`). Khi chỉnh sửa, chỉ lưu scene riêng của level đó.
 4. **Nền & Ánh sáng**: Giữ tint background tối dịu `(0.42, 0.42, 0.48, 1)` qua `LevelManager.BuildBackground()`/`FitBackgroundToCamera()` để khối nổi bật.
 5. **Âm thanh**: Mọi file audio mới phải để `preloadAudioData: 1` và `3D: 0` trong `.meta`, phát qua `SoundManager.Instance`.
 6. **Kiểm tra Replay & Chuyển Level**: Chạy Play Mode thử kéo, merge, thoát cổng và bấm `Btn_Replay`; kiểm tra nạp qua menu `Tools/Block Merge Puzzle/Load Level {n}` chỉ mở đúng file scene tương ứng mà không làm thay đổi các level đã chốt.
@@ -115,13 +127,15 @@ D:\BlockMergePuzzle\
 │   ├── Prefabs\
 │   │   └── Levels\
 │   │       ├── Level1_Board.prefab          # Prefab nguyên khối Level 1
-│   │       └── Level2_Board.prefab          # Prefab nguyên khối Level 2
+│   │       ├── Level2_Board.prefab          # Prefab nguyên khối Level 2
+│   │       └── Level3_Board.prefab          # Prefab nguyên khối Level 3
 │   ├── Resources\
 │   │   └── Sprites\LevelAssets\             # Sprites nạp động (map_lv1, gems, frame)
 │   ├── Scenes\
 │   │   ├── MainScene.unity                  # Scene mặc định đang hoạt động
-│   │   ├── Level1.unity                     # Scene riêng cho Level 1
-│   │   └── Level2.unity                     # Scene riêng cho Level 2
+│   │   ├── Level1.unity                     # Scene riêng cho Level 1 (Đã chốt)
+│   │   ├── Level2.unity                     # Scene riêng cho Level 2 (Đã chốt)
+│   │   └── Level3.unity                     # Scene riêng cho Level 3 (Đã chốt)
 │   ├── Screenshots\                         # Ảnh chụp nghiệm thu tiến độ
 │   ├── Scripts\
 │   │   ├── Audio\SoundManager.cs            # Âm thanh tương tác procedural
