@@ -829,9 +829,11 @@ MonoBehaviour:
   <PieceColor>k__BackingField: 4
   <Shape>k__BackingField: 0
   <Value>k__BackingField: 1
+  <IceCount>k__BackingField: 0
   <GridOrigin>k__BackingField: {x: 1, y: 4}
   <ShapeOffsets>k__BackingField:
   - {x: 0, y: 0}
+  _cellSize: {x: 0, y: 0}
 --- !u!61 &3093556336315036350
 BoxCollider2D:
   m_ObjectHideFlags: 0
@@ -4633,9 +4635,11 @@ MonoBehaviour:
   <PieceColor>k__BackingField: 4
   <Shape>k__BackingField: 0
   <Value>k__BackingField: 2
+  <IceCount>k__BackingField: 0
   <GridOrigin>k__BackingField: {x: 1, y: 0}
   <ShapeOffsets>k__BackingField:
   - {x: 0, y: 0}
+  _cellSize: {x: 0, y: 0}
 --- !u!61 &7216179643087098923
 BoxCollider2D:
   m_ObjectHideFlags: 0
@@ -5525,9 +5529,11 @@ MonoBehaviour:
   <PieceColor>k__BackingField: 4
   <Shape>k__BackingField: 0
   <Value>k__BackingField: 1
+  <IceCount>k__BackingField: 0
   <GridOrigin>k__BackingField: {x: 2, y: 0}
   <ShapeOffsets>k__BackingField:
   - {x: 0, y: 0}
+  _cellSize: {x: 0, y: 0}
 --- !u!61 &6607095070909787188
 BoxCollider2D:
   m_ObjectHideFlags: 0
@@ -7682,9 +7688,11 @@ MonoBehaviour:
   <PieceColor>k__BackingField: 0
   <Shape>k__BackingField: 0
   <Value>k__BackingField: 2
+  <IceCount>k__BackingField: 0
   <GridOrigin>k__BackingField: {x: 0, y: 0}
   <ShapeOffsets>k__BackingField:
   - {x: 0, y: 0}
+  _cellSize: {x: 0, y: 0}
 --- !u!61 &5972280101967107595
 BoxCollider2D:
   m_ObjectHideFlags: 0
@@ -7916,9 +7924,11 @@ MonoBehaviour:
   <PieceColor>k__BackingField: 0
   <Shape>k__BackingField: 0
   <Value>k__BackingField: 1
+  <IceCount>k__BackingField: 0
   <GridOrigin>k__BackingField: {x: 0, y: 4}
   <ShapeOffsets>k__BackingField:
   - {x: 0, y: 0}
+  _cellSize: {x: 0, y: 0}
 --- !u!61 &2075208343430706250
 BoxCollider2D:
   m_ObjectHideFlags: 0
@@ -9311,9 +9321,11 @@ MonoBehaviour:
   <PieceColor>k__BackingField: 1
   <Shape>k__BackingField: 0
   <Value>k__BackingField: 2
+  <IceCount>k__BackingField: 0
   <GridOrigin>k__BackingField: {x: 2, y: 2}
   <ShapeOffsets>k__BackingField:
   - {x: 0, y: 0}
+  _cellSize: {x: 0, y: 0}
 --- !u!61 &7031569414106048666
 BoxCollider2D:
   m_ObjectHideFlags: 0
@@ -10681,9 +10693,11 @@ MonoBehaviour:
   <PieceColor>k__BackingField: 0
   <Shape>k__BackingField: 0
   <Value>k__BackingField: 1
+  <IceCount>k__BackingField: 0
   <GridOrigin>k__BackingField: {x: 2, y: 4}
   <ShapeOffsets>k__BackingField:
   - {x: 0, y: 0}
+  _cellSize: {x: 0, y: 0}
 --- !u!61 &601483697142784521
 BoxCollider2D:
   m_ObjectHideFlags: 0

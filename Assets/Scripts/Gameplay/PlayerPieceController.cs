@@ -36,8 +36,22 @@ namespace BlockMergePuzzle.Gameplay
             Instance = this;
         }
 
+        private void OnDestroy()
+        {
+            if (Instance == this)
+            {
+                Instance = null;
+            }
+        }
+
         private void Update()
         {
+            if (GameUI.Instance != null && GameUI.Instance.IsVictoryShowing)
+            {
+                if (_isDragging || _selectedPiece != null) ResetSelection();
+                return;
+            }
+
             if (_mainCamera == null) _mainCamera = Camera.main;
             if (_mainCamera == null) return;
 
@@ -60,6 +74,15 @@ namespace BlockMergePuzzle.Gameplay
                     PuzzlePiece piece = hit.GetComponentInParent<PuzzlePiece>();
                     if (piece != null && !piece.IsSliding && !piece.IsEscaping)
                     {
+                        if (piece.IsFrozen)
+                        {
+                            piece.PlayFrozenShake();
+                            Audio.SoundManager.Instance?.PlayError();
+                            GameUI.Instance?.ShowFeedbackError($"Khối đang bị đóng băng! Hãy đưa {piece.IceCount} khối khác thoát cổng để phá băng.");
+                            _selectedPiece = null;
+                            return;
+                        }
+
                         _selectedPiece = piece;
                         _startOrigin = piece.GridOrigin;
                         _currentOrigin = _startOrigin;
@@ -145,25 +168,33 @@ namespace BlockMergePuzzle.Gameplay
 
                 Vector2Int dirX = (delta.x >= 0) ? new Vector2Int(1, 0) : new Vector2Int(-1, 0);
                 bool canMoveX = LevelManager.Instance.CanPieceFitAt(_selectedPiece, _currentOrigin + dirX);
-                bool isSpecialX = LevelManager.Instance.CheckMergeOpportunity(_selectedPiece, _currentOrigin, dirX, out _) ||
-                                  LevelManager.Instance.CheckEscapeOpportunity(_selectedPiece, _currentOrigin, dirX, out _);
+                bool canMergeX = LevelManager.Instance.CheckMergeOpportunity(_selectedPiece, _currentOrigin, dirX, out _);
+                bool canEscapeX = LevelManager.Instance.CheckEscapeOpportunity(_selectedPiece, _currentOrigin, dirX, out ExitGateView escapeGateX);
+                float maxEscapeX = (canEscapeX && escapeGateX != null)
+                    ? Mathf.Clamp(Mathf.Abs(escapeGateX.transform.position.x - currentCellCenter.x), 0.55f * cw, 1.05f * cw)
+                    : cw * 0.85f;
 
                 Vector2Int dirY = (delta.y >= 0) ? new Vector2Int(0, -1) : new Vector2Int(0, 1);
                 bool canMoveY = LevelManager.Instance.CanPieceFitAt(_selectedPiece, _currentOrigin + dirY);
-                bool isSpecialY = LevelManager.Instance.CheckMergeOpportunity(_selectedPiece, _currentOrigin, dirY, out _) ||
-                                  LevelManager.Instance.CheckEscapeOpportunity(_selectedPiece, _currentOrigin, dirY, out _);
+                bool canMergeY = LevelManager.Instance.CheckMergeOpportunity(_selectedPiece, _currentOrigin, dirY, out _);
+                bool canEscapeY = LevelManager.Instance.CheckEscapeOpportunity(_selectedPiece, _currentOrigin, dirY, out ExitGateView escapeGateY);
+                float maxEscapeY = (canEscapeY && escapeGateY != null)
+                    ? Mathf.Clamp(Mathf.Abs(escapeGateY.transform.position.y - currentCellCenter.y), 0.55f * ch, 1.05f * ch)
+                    : ch * 0.85f;
 
                 float moveX;
                 if (delta.x >= 0)
                 {
                     if (canMoveX) moveX = Mathf.Min(delta.x, cw);
-                    else if (isSpecialX) moveX = Mathf.Min(delta.x, cw * 0.85f);
+                    else if (canEscapeX) moveX = Mathf.Min(delta.x, maxEscapeX);
+                    else if (canMergeX) moveX = Mathf.Min(delta.x, cw * 0.85f);
                     else moveX = Mathf.Clamp(delta.x * 0.15f, 0f, 0.08f);
                 }
                 else
                 {
                     if (canMoveX) moveX = Mathf.Max(delta.x, -cw);
-                    else if (isSpecialX) moveX = Mathf.Max(delta.x, -cw * 0.85f);
+                    else if (canEscapeX) moveX = Mathf.Max(delta.x, -maxEscapeX);
+                    else if (canMergeX) moveX = Mathf.Max(delta.x, -cw * 0.85f);
                     else moveX = Mathf.Clamp(delta.x * 0.15f, -0.08f, 0f);
                 }
 
@@ -171,13 +202,15 @@ namespace BlockMergePuzzle.Gameplay
                 if (delta.y >= 0)
                 {
                     if (canMoveY) moveY = Mathf.Min(delta.y, ch);
-                    else if (isSpecialY) moveY = Mathf.Min(delta.y, ch * 0.85f);
+                    else if (canEscapeY) moveY = Mathf.Min(delta.y, maxEscapeY);
+                    else if (canMergeY) moveY = Mathf.Min(delta.y, ch * 0.85f);
                     else moveY = Mathf.Clamp(delta.y * 0.15f, 0f, 0.08f);
                 }
                 else
                 {
                     if (canMoveY) moveY = Mathf.Max(delta.y, -ch);
-                    else if (isSpecialY) moveY = Mathf.Max(delta.y, -ch * 0.85f);
+                    else if (canEscapeY) moveY = Mathf.Max(delta.y, -maxEscapeY);
+                    else if (canMergeY) moveY = Mathf.Max(delta.y, -ch * 0.85f);
                     else moveY = Mathf.Clamp(delta.y * 0.15f, -0.08f, 0f);
                 }
 

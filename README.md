@@ -1,175 +1,145 @@
-# 💎 Block Merge Puzzle - Unity Project
+# 💎 Block Merge Puzzle — Unity Project
 
-Dự án game giải đố trượt khối đá quý (**Sliding Block Merge & Escape Puzzle**) hoàn chỉnh, xây dựng trên **Unity** tại thư mục `D:\BlockMergePuzzle`.
+Dự án game giải đố trượt khối đá quý (**Sliding Block Merge & Escape Puzzle**) xây dựng trên **Unity `6000.0.74f1`** (Target: **Android**), tại `D:\BlockMergePuzzle`. Hiện tại dự án đã hoàn thiện trọn vẹn **10/10 màn chơi (`Level 1` – `Level 10`)**, đầy đủ vòng lặp gameplay, hiệu ứng VFX/Shader, cơ chế khối đóng băng, hệ thống Booster, Pause/Settings, Victory Popup và âm thanh 2D.
 
 ---
 
 ## 🕹️ Cơ Chế Gameplay Chính
 
-1. **Trượt đa hướng linh hoạt (Multi-Directional Drag & Snap)**:
-   - Chạm và rê ngón tay/chuột để dẫn hướng khối đá quý lướt qua các hành lang và khoảng trống trên bàn cờ.
-   - Cơ chế dịch chuyển tâm ô động (`_currentOrigin`) cho phép quẹo góc, rẽ hành lang trong một lần kéo duy nhất mà không bị khựng hay giật.
-   - Hiệu ứng **Lift & Tilt**: Khối tự động nhấc nổi lên (`sortingOrder = 50`, scale `1.075x`), hơi nghiêng theo hướng kéo và phát âm thanh tương tác sinh động.
+1. **Trượt Đa Hướng Linh Hoạt (`Multi-Directional Drag & Snap`)**:
+   - Chạm và rê ngón tay/chuột dẫn hướng khối đá quý lướt mượt qua các khúc cua và hành lang mà không cần nhả tay (`_currentOrigin`).
+   - Hỗ trợ phím `W/A/S/D` hoặc các phím mũi tên để dịch chuyển từng bước trên bàn cờ.
+   - Hiệu ứng **Lift & Tilt**: Nhấc khối nổi lên (`scale 1.075x`, `sortingOrder = 50`), nghiêng nhẹ theo vận tốc kéo ngang (`±3.5°`) và hạ mượt mà khi đặt xuống.
 
-2. **Hợp nhất thẳng hàng (Collinear Straight-Line Merge)**:
-   - Hai khối cùng **màu sắc**, cùng **hình dạng** và cùng **giá trị số** khi va chạm thẳng hàng trên cùng hàng/cột sẽ gộp thành một khối có giá trị tăng thêm 1 (`+50 điểm`).
-   - Khóa va chạm lệch trục và chéo để đảm bảo tính giải đố chuẩn xác.
+2. **Hợp Nhất Thẳng Hàng & Merge Slam VFX (`Collinear Straight-Line Merge`)**:
+   - Hai khối **cùng hình dạng**, **cùng màu sắc**, **cùng giá trị số** và **nằm thẳng hàng/cột** khi va chạm sẽ gộp thành khối mới có giá trị `+1` (`+50 × value` điểm).
+   - Hiệu ứng **Merge Slam**: Khối nhấc lơ lửng lao tới, đập squash/stretch, chớp silhouette trắng (`GUI/Text Shader`), bung hào quang sao (`SpawnMergeFlash`) và rung nhẹ camera (`KickCameraImpact`).
 
-3. **Thoát cổng theo màu và điều kiện (Gate Escape & Cell Blocking)**:
-   - **Khóa cổng vật lý (Gate Cell Blocking)**: Các khối **tuyệt đối không được dẫm lên hoặc dừng trên ô cổng** khi chưa đủ điều kiện. Cổng đóng vai trò như bức tường chắn chặn đứng chuyển động nếu khối sai màu hoặc chưa đủ số yêu cầu, đồng thời hiển thị thông báo lỗi cụ thể và phát âm thanh cảnh báo.
-   - Mỗi cổng thoát yêu cầu một **màu sắc** và **giá trị số tối thiểu** nhất định.
-   - Khi đưa khối đủ điều kiện vào đúng hướng cổng, khối sẽ căn giữa tâm cổng và bay ra ngoài (`+150 điểm`).
-   - Giải phóng toàn bộ khối trên bàn cờ để kích hoạt trạng thái chiến thắng.
+3. **Thoát Cổng Chính Xác, Khóa Ô Cổng & Portal Dissolve (`Gate Escape`)**:
+   - **Khóa ô cổng (`Gate Cell Blocking`)**: Cổng thoát đóng vai trò tường chắn cứng — khối tuyệt đối không thể dừng hoặc đè lên ô cổng khi chưa đủ điều kiện.
+   - **Khớp điều kiện chính xác**: Khối phải **cùng màu**, **đúng hướng cổng**, khớp bề rộng cổng đa ô và có giá trị **bằng đúng `RequiredValue`** (`piece.Value == gate.RequiredValue`); thông báo lỗi chi tiết nếu sai màu, thiếu số hoặc quá số.
+   - **Portal Dissolve VFX**: Khi thoát cổng, khối trượt vào tâm cổng và tan biến qua shader `Custom/SpritePortalDissolve` kèm hạt vỡ (`+150 × value` điểm). Giải phóng toàn bộ khối để chiến thắng màn chơi.
 
----
-
-## 🗺️ Hệ Thống Màn Chơi (Multi-Level Architecture)
-
-Game hỗ trợ chuyển đổi linh hoạt giữa các màn chơi cả trong **Edit Mode** (Bake hiển thị tĩnh) và **Runtime** (Play Mode):
-
-### 1. Level 1: Tutorial Cross Map
-- **Bản đồ**: Hình chữ thập 7 cột × 6 hàng từ asset viền đá `Map lv1.png`, giữ nền tím nguyên bản.
-- **Tâm bàn cờ**: Giao điểm hành lang `(col 3, row 2)` đặt chuẩn xác tại gốc tọa độ `(0, 0, 0)`.
-- **Cổng thoát (2 cổng)**:
-  - Cổng trên (Top): **Xanh lá (Green)** yêu cầu số **2**.
-  - Cổng trái (Left): **Đỏ (Red)** yêu cầu số **3**.
-- **Khối khởi đầu (5 khối 1x1)**:
-  - 1 khối Đỏ [2] tại tâm `(3, 2)`.
-  - 2 khối Đỏ [1] tại hai đầu hành lang ngang `(0, 2)` và `(6, 2)`.
-  - 2 khối Xanh lá [1] tại hai đầu hành lang dọc `(3, 0)` và `(3, 5)`.
-- **Độ giải đố**: Đã kiểm chứng 100% tính giải được (Red 2 trượt mở đường -> Red 1 gộp thành Red 2 -> Red 2 gộp Red 2 thành Red 3 -> thoát cổng đỏ -> Green 1 gộp Green 2 -> thoát cổng xanh).
-- **Asset riêng**: Scene `Assets/Scenes/Level1.unity` và Prefab `Assets/Prefabs/Levels/Level1_Board.prefab`.
-
-### 2. Level 2: Cross Map (`map_lv2.png`) - [ĐÃ CHỐT HOÀN THIỆN]
-- **Bản đồ**: Chữ thập lệch tâm 6 cột × 6 hàng từ asset khung đá `map_lv2.png` / `map_lv2 (3).png` (11 ô hành lang: cột 2 dọc [row 0..5] và hàng 3 ngang [col 0..5]).
-- **Căn gốc tọa độ**: Giao điểm `(col 2, row 3)`, `GridOffset = (0.617f, 0.426f, 0f)`, `CellWidth = 1.16f`, `CellHeight = 1.03f`. Tích hợp bảng ánh xạ tọa độ pixel chuẩn `Level2CellPositions` giúp căn giữa hoàn hảo từng khối đá quý trong hành lang vẽ tay bất đối xứng (khắc phục hiện tượng khối lệch vạch chia ô).
-- **Cổng thoát công nghệ cao (Tech Hologram - 2 cổng)**:
-  - Cổng trên (Top): **Xanh lá (Green)** yêu cầu số **2**, hướng lên `Vector2.up`.
-  - Cổng phải (Right): **Đỏ (Red)** yêu cầu số **1**, hướng sang phải `Vector2.right`.
-- **Khối khởi đầu (5 khối 1x1 theo [Image #12])**:
-  - 3 khối Đỏ: Đỏ [2] tại `(2, 1)`, Đỏ [1] tại `(2, 3)`, Đỏ [2] tại `(2, 5)`.
-  - 2 khối Xanh lá: Xanh lá [1] tại `(0, 3)`, Xanh lá [1] tại `(4, 3)`.
-- **Độ giải đố**: Đã kiểm chứng 100% tính giải được (Đỏ 1 trượt xuống mở giao điểm -> Xanh 1 trượt sang phải gộp thành Xanh 2 -> Đỏ 2 trượt qua cổng Đỏ 1 -> các khối Đỏ lần lượt thoát -> Xanh 2 thoát cổng Xanh 2).
-- **Asset riêng**: Scene `Assets/Scenes/Level2.unity`, Prefab `Assets/Prefabs/Levels/Level2_Board.prefab` và ảnh nghiệm thu `Assets/Screenshots/level2_current_saved.png`.
-
-### 3. Level 3: Branching Map (`Map_lv3.png`) - [ĐÃ CHỐT HOÀN THIỆN]
-- **Bản đồ**: Cấu trúc phân nhánh 5 cột × 7 hàng từ asset viền đá `Map_lv3.png` (15 ô hợp lệ: hàng 0 có 3 ô [0..2], cột 2 dọc [hàng 0..6], nhánh phải hàng 3 có 3 ô [2..4], hàng đáy 6 có 5 ô [0..4]).
-- **Căn gốc tọa độ**: Tích hợp từ điển pixel mapping chuẩn `Level3CellPositions` căn giữa tuyệt đối từng khối trong lòng các ô đá vẽ tay bất đối xứng.
-- **Cổng thoát công nghệ cao (Tech Hologram - 2 cổng)**:
-  - Cổng trái trên (Top-Left): **Xanh lá (Green)** yêu cầu số **4**, hướng sang trái `Vector2.left` tại `(col 0, row 0)`.
-  - Cổng phải giữa (Middle-Right): **Đỏ (Red)** yêu cầu số **4**, hướng sang phải `Vector2.right` tại `(col 4, row 3)`.
-- **Khối khởi đầu (8 khối 1x1 theo thiết kế [Image #17])**:
-  - 4 khối Đỏ: Đỏ [1] tại `(0, 6)`, Đỏ [1] tại `(2, 4)`, Đỏ [2] tại `(2, 5)`, Đỏ [3] tại `(2, 6)` (gộp đủ thành Đỏ 4).
-  - 4 khối Xanh lá: Xanh [1] tại `(3, 3)`, Xanh [1] tại `(3, 6)`, Xanh [2] tại `(1, 6)`, Xanh [3] tại `(4, 6)` (gộp đủ thành Xanh 4).
-- **Độ giải đố**: Đã kiểm chứng 100% giải được qua các bước trượt, dồn hàng và gộp thẳng hàng thành Đỏ 4 và Xanh 4 để thoát cổng.
-- **Asset riêng**: Scene `Assets/Scenes/Level3.unity`, Prefab `Assets/Prefabs/Levels/Level3_Board.prefab` và ảnh nghiệm thu `Assets/Screenshots/verify_level3.png`.
-
-### 4. Level 4: E-Shape Map (`map_lv4.png`) - [ĐÃ CHỐT HOÀN THIỆN]
-- **Bản đồ**: Cấu trúc chữ E 4 cột × 5 hàng từ asset viền đá `map_lv4.png` (14 ô hợp lệ: 3 hành lang ngang hàng 0, 2, 4 mỗi hàng 4 ô [col 0..3], nối liền qua hành lang dọc cột 0 tại hàng 1 và 3).
-- **Căn gốc tọa độ**: Tích hợp từ điển mapping chuẩn `Level4CellPositions` căn giữa tuyệt đối từng khối đá quý và cổng thoát vào lòng các hốc đá theo đúng vị trí người dùng đã tinh chỉnh.
-- **Cổng thoát công nghệ cao (Tech Hologram - 3 cổng hướng phải `Vector2.right`)**:
-  - Cổng trên (Top-Right): **Đỏ (Red)** yêu cầu số **3** tại `(col 3, row 0)`.
-  - Cổng giữa (Middle-Right): **Xanh lá (Green)** yêu cầu số **3** tại `(col 3, row 2)`.
-  - Cổng dưới (Bottom-Right): **Hồng (Pink)** yêu cầu số **2** tại `(col 3, row 4)`.
-- **Khối khởi đầu (7 khối 1x1 theo thiết kế [Image #18])**:
-  - 3 khối Đỏ: Đỏ [2] tại `(0, 0)`, Đỏ [1] tại `(0, 4)`, Đỏ [1] tại `(2, 4)` (gộp đủ thành Đỏ 3).
-  - 3 khối Xanh lá: Green [2] tại `(1, 0)`, Green [1] tại `(2, 0)`, Green [1] tại `(1, 4)` (gộp đủ thành Green 3).
-  - 1 khối Hồng: Pink [2] tại `(2, 2)` (thoát cổng Hồng 2).
-- **Độ giải đố**: Đã kiểm chứng thuật toán BFS giải được 100% qua 22 bước trượt, dồn hàng và gộp thẳng hàng.
-- **Asset riêng**: Scene `Assets/Scenes/Level4.unity`, Prefab `Assets/Prefabs/Levels/Level4_Board.prefab` và ảnh nghiệm thu `Assets/Screenshots/verify_level4.png`.
-
-### 5. Cơ Chế Bảo Vệ Độc Lập Scene (Scene Protection Mechanism)
-- **Nạp Scene trực tiếp qua `EditorSceneManager.OpenScene`**: `SceneSetupHelper.LoadLevel(LevelId level)` kiểm tra file `Assets/Scenes/{level}.unity`, nếu đã tồn tại thì mở trực tiếp scene đó, **tuyệt đối không chạy `BakeLevelToScene()` nướng đè** lên scene đang mở.
-- **Cách ly tuyệt đối Level 1, Level 2, Level 3 & Level 4**: Khi tác giả tạo và cấu hình các level sau (Level 5..10), hệ thống chỉ ghi vào scene/prefab của level mới, **bảo toàn 100% Level 1, Level 2, Level 3 và Level 4** không bị thay đổi layout UI, vị trí khối hay thông số cổng.
+4. **Cơ Chế Khối Đóng Băng (`IceCount` — Từ Level 7, 8, 9)**:
+   - Một số khối bị bọc trong lớp băng (`ice_block_overlay.png`) kèm chữ số đếm ngược 3D, ẩn hoàn toàn khối bên trong và không thể di chuyển hay gộp.
+   - Mỗi lần một khối khác thoát cổng thành công, giá trị băng giảm đi `1`. Khi về `0`, lớp băng phát nổ thành mảnh băng kèm âm thanh `icecrak.wav` và giải phóng khối bên trong.
 
 ---
 
-## 📱 Tối Ưu Màn Hình Dọc 1440×3200 & Hệ Thống UI
+## 🗺️ Hệ Thống 10 Màn Chơi (`Level 1` -> `Level 10`)
 
-- **Thanh Header UI (`HeaderPanel`)**:
-  - **Nút Replay (`Btn_Replay`)**: Khối đá cổ bên trái, bấm để load lại đúng trạng thái đồ họa, bố cục bàn cờ và bộ đếm thời gian ban đầu của màn chơi (`SceneManager.LoadScene` + snapshot fallback).
-  - **Banner Level (`Banner_Level`)**: Hiển thị cấp độ hiện tại (`LEVEL 1`, `LEVEL 2`, đồng bộ tông màu phía trên banner thời gian).
-  - **Banner Time (`Banner_Time` + `TimeVal`)**: Hộp thời gian với icon đồng hồ và chữ số `05:00` (Level 1 & Level 2 = 300 giây / 5 phút), hiển thị sẵn cả ở **Edit Mode** lẫn đếm ngược **Play Mode**, chuyển đỏ cảnh báo khi còn dưới 20 giây.
-  - **Nút Pause (`Btn_Pause`)**: Khối đá cổ bên phải, mở modal Settings/Pause.
+Mỗi màn chơi được cô lập thành Scene (`Assets/Scenes/Level{n}.unity`) và Prefab (`Assets/Prefabs/Levels/Level{n}_Board.prefab`) riêng, bảo vệ không ghi đè lẫn nhau qua `SceneSetupHelper.LoadLevel()`.
+
+| Level | Map Asset | Lưới | Cổng Thoát | Số Khối | Điểm Nhấn / Cơ Chế Đặc Biệt |
+|---|---|---|---|---|---|
+| **Level 1** | `map_lv1.png` | 5×3 | 1 (Đỏ `[2]`) | 2 (`1x1`) | Màn hướng dẫn `TutorialHandGuide` 2 pha |
+| **Level 2** | `map_lv2.png` | 6×6 | 2 (Xanh `[2]`, Đỏ `[3]`) | 5 (`1x1`) | Chữ thập lệch tâm + `Level2CellPositions` |
+| **Level 3** | `Map_lv3.png` | 5×7 | 2 (Xanh `[4]`, Đỏ `[4]`) | 8 (`1x1`) | Bản đồ 3 nhánh nối qua trục giữa |
+| **Level 4** | `map_lv4.png` | 4×5 | 3 (Đỏ `[3]`, Xanh `[3]`, Hồng `[2]`) | 7 (`1x1`) | Bản đồ chữ E, kiểm chứng BFS 22 bước |
+| **Level 5** | `map_lv5.png` | 8×11 | 2 (Vàng `[5]`, Xanh `[2]`) | 17 | Đa hình: `2x1`, `1x2`, chữ `L`, `2x2` |
+| **Level 6** | `map_lv6 (1).png` | 7×8 | 4 (Đỏ `[2]`, Xanh `[2]`, Cam `[2]`, Hồng `[3]`) | 10 | Khối chữ thập `Cross_3x3`, 4 cổng bất đối xứng |
+| **Level 7** | `map_lv7.png` | 8×4 | 3 (Xanh `[2]`, Vàng `[2]`, Hồng `[2]`) | 5 | Tháp bậc thang + khối `2x2` **đóng băng `Ice=2`** |
+| **Level 8** | `map_lv8.png` | 8×9 | 5 (Xanh `[2]`, Cam `[2]`, Tím `[2]`, Dương `[2]`, Vàng `[2]`) | 15 | 2 lỗ chướng ngại nội bộ + 2 khối `2x2` **đóng băng `Ice=4`** |
+| **Level 9** | `map_lv9.png` | 5×8 | 5 (Đỏ `[2]`, Tím `[3]`, Vàng `[3]`, Dương `[2]`, Xanh `[3]`) | 12 | Chốt 2D chuẩn + 1 khối `2x2` **đóng băng `Ice=4`** + **mở Booster Freeze** |
+| **Level 10** | `map_lv10 (2).png` | 9×11 | 4 (Đỏ `[5]*`, Cam `[2]`, Xanh Trái `[5]`, Xanh Phải `[4]`) | 26 | Bản đồ cây thông Noel, đa hình (`1x1`, `2x1`, `1x2`, `L`) |
+
+*\*Ghi chú đồng bộ scene: Trong `Level8.unity`, 2 khối `2x2` đã cấu hình `IceCount = 4`; trong `Level9.unity`, khối `2x2` tại `(1,3)` có `IceCount = 4`; trong `Level10.unity`, cổng Đỏ trên được tinh chỉnh `RequiredValue = 5` trên scene (mặc định code `LevelManager.cs` là `4`).*
+
+---
+
+## 📱 Giao Diện, Booster, Audio & Tối Ưu Mobile (`1440×3200`)
+
+- **Thanh Header (`HeaderPanel`)**:
+  - **Nút Replay (`Btn_Replay`)**: Tải lại nhanh màn chơi và đặt lại thời gian ban đầu.
+  - **Banner Time (`Banner_Time` + `TimeVal`)**: Đếm ngược linh hoạt (hỗ trợ đặt qua `_customTimeMMSS`, `_customDurationSeconds` hoặc sửa trực tiếp text `TimeVal` trên Inspector); chuyển đỏ cảnh báo khi `< 20s` và xanh cyan khi đóng băng.
+  - **Banner Level (`Banner_Level`)**: Tự động hiển thị `LEVEL 1` .. `LEVEL 10`.
+  - **Nút Pause (`Btn_Pause`)**: Mở hộp thoại cài đặt / tạm dừng.
 - **Thanh Booster (`BoosterBar`)**:
-  - 3 ô booster ở đáy màn hình (Freeze, Magnet, Wand), hiển thị mờ + ổ khóa khi chưa mở khóa (mở lần lượt ở Level 6, Level 12, Level 16).
-- **Hướng dẫn trực quan (`TutorialHandGuide`)**:
-  - Tay chỉ dẫn động và chữ hướng dẫn *Swipe block to merge* trên Level 1 -> tự động ẩn trên Level 2.
-- **Hộp thoại Setting / Pause Panel (`PausePanel`)**:
-  - Phủ mờ khung cảnh game phía sau (`#03050ECC`), giữ trọn vẹn bàn cờ.
-  - Công tắc **Sound**, **Music**, **Vibration** tự động lưu vào `PlayerPrefs`, nút đóng `X (1)` mới, nút **No Ads**, **Return**, **Home**.
-- **Âm thanh & Hiệu ứng (Audio & VFX)**:
-  - **SoundManager (`DontDestroyOnLoad`)**: Âm thanh 2D (`preloadAudioData: 1`, `3D: 0`), phát âm thanh nhấc/đặt block (`block_move`), âm thanh merge tăng dần âm lượng theo combo tối đa 4 lần (timeout 1.5s), âm thanh biến mất khi qua cổng (`block_vanish`).
-  - **VFX**: Số khắc chìm trên đá, hiệu ứng dập slam + flash khi merge, hiệu ứng tan biến dần qua cổng.
-- **Background vũ trụ (`background_main scene .png`)**:
-  - Tự động phủ kín màn hình với Aspect-Fill, làm dịu sắc độ (`Color(0.42, 0.42, 0.48, 1)`) để làm nổi bật bàn cờ và các khối đá quý.
-- **Camera Auto-Fit**:
-  - Tự động tính toán khung nhìn camera theo cả chiều rộng và chiều cao (`Mathf.Max(sizeByWidth, sizeByHeight)`), ép tỷ lệ 9:20 (`0.45`) trong Edit Mode để không bị cắt 2 bên viền.
+  - **Freeze (`x3`, mở tại Level 9)**: Đóng băng bộ đếm thời gian trong `15s`.
+  - **Magnet (`x2`, mở tại Level 12)**: Tự động ghép một cặp khối hợp lệ trên bàn cờ (`TryMagnetAutoMerge`).
+  - **Wand (`x1`, mở tại Level 16)**: Đã dựng slot & nút kích hoạt (đang mở rộng logic phép thuật).
+  - Các booster chưa mở khóa hiển thị mờ kèm ổ khóa và nhãn `Lv.X`.
+- **Pause / Settings Panel (`PausePanel`)**:
+  - Giao diện pha lê tím (`Group 331`, `X (1)`), công tắc **Sound**, **Music**, **Vibration** lưu tự động qua `PlayerPrefs`.
+- **Victory Popup (`VictoryPanel`) & Chuyển Màn**:
+  - Ruy-băng vàng `LEVEL X CLEAR!`, 3 ngôi sao vàng bật nảy tuần tự, hiển thị thời gian còn lại, nút `NEXT LEVEL X >` chuyển thẳng sang scene màn tiếp theo và nút `CHƠI LẠI`.
+  - Đã import thêm bộ sprite Win/Lose mới (`Assets/Sprites/Win&Lose scene/win scene/UI B1 (15)/`: `WELL DONE`, `Coin`, `Coins`, `ADS`, `Button1/2`) cho đợt nâng cấp UI tiếp theo.
+- **Audio 2D & VFX (`SoundManager`)**:
+  - Âm thanh 2D (`DontDestroyOnLoad`), sử dụng clip thực tế (`block_move.wav`, `merge_block.wav` tăng 4 bậc âm lượng combo trong `1.5s`, `block_vanish.mp3`, `icecrak.wav`) cùng fallback procedural (bao gồm `VictoryFanfare`).
+- **Camera Auto-Fit & Background**:
+  - Phủ nền vũ trụ pha lê `background_main scene .png` theo cơ chế Aspect-Fill và tự động fit camera theo tỷ lệ dọc `1440×3200` (`0.45`).
 
 ---
 
-## 🚀 Hướng Dẫn Sử Dụng & Quy Trình Làm Level Mới
+## 🚀 Hướng Dẫn Mở Dự Án, Công Cụ Editor & Chạy Game
 
 ### 1. Mở dự án trong Unity
-- Mở **Unity Hub** -> chọn **Add project from disk** -> `D:\BlockMergePuzzle`.
-- Mở scene chính: `Assets/Scenes/MainScene.unity`.
+- Mở **Unity Hub** -> **Add project from disk** -> chọn `D:\BlockMergePuzzle` (khuyến nghị Unity **`6000.0.74f1`**).
+- Scene mặc định: `Assets/Scenes/MainScene.unity`, hoặc mở trực tiếp `Assets/Scenes/Level1.unity` .. `Level10.unity`.
 
 ### 2. Công cụ Editor (`Tools/Block Merge Puzzle/...`)
-- `Load Level 1` .. `Load Level 10`: Nạp nhanh bàn cờ từng level.
-- `Bake Level to Scene (Idle Display)`: Bake bàn cờ hiện tại vào scene để hiển thị ở Edit Mode.
-- `Ensure Time Text on Banner`: Tạo/khôi phục `TimeVal` (`05:00`) trên `Banner_Time` và lưu scene mà không làm lệch vị trí UI đã xếp.
+- `Load Level 1` .. `Load Level 10`: Chuyển nhanh giữa 10 scene màn chơi (an toàn, không ghi đè).
+- `Bake Level to Scene (Idle Display)`: Render bàn cờ của level đang chọn trong Edit Mode và lưu prefab tương ứng.
+- `Verify Merge Slam`: Kiểm tra đầy đủ shader, sprite, booster, setting UI và audio clips.
+- `Upgrade Settings Panel to New Style` / `Update Level Banner & Settings Close X` / `Ensure Time Text on Banner`: Các tiện ích đồng bộ UI nhanh.
 
-### 3. Quy trình chuẩn khi tạo / chỉnh Level mới (Không ảnh hưởng Level 1 & Level 2)
-1. **Định nghĩa map**: Thêm dữ liệu lưới, cổng thoát và khối khởi đầu trong `LevelManager.cs` + hằng số/thời lượng trong `GameConfig.cs` / `GameUI.GetLevelDurationSeconds()`.
-2. **Cô lập Scene & Prefab**: Mỗi level mới tạo một scene riêng `Assets/Scenes/Level{n}.unity` và prefab `Assets/Prefabs/Levels/Level{n}_Board.prefab`. **Tuyệt đối không chạy nướng đè hay sửa đổi `Level1.unity`, `Level2.unity` và `Level3.unity`**.
-3. **UI chuẩn đồng bộ**: Dùng nguyên vẹn hierarchy GameUI chuẩn đã chốt từ Level 1, 2 & 3 (`HeaderPanel` pos `(0, -50)` với `Btn_Replay` pos `(-378, 5.5)`, `Banner_Time` pos `(16, -80)`, `Btn_Pause` pos `(374, 0)`, `Banner_Level` pos `(21, 32)`; `InstructionBanner` pos `(-24.76, 375.68)`; `BoosterBar` pos `(0, 60)`). Khi chỉnh sửa, chỉ lưu scene riêng của level đó.
-4. **Nền & Ánh sáng**: Giữ tint background tối dịu `(0.42, 0.42, 0.48, 1)` qua `LevelManager.BuildBackground()`/`FitBackgroundToCamera()` để khối nổi bật.
-5. **Âm thanh**: Mọi file audio mới phải để `preloadAudioData: 1` và `3D: 0` trong `.meta`, phát qua `SoundManager.Instance`.
-6. **Kiểm tra Replay & Chuyển Level**: Chạy Play Mode thử kéo, merge, thoát cổng và bấm `Btn_Replay`; kiểm tra nạp qua menu `Tools/Block Merge Puzzle/Load Level {n}` chỉ mở đúng file scene tương ứng mà không làm thay đổi các level đã chốt.
-
-### 3. Chạy game
-- Nhấn nút **Play (▶)** trên Editor để trải nghiệm trực tiếp.
-- Điều khiển: Dùng chuột/cảm ứng kéo khối, hoặc dùng phím mũi tên `W/A/S/D` để dịch chuyển từng bước.
+### 3. Chạy & điều khiển game
+- Nhấn **Play (▶)** trên Unity Editor để chơi thử.
+- Kéo thả khối trực tiếp bằng chuột/cảm ứng, hoặc chọn khối và dùng phím `W/A/S/D` / mũi tên để trượt từng bước.
 
 ---
 
 ## 📁 Cấu Trúc Thư Mục Quan Trọng
 
-```
+```text
 D:\BlockMergePuzzle\
 ├── Assets\
-│   ├── Prefabs\
-│   │   └── Levels\
-│   │       ├── Level1_Board.prefab          # Prefab nguyên khối Level 1
-│   │       ├── Level2_Board.prefab          # Prefab nguyên khối Level 2
-│   │       ├── Level3_Board.prefab          # Prefab nguyên khối Level 3
-│   │       └── Level4_Board.prefab          # Prefab nguyên khối Level 4
+│   ├── Prefabs\Levels\
+│   │   └── Level1_Board.prefab .. Level10_Board.prefab   # Prefab bàn cờ 10 level
 │   ├── Resources\
-│   │   └── Sprites\LevelAssets\             # Sprites nạp động (map_lv1, gems, frame)
+│   │   ├── Shaders\SpritePortalDissolve.shader           # Shader tan biến khi thoát cổng
+│   │   ├── Sound\                                        # block_move, merge_block, block_vanish, icecrak
+│   │   └── Sprites\                                      # Blocks & LevelAssets nạp qua Resources
 │   ├── Scenes\
-│   │   ├── MainScene.unity                  # Scene mặc định đang hoạt động
-│   │   ├── Level1.unity                     # Scene riêng cho Level 1 (Đã chốt)
-│   │   ├── Level2.unity                     # Scene riêng cho Level 2 (Đã chốt)
-│   │   ├── Level3.unity                     # Scene riêng cho Level 3 (Đã chốt)
-│   │   └── Level4.unity                     # Scene riêng cho Level 4 (Đã chốt)
-│   ├── Screenshots\                         # Ảnh chụp nghiệm thu tiến độ
+│   │   ├── MainScene.unity                               # Scene khởi đầu mặc định
+│   │   └── Level1.unity .. Level10.unity                 # 10 scene độc lập đã chốt
+│   ├── Screenshots\                                      # Ảnh chụp nghiệm thu từng level & UI
 │   ├── Scripts\
-│   │   ├── Audio\SoundManager.cs            # Âm thanh tương tác procedural
+│   │   ├── Audio\SoundManager.cs                         # Âm thanh 2D + combo + procedural fallback
 │   │   ├── Core\
-│   │   │   ├── GameConfig.cs                # Hằng số, bảng màu và nhãn tiếng Việt
-│   │   │   ├── LevelManager.cs              # Quản lý grid, luật gộp, thoát cổng, auto-fit
-│   │   │   └── GameBootstrapper.cs          # Tự khởi tạo hệ thống khi Play
-│   │   ├── Editor\
-│   │   │   └── SceneSetupHelper.cs          # Công cụ menu Bake & MCP Auto-Starter
+│   │   │   ├── GameBootstrapper.cs                       # Tự khởi tạo hệ thống khi chạy
+│   │   │   ├── GameConfig.cs                             # Enum màu, 8 hình khối, gate side, tên TV
+│   │   │   └── LevelManager.cs                           # Grid 10 level, merge, escape, băng, VFX
+│   │   ├── Editor\SceneSetupHelper.cs                    # Menu Load/Bake Level & AutoMcpStarter
 │   │   ├── Gameplay\
-│   │   │   ├── ExitGateView.cs              # Quản lý cổng thoát, badge tương phản
-│   │   │   ├── PlayerPieceController.cs     # Điều khiển kéo thả đa hướng, snap
-│   │   │   └── PuzzlePiece.cs               # Hiển thị khối, nhấc khối, animation EaseOutQuad
-│   │   ├── UI\GameUI.cs                     # Điểm số, floating text, victory popup
-│   │   └── Utils\GemSpriteManager.cs        # Nạp sprite động từ Resources/Disk
+│   │   │   ├── ExitGateView.cs                           # Cổng Tech Hologram & khóa ô cổng
+│   │   │   ├── PlayerPieceController.cs                  # Kéo thả đa hướng & bàn phím
+│   │   │   └── PuzzlePiece.cs                            # Khối đa hình, băng IceCount, slam merge
+│   │   ├── UI\
+│   │   │   ├── GameUI.cs                                 # Header, Timer, Booster, Pause, Victory
+│   │   │   └── TutorialHandGuide.cs                      # Tay & banner hướng dẫn Level 1
+│   │   └── Utils\
+│   │       ├── GemSpriteManager.cs                       # Nạp sprite từ Resources / AssetDatabase / disk
+│   │       └── SpriteGenerator.cs                        # Tạo sprite procedural cho UI & VFX
 │   └── Sprites\
-│       ├── UI B1 (1)\Map lv1.png            # Asset bản đồ gốc Level 1
-│       └── LevelAssets\                     # Các sprite khung viền và khối đá
-├── PROJECT_HANDOVER.md                      # Báo cáo chi tiết bàn giao kỹ thuật
-└── README.md                                # Tài liệu tổng quan dự án
+│       ├── Background\                                   # Background vũ trụ pha lê
+│       ├── Main Scene\
+│       │   ├── Block\Block\                              # Sprite các khối màu & lớp băng
+│       │   ├── Map\                                      # map_lv1.png .. map_lv10 (2).png
+│       │   ├── Pause game\                               # Asset Pause cũ
+│       │   └── UI\                                       # Header, booster, setting tím pha lê
+│       └── Win&Lose scene\                               # Bộ sprite Win&Lose Figma mới (WIP)
+├── ProjectSettings\EditorBuildSettings.asset             # Build index 0..10 (MainScene + Level 1..10)
+├── PROJECT_HANDOVER.md                                   # Báo cáo bàn giao kỹ thuật chi tiết
+└── README.md                                             # Tài liệu tổng quan dự án
 ```
+
+---
+
+## 📌 Trạng Thái Phát Triển & Hạng Mục Tiếp Theo
+
+- **Đã hoàn thành**: 10/10 màn chơi (`Level 1`–`Level 10`), cơ chế kéo thả & merge thẳng hàng, cổng Tech Hologram + shader tan biến, khối đóng băng `IceCount`, Booster Freeze/Magnet UI, Pause Settings tím pha lê, Victory Popup 3 sao + Next Level, âm thanh 2D.
+- **Tiếp theo (WIP)**:
+  1. Gắn bộ sprite Figma `Assets/Sprites/Win&Lose scene/win scene/UI B1 (15)/` vào màn hình Win và bổ sung **Lose Popup** khi hết giờ.
+  2. Hoàn thiện hiệu ứng Booster **Wand**, tính năng **No Ads** & hệ thống **Coin**.
+  3. Bổ sung nhạc nền (**BGM**) & rung (**Haptics**) gắn với toggle Settings, đồng bộ cấu hình Inspector Level 8–10 vào code và mở rộng **Level 11+**.

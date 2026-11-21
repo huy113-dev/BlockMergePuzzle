@@ -93,7 +93,7 @@ namespace BlockMergePuzzle.Editor
 
             for (int i = 1; i <= 10; i++)
             {
-                if (i == 1 || i == 2 || i == 3) continue; // Protect finalized Level 1, Level 2 and Level 3 scenes
+                if (i >= 1 && i <= 10) continue; // Protect finalized Level 1..10 scenes
 
                 LevelId lid = (LevelId)i;
                 string scenePath = $"{scenesDir}/Level{i}.unity";
@@ -166,8 +166,9 @@ namespace BlockMergePuzzle.Editor
             if (screenRatio > 0.75f) screenRatio = 1440f / 3200f; // Force target portrait (0.45) in Edit Mode
             float paddingX = 0.12f;
             float paddingY = 0.40f;
-            float targetW = lm != null ? lm.CurrentFrameWidth : GameConfig.FrameWidth;
-            float targetH = lm != null ? lm.CurrentFrameHeight : GameConfig.FrameHeight;
+            bool useFixedRef = lm != null && (lm.CurrentLevel == LevelId.Level8 || lm.CurrentLevel == LevelId.Level9 || lm.CurrentLevel == LevelId.Level10);
+            float targetW = lm != null ? (useFixedRef ? 8.000f : lm.CurrentFrameWidth) : GameConfig.FrameWidth;
+            float targetH = lm != null ? (useFixedRef ? 8.000f : lm.CurrentFrameHeight) : GameConfig.FrameHeight;
             float sizeByWidth = (targetW / 2f + paddingX) / screenRatio;
             float sizeByHeight = targetH / 2f + paddingY;
 
@@ -223,8 +224,8 @@ namespace BlockMergePuzzle.Editor
 
             lm.BakeEditModeLevel();
 
-            // Keep Level 1 & 2 pieces, clear unfinished residual blocks on other levels
-            if (lm != null && lm.CurrentLevel != LevelId.Level1 && lm.CurrentLevel != LevelId.Level2)
+            // Keep Level 1..10 pieces, clear unfinished residual blocks on other levels
+            if (lm != null && (int)lm.CurrentLevel > 10)
             {
                 GameObject piecesObj = GameObject.Find("Active_Pieces");
                 if (piecesObj != null)

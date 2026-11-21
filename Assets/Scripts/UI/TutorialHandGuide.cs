@@ -238,7 +238,7 @@ namespace BlockMergePuzzle.UI
         private void PositionInitialHand(LevelManager lm)
         {
             if (_handRootObj == null || lm == null) return;
-            Vector3 worldPos = lm.GridToWorld(0, 1);
+            Vector3 worldPos = lm.GridToWorld(0, 2);
             _handRootObj.transform.position = new Vector3(worldPos.x, worldPos.y, -2.0f);
             _handRootObj.transform.localScale = Vector3.one;
             _handRootObj.transform.localRotation = Quaternion.identity;
@@ -443,7 +443,7 @@ namespace BlockMergePuzzle.UI
 
                 if (origin.x != 2)
                 {
-                    Vector3 corridorCenter = lm.GridToWorld(2, 1);
+                    Vector3 corridorCenter = lm.GridToWorld(2, 2);
                     waypoints.Add(corridorCenter);
                 }
 

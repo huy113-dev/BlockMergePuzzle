@@ -185,6 +185,9 @@ namespace BlockMergePuzzle.Gameplay
             Color ringTint = Color.Lerp(pureNeon, Color.white, 0.16f);
             Color innerTint = Color.Lerp(pureNeon, Color.white, 0.10f);
 
+            bool isWideShortGate = DetectionBounds.size.y < 0.75f && DetectionBounds.size.x > 1.2f;
+            bool isNarrowGate = DetectionBounds.size.x < 0.75f;
+
             // 1. Holographic emitter pad & glowing corner brackets tinted to gate color
             Sprite padSprite = GemSpriteManager.GetTechGateHoloPadSprite();
             if (padSprite != null)
@@ -192,7 +195,12 @@ namespace BlockMergePuzzle.Gameplay
                 GameObject padObj = new GameObject("GateHoloPad");
                 padObj.transform.SetParent(_labelRoot, false);
                 padObj.transform.localPosition = new Vector3(0f, 0f, -0.05f);
-                padObj.transform.localScale = new Vector3(0.485f, 0.39f, 1f);
+                if (isWideShortGate)
+                    padObj.transform.localScale = new Vector3(0.58f, 0.28f, 1f);
+                else if (isNarrowGate)
+                    padObj.transform.localScale = DetectionBounds.size.y > 1.3f ? new Vector3(0.26f, 0.52f, 1f) : new Vector3(0.26f, 0.34f, 1f);
+                else
+                    padObj.transform.localScale = new Vector3(0.485f, 0.39f, 1f);
                 SpriteRenderer padSr = padObj.AddComponent<SpriteRenderer>();
                 padSr.sprite = padSprite;
                 padSr.color = padTint;
@@ -206,7 +214,8 @@ namespace BlockMergePuzzle.Gameplay
                 GameObject ringObj = new GameObject("GateTechRing");
                 ringObj.transform.SetParent(_labelRoot, false);
                 ringObj.transform.localPosition = new Vector3(0f, 0f, -0.08f);
-                ringObj.transform.localScale = new Vector3(0.345f, 0.345f, 1f);
+                float rScale = isWideShortGate ? 0.280f : (isNarrowGate ? 0.265f : 0.345f);
+                ringObj.transform.localScale = new Vector3(rScale, rScale, 1f);
                 SpriteRenderer ringSr = ringObj.AddComponent<SpriteRenderer>();
                 ringSr.sprite = ringSprite;
                 ringSr.color = ringTint;
@@ -221,7 +230,8 @@ namespace BlockMergePuzzle.Gameplay
                 GameObject innerObj = new GameObject("GateInnerRing");
                 innerObj.transform.SetParent(_labelRoot, false);
                 innerObj.transform.localPosition = new Vector3(0f, 0f, -0.11f);
-                innerObj.transform.localScale = new Vector3(0.340f, 0.340f, 1f);
+                float iScale = isWideShortGate ? 0.275f : (isNarrowGate ? 0.260f : 0.340f);
+                innerObj.transform.localScale = new Vector3(iScale, iScale, 1f);
                 SpriteRenderer innerSr = innerObj.AddComponent<SpriteRenderer>();
                 innerSr.sprite = innerSprite;
                 innerSr.color = innerTint;
@@ -229,11 +239,14 @@ namespace BlockMergePuzzle.Gameplay
                 _innerRingTransform = innerObj.transform;
             }
 
+            const int fs = 140;
+            float cs = (isWideShortGate || isNarrowGate) ? 0.032f : 0.040f;
+
             // 4. Projected floor cast shadow so the digit visibly levitates above the gate
             _shadowLabel = CreateDigitLayer(
                 "GateCastShadow", _labelRoot,
                 new Vector3(0.038f, -0.046f, -0.12f),
-                140, 0.040f,
+                fs, cs,
                 new Color(pureNeon.r * 0.08f, pureNeon.g * 0.05f, pureNeon.b * 0.05f, 0.85f),
                 6);
             _shadowMesh = _shadowLabel.GetComponent<MeshRenderer>();
@@ -242,9 +255,6 @@ namespace BlockMergePuzzle.Gameplay
             _floatingDigitRoot = new GameObject("FloatingDigit").transform;
             _floatingDigitRoot.SetParent(_labelRoot, false);
             _floatingDigitRoot.localPosition = new Vector3(0f, 0.014f, -0.15f);
-
-            const int fs = 140;
-            const float cs = 0.040f;
 
             // Outer neon glow aura matching gate color (8 directions)
             Vector2[] haloDirs = {
@@ -347,19 +357,35 @@ namespace BlockMergePuzzle.Gameplay
         private void Awake()
         {
             EnsureGateCoords();
+            RefreshValueLabels();
+        }
+
+        private void OnValidate()
+        {
+            RefreshValueLabels();
+        }
+
+        public void RefreshValueLabels()
+        {
             if (_labelRoot == null)
             {
                 _labelRoot = transform.Find("LabelRoot");
-                if (_labelRoot != null)
-                {
-                    _floatingDigitRoot = _labelRoot.Find("FloatingDigit");
-                    _techRingTransform = _labelRoot.Find("GateTechRing");
-                    _innerRingTransform = _labelRoot.Find("GateInnerRing");
+            }
+            if (_labelRoot != null)
+            {
+                _floatingDigitRoot = _labelRoot.Find("FloatingDigit");
+                _techRingTransform = _labelRoot.Find("GateTechRing");
+                _innerRingTransform = _labelRoot.Find("GateInnerRing");
 
-                    Transform tNum = _floatingDigitRoot != null ? _floatingDigitRoot.Find("GateNumber") : _labelRoot.Find("GateNumber");
-                    if (tNum != null) _numberLabel = tNum.GetComponent<TextMesh>();
-                    Transform tShadow = _labelRoot.Find("GateCastShadow") ?? _labelRoot.Find("GateShadow");
-                    if (tShadow != null) _shadowLabel = tShadow.GetComponent<TextMesh>();
+                Transform tNum = _floatingDigitRoot != null ? _floatingDigitRoot.Find("GateNumber") : _labelRoot.Find("GateNumber");
+                if (tNum != null) _numberLabel = tNum.GetComponent<TextMesh>();
+                Transform tShadow = _labelRoot.Find("GateCastShadow") ?? _labelRoot.Find("GateShadow");
+                if (tShadow != null) _shadowLabel = tShadow.GetComponent<TextMesh>();
+
+                string valStr = RequiredValue.ToString();
+                foreach (var tm in _labelRoot.GetComponentsInChildren<TextMesh>(true))
+                {
+                    if (tm != null) tm.text = valStr;
                 }
             }
         }

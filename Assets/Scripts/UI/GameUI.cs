@@ -28,19 +28,163 @@ namespace BlockMergePuzzle.UI
 
         // Timer state
         private const float DefaultLevelTime = 100f; // 1:40 default
-        private const float Level1Time = 300f; // 5:00 for Level 1
+        private const float Level1Time = 300f; // 5:00 for Level 1..5
+        private const float Level6Time = 105f; // 1:45 for Level 6..7
+
+        [Header("Tuỳ Chỉnh Thời Gian Chơi (Level Timer)")]
+        [Tooltip("Nhập thời gian dạng MM:SS (VD: 05:00, 02:30, 01:45) hoặc sửa trực tiếp tại ô Text của TimeVal.")]
+        [SerializeField] private string _customTimeMMSS = "";
+
+        [Tooltip("Thời gian chơi tính bằng giây (0 = tự động lấy theo ô Text của TimeVal trên màn hình).")]
+        [SerializeField] private float _customDurationSeconds = 0f;
+
+        private float _initialInspectorTimeSeconds = 0f;
+        private string _lastDisplayedTimeString = "";
         private float _timeRemaining = Level1Time;
         private bool _isTimerRunning = false;
         private bool _isPaused = false;
 
+        public static bool TryParseTimeText(string raw, out float totalSeconds)
+        {
+            totalSeconds = 0f;
+            if (string.IsNullOrWhiteSpace(raw)) return false;
+            string s = raw.Trim();
+
+            if (s.Contains(":"))
+            {
+                string[] parts = s.Split(':');
+                if (parts.Length == 2)
+                {
+                    if (int.TryParse(parts[0].Trim(), out int mins) && float.TryParse(parts[1].Trim(), out float secs))
+                    {
+                        totalSeconds = Mathf.Max(1f, mins * 60f + secs);
+                        return true;
+                    }
+                }
+                else if (parts.Length == 3)
+                {
+                    if (int.TryParse(parts[0].Trim(), out int hrs) &&
+                        int.TryParse(parts[1].Trim(), out int mins) &&
+                        float.TryParse(parts[2].Trim(), out float secs))
+                    {
+                        totalSeconds = Mathf.Max(1f, hrs * 3600f + mins * 60f + secs);
+                        return true;
+                    }
+                }
+            }
+            else if (float.TryParse(s, out float rawSeconds) && rawSeconds > 0f)
+            {
+                totalSeconds = Mathf.Max(1f, rawSeconds);
+                return true;
+            }
+
+            return false;
+        }
+
+        public static string FormatTimeMMSS(float durationSeconds)
+        {
+            float clamped = Mathf.Max(0f, durationSeconds);
+            int mins = Mathf.FloorToInt(clamped / 60f);
+            int secs = Mathf.FloorToInt(clamped % 60f);
+            return string.Format("{0:D2}:{1:D2}", mins, secs);
+        }
+
+        public void SetPlayDurationSeconds(float seconds)
+        {
+            _customDurationSeconds = Mathf.Max(1f, seconds);
+            _customTimeMMSS = FormatTimeMMSS(_customDurationSeconds);
+            _initialInspectorTimeSeconds = _customDurationSeconds;
+            _timeRemaining = _customDurationSeconds;
+            EnsureTimeText();
+            if (_timeText != null)
+            {
+                _timeText.text = _customTimeMMSS;
+                _lastDisplayedTimeString = _timeText.text;
+            }
+        }
+
         private float GetLevelDurationSeconds()
         {
-            return GetCurrentLevelNumber() <= 4 ? Level1Time : DefaultLevelTime;
+            if (_customDurationSeconds > 0f)
+            {
+                return _customDurationSeconds;
+            }
+            if (!string.IsNullOrWhiteSpace(_customTimeMMSS) && TryParseTimeText(_customTimeMMSS, out float customParsed))
+            {
+                return customParsed;
+            }
+            if (_initialInspectorTimeSeconds > 0f)
+            {
+                return _initialInspectorTimeSeconds;
+            }
+            if (_timeText != null && TryParseTimeText(_timeText.text, out float textParsed))
+            {
+                return textParsed;
+            }
+
+            int lvl = GetCurrentLevelNumber();
+            if (lvl <= 5) return Level1Time;
+            if (lvl == 6 || lvl == 7) return Level6Time;
+            return DefaultLevelTime;
+        }
+
+        private void OnValidate()
+        {
+            if (_headerPanel == null)
+            {
+                _headerPanel = transform.Find("HeaderPanel")?.gameObject;
+            }
+            if (_timeText == null && _headerPanel != null)
+            {
+                Transform timeTr = _headerPanel.transform.Find("Banner_Time");
+                if (timeTr != null) _timeText = timeTr.GetComponentInChildren<Text>(true);
+            }
+
+            float targetSec = 0f;
+            if (!string.IsNullOrWhiteSpace(_customTimeMMSS) && TryParseTimeText(_customTimeMMSS, out float parsedStr))
+            {
+                targetSec = parsedStr;
+            }
+            else if (_customDurationSeconds > 0f)
+            {
+                targetSec = _customDurationSeconds;
+            }
+
+            if (targetSec > 0f)
+            {
+                _initialInspectorTimeSeconds = targetSec;
+                string formatted = FormatTimeMMSS(targetSec);
+                if (_timeText != null)
+                {
+                    _timeText.text = formatted;
+                    _lastDisplayedTimeString = formatted;
+                }
+                if (Application.isPlaying)
+                {
+                    _timeRemaining = targetSec;
+                }
+            }
         }
 
         // Modals
+        public const int MaxLevelNumber = 10;
+        public bool IsVictoryShowing => _victoryPanel != null && _victoryPanel.activeSelf;
+
         private GameObject _pausePanel;
         private GameObject _victoryPanel;
+        private RectTransform _victoryDialogRect;
+        private CanvasGroup _victoryCanvasGroup;
+        private Text _victoryRibbonText;
+        private Text _victoryTitleText;
+        private Text _victorySubtitleText;
+        private Text _victoryTimeInfoText;
+        private Button _victoryNextBtn;
+        private Text _victoryNextBtnText;
+        private Button _victoryReplayBtn;
+        private RectTransform[] _victoryStars;
+        private Coroutine _victoryAnimCoroutine;
+        private bool _isLoadingNextLevel = false;
+
         private GameObject _feedbackPanel;
         private Text _feedbackText;
         private CanvasGroup _feedbackCanvasGroup;
@@ -63,7 +207,7 @@ namespace BlockMergePuzzle.UI
         private Image _vibrationToggleImg;
 
         // Boosters Bar
-        public const int BoosterFreezeUnlockLevel = 6;
+        public const int BoosterFreezeUnlockLevel = 9;
         public const int BoosterMagnetUnlockLevel = 12;
         public const int BoosterWandUnlockLevel = 16;
 
@@ -169,18 +313,11 @@ namespace BlockMergePuzzle.UI
             _victoryPanel = transform.Find("VictoryPanel")?.gameObject;
             if (_victoryPanel != null)
             {
-                Button againBtn = _victoryPanel.GetComponentInChildren<Button>(true);
-                if (againBtn != null)
-                {
-                    againBtn.onClick.RemoveAllListeners();
-                    againBtn.onClick.AddListener(() =>
-                    {
-                        if (SoundManager.Instance != null) SoundManager.Instance.PlayButton();
-                        _victoryPanel.SetActive(false);
-                        RestartLevel();
-                    });
-                }
-                _victoryPanel.SetActive(false);
+                BindVictoryPanelUI();
+            }
+            else
+            {
+                RebuildVictoryPanel();
             }
 
             _feedbackPanel = transform.Find("FeedbackBanner")?.gameObject;
@@ -215,6 +352,14 @@ namespace BlockMergePuzzle.UI
                 Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
                 if (font == null) font = Resources.GetBuiltinResource<Font>("Arial.ttf");
                 CreateTimeTextOnBanner(timeTr, font);
+            }
+            else if (_initialInspectorTimeSeconds <= 0f)
+            {
+                // Capture whatever time string the user typed into TimeVal's Text in the Inspector (e.g., "05:00", "01:45", "02:30")
+                if (TryParseTimeText(_timeText.text, out float inspectorSec))
+                {
+                    _initialInspectorTimeSeconds = inspectorSec;
+                }
             }
         }
 
@@ -421,6 +566,107 @@ namespace BlockMergePuzzle.UI
             _pausePanel.SetActive(false);
         }
 
+        [ContextMenu("Rebuild Victory Panel")]
+        public void RebuildVictoryPanel()
+        {
+            int siblingIdx = -1;
+            Transform oldVictory = transform.Find("VictoryPanel");
+            if (oldVictory != null)
+            {
+                siblingIdx = oldVictory.GetSiblingIndex();
+                if (Application.isPlaying) Destroy(oldVictory.gameObject);
+                else DestroyImmediate(oldVictory.gameObject);
+            }
+
+            _victoryPanel = null;
+            _victoryDialogRect = null;
+            _victoryCanvasGroup = null;
+            _victoryRibbonText = null;
+            _victoryTitleText = null;
+            _victorySubtitleText = null;
+            _victoryTimeInfoText = null;
+            _victoryNextBtn = null;
+            _victoryNextBtnText = null;
+            _victoryReplayBtn = null;
+            _victoryStars = null;
+
+            Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            if (font == null) font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+            BuildVictoryPanel(font);
+
+            if (_victoryPanel != null)
+            {
+                if (siblingIdx >= 0)
+                {
+                    _victoryPanel.transform.SetSiblingIndex(Mathf.Min(siblingIdx, transform.childCount - 1));
+                }
+                else
+                {
+                    Transform feedbackTr = transform.Find("FeedbackBanner");
+                    if (feedbackTr != null)
+                    {
+                        _victoryPanel.transform.SetSiblingIndex(Mathf.Max(0, feedbackTr.GetSiblingIndex()));
+                    }
+                }
+            }
+        }
+
+        private void BindVictoryPanelUI()
+        {
+            if (_victoryPanel == null) return;
+            Transform dialog = _victoryPanel.transform.Find("DialogBox");
+            if (dialog == null || dialog.Find("NextLevelBtn") == null)
+            {
+                // Automatically upgrade legacy 1-button VictoryPanel across all existing scenes
+                RebuildVictoryPanel();
+                return;
+            }
+
+            _victoryCanvasGroup = _victoryPanel.GetComponent<CanvasGroup>();
+            if (_victoryCanvasGroup == null) _victoryCanvasGroup = _victoryPanel.AddComponent<CanvasGroup>();
+            _victoryDialogRect = dialog.GetComponent<RectTransform>();
+            _victoryRibbonText = dialog.Find("HeaderRibbon/RibbonText")?.GetComponent<Text>();
+            _victoryTitleText = dialog.Find("Title")?.GetComponent<Text>();
+            _victorySubtitleText = dialog.Find("Subtitle")?.GetComponent<Text>();
+            _victoryTimeInfoText = dialog.Find("TimeChip/TimeInfoText")?.GetComponent<Text>();
+
+            Transform starsRow = dialog.Find("StarsRow");
+            if (starsRow != null)
+            {
+                _victoryStars = new RectTransform[]
+                {
+                    starsRow.Find("Star_Left")?.GetComponent<RectTransform>(),
+                    starsRow.Find("Star_Center")?.GetComponent<RectTransform>(),
+                    starsRow.Find("Star_Right")?.GetComponent<RectTransform>()
+                };
+            }
+
+            Transform nextTr = dialog.Find("NextLevelBtn");
+            if (nextTr != null)
+            {
+                _victoryNextBtn = nextTr.GetComponent<Button>();
+                _victoryNextBtnText = nextTr.Find("BtnText")?.GetComponent<Text>();
+                if (_victoryNextBtn != null)
+                {
+                    _victoryNextBtn.onClick.RemoveAllListeners();
+                    _victoryNextBtn.onClick.AddListener(OnVictoryNextClicked);
+                }
+            }
+
+            Transform replayTr = dialog.Find("PlayAgainBtn");
+            if (replayTr != null)
+            {
+                _victoryReplayBtn = replayTr.GetComponent<Button>();
+                if (_victoryReplayBtn != null)
+                {
+                    _victoryReplayBtn.onClick.RemoveAllListeners();
+                    _victoryReplayBtn.onClick.AddListener(OnVictoryReplayClicked);
+                }
+            }
+
+            _victoryPanel.SetActive(false);
+        }
+
         private void BindSettingRow(Transform rowTr, ref Image iconImgRef, ref Image toggleImgRef, UnityEngine.Events.UnityAction onToggle)
         {
             if (rowTr == null) return;
@@ -589,6 +835,10 @@ namespace BlockMergePuzzle.UI
 
         private void OnDestroy()
         {
+            if (Instance == this)
+            {
+                Instance = null;
+            }
             if (LevelManager.Instance != null)
             {
                 LevelManager.Instance.OnRemainingBlocksChanged -= HandleRemainingBlocksChanged;
@@ -599,6 +849,19 @@ namespace BlockMergePuzzle.UI
         private void Update()
         {
             if (!Application.isPlaying) return;
+
+            // Detect live Inspector edit on TimeVal.text while in Play Mode
+            if (_timeText != null && !string.IsNullOrEmpty(_lastDisplayedTimeString) && _timeText.text != _lastDisplayedTimeString)
+            {
+                if (TryParseTimeText(_timeText.text, out float liveEditedSec))
+                {
+                    _initialInspectorTimeSeconds = liveEditedSec;
+                    _timeRemaining = liveEditedSec;
+                    _isTimerRunning = true;
+                    UpdateTimeDisplay();
+                    return;
+                }
+            }
 
             if (_freezeTimerRemaining > 0f)
             {
@@ -1278,31 +1541,182 @@ namespace BlockMergePuzzle.UI
         private void BuildVictoryPanel(Font font)
         {
             _victoryPanel = CreateUIPanel("VictoryPanel", transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
-            SetImageColor(_victoryPanel, new Color(0.04f, 0.05f, 0.10f, 0.85f));
+            SetImageColor(_victoryPanel, new Color(0.03f, 0.04f, 0.12f, 0.82f));
+            _victoryCanvasGroup = _victoryPanel.AddComponent<CanvasGroup>();
+            _victoryCanvasGroup.alpha = 1f;
 
-            GameObject dialog = CreateUIPanel("DialogBox", _victoryPanel.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(760f, 580f));
-            SetImageColor(dialog, new Color(0.10f, 0.12f, 0.22f, 0.98f));
+            // Subtle warm halo behind the card
+            GameObject haloObj = CreateUIPanel("BackdropGlow", _victoryPanel.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 10f), new Vector2(960f, 960f));
+            Image haloImg = haloObj.GetComponent<Image>();
+            haloImg.sprite = SpriteGenerator.GetRadialGlowSprite();
+            haloImg.color = new Color(1.0f, 0.82f, 0.28f, 0.24f);
+            haloImg.raycastTarget = false;
 
-            Outline outline = dialog.AddComponent<Outline>();
-            outline.effectColor = new Color(0.95f, 0.8f, 0.2f, 0.9f);
-            outline.effectDistance = new Vector2(4f, -4f);
+            // Main crystal victory card
+            GameObject dialog = CreateUIPanel("DialogBox", _victoryPanel.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -20f), new Vector2(840f, 760f));
+            _victoryDialogRect = dialog.GetComponent<RectTransform>();
+            Image dialogImg = dialog.GetComponent<Image>();
+            dialogImg.sprite = SpriteGenerator.GetVictoryCardSprite();
+            dialogImg.type = Image.Type.Sliced;
+            dialogImg.color = Color.white;
 
-            CreateUIText("Title", dialog.transform, "🎉 CHIẾN THẮNG!", font, 52, TextAnchor.UpperCenter, new Vector2(0f, -60f), new Color(1f, 0.88f, 0.25f));
-            CreateUIText("Subtitle", dialog.transform, "Bạn đã giải phóng toàn bộ các cổng!", font, 28, TextAnchor.MiddleCenter, new Vector2(0f, 30f), Color.white);
+            // Golden top ribbon
+            GameObject ribbonObj = CreateUIPanel("HeaderRibbon", dialog.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, 4f), new Vector2(540f, 108f));
+            Image ribbonImg = ribbonObj.GetComponent<Image>();
+            ribbonImg.sprite = SpriteGenerator.GetVictoryRibbonSprite();
+            ribbonImg.type = Image.Type.Sliced;
+            ribbonImg.color = Color.white;
+            ribbonImg.raycastTarget = false;
 
-            GameObject playAgainBtn = CreateUIPanel("PlayAgainBtn", dialog.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -120f), new Vector2(380f, 100f));
-            SetImageColor(playAgainBtn, new Color(0.18f, 0.65f, 0.35f, 1f));
-            CreateUIText("BtnText", playAgainBtn.transform, "CHƠI LẠI", font, 34, TextAnchor.MiddleCenter, Vector2.zero, Color.white);
+            _victoryRibbonText = CreateStyledText("RibbonText", ribbonObj.transform, "LEVEL 1 CLEAR!", font, 40,
+                new Color(0.290f, 0.114f, 0.012f), Vector2.zero, Vector2.zero, false,
+                new Color(1.0f, 0.957f, 0.722f, 0.85f), new Vector2(0f, -2f));
 
-            Button btn = playAgainBtn.AddComponent<Button>();
-            btn.onClick.AddListener(() =>
+            // Flanking corner sparkles
+            CreateVictorySparkle("SparkleLeft", dialog.transform, new Vector2(-355f, 325f), 68f);
+            CreateVictorySparkle("SparkleRight", dialog.transform, new Vector2(355f, 325f), 68f);
+
+            // Three celebratory golden stars
+            GameObject starsRow = new GameObject("StarsRow");
+            starsRow.transform.SetParent(dialog.transform, false);
+            RectTransform starsRowRect = starsRow.AddComponent<RectTransform>();
+            starsRowRect.anchorMin = new Vector2(0.5f, 0.5f);
+            starsRowRect.anchorMax = new Vector2(0.5f, 0.5f);
+            starsRowRect.anchoredPosition = new Vector2(0f, 225f);
+            starsRowRect.sizeDelta = new Vector2(460f, 150f);
+
+            GameObject starGlowObj = CreateUIPanel("CenterStarGlow", starsRow.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 14f), new Vector2(195f, 195f));
+            Image starGlowImg = starGlowObj.GetComponent<Image>();
+            starGlowImg.sprite = SpriteGenerator.GetRadialGlowSprite();
+            starGlowImg.color = new Color(1.0f, 0.85f, 0.25f, 0.48f);
+            starGlowImg.raycastTarget = false;
+
+            _victoryStars = new RectTransform[]
             {
-                if (SoundManager.Instance != null) SoundManager.Instance.PlayButton();
-                _victoryPanel.SetActive(false);
-                RestartLevel();
-            });
+                CreateVictoryStar("Star_Left", starsRow.transform, new Vector2(-142f, -12f), 100f, 12f),
+                CreateVictoryStar("Star_Center", starsRow.transform, new Vector2(0f, 16f), 134f, 0f),
+                CreateVictoryStar("Star_Right", starsRow.transform, new Vector2(142f, -12f), 100f, -12f)
+            };
+
+            // Title & Subtitle
+            _victoryTitleText = CreateStyledText("Title", dialog.transform, "CHIẾN THẮNG!", font, 60,
+                new Color(1.0f, 0.902f, 0.341f), new Vector2(0f, 102f), new Vector2(760f, 88f), true,
+                new Color(0.071f, 0.024f, 0.165f, 0.85f), new Vector2(0f, -5f));
+            Outline titleOutline = _victoryTitleText.gameObject.AddComponent<Outline>();
+            titleOutline.effectColor = new Color(0.133f, 0.051f, 0.278f, 0.98f);
+            titleOutline.effectDistance = new Vector2(3f, -3f);
+
+            _victorySubtitleText = CreateStyledText("Subtitle", dialog.transform, "Hoàn thành Level 1! Sẵn sàng sang Level 2?", font, 29,
+                new Color(0.918f, 0.894f, 1.0f), new Vector2(0f, 24f), new Vector2(760f, 84f), true,
+                new Color(0.06f, 0.03f, 0.16f, 0.78f), new Vector2(1.5f, -1.5f));
+            _victorySubtitleText.horizontalOverflow = HorizontalWrapMode.Wrap;
+            _victorySubtitleText.verticalOverflow = VerticalWrapMode.Overflow;
+
+            // Remaining Time Chip
+            GameObject timeChip = CreateUIPanel("TimeChip", dialog.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -56f), new Vector2(470f, 64f));
+            Image chipImg = timeChip.GetComponent<Image>();
+            chipImg.sprite = SpriteGenerator.GetSettingRowSprite();
+            chipImg.type = Image.Type.Sliced;
+            chipImg.color = Color.white;
+            chipImg.raycastTarget = false;
+
+            _victoryTimeInfoText = CreateStyledText("TimeInfoText", timeChip.transform, "Thời gian còn lại: 05:00", font, 27,
+                new Color(1.0f, 0.953f, 0.702f), Vector2.zero, Vector2.zero, false,
+                new Color(0.08f, 0.03f, 0.20f, 0.75f), new Vector2(1.5f, -1.5f));
+
+            // Primary Emerald Next Level Button
+            _victoryNextBtn = CreateVictoryActionButton(
+                "NextLevelBtn", dialog.transform, new Vector2(0f, -174f), new Vector2(560f, 116f),
+                SpriteGenerator.GetVictoryNextButtonSprite(), "NEXT LEVEL 2  >", font, 40,
+                Color.white, new Color(0.035f, 0.290f, 0.133f, 0.90f), new Vector2(0f, -3f),
+                OnVictoryNextClicked, out _victoryNextBtnText);
+
+            // Secondary Replay Button
+            _victoryReplayBtn = CreateVictoryActionButton(
+                "PlayAgainBtn", dialog.transform, new Vector2(0f, -298f), new Vector2(420f, 88f),
+                SpriteGenerator.GetVictoryReplayButtonSprite(), "CHƠI LẠI", font, 33,
+                new Color(0.929f, 0.910f, 1.0f), new Color(0.094f, 0.055f, 0.220f, 0.85f), new Vector2(0f, -2f),
+                OnVictoryReplayClicked, out _);
 
             _victoryPanel.SetActive(false);
+        }
+
+        private void CreateVictorySparkle(string name, Transform parent, Vector2 anchoredPos, float size)
+        {
+            GameObject sp = CreateUIPanel(name, parent, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), anchoredPos, new Vector2(size, size));
+            Image spImg = sp.GetComponent<Image>();
+            spImg.sprite = SpriteGenerator.GetStarFlareSprite();
+            spImg.color = new Color(1.0f, 0.92f, 0.55f, 0.92f);
+            spImg.raycastTarget = false;
+        }
+
+        private RectTransform CreateVictoryStar(string name, Transform parent, Vector2 anchoredPos, float size, float rotZ)
+        {
+            GameObject starObj = CreateUIPanel(name, parent, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), anchoredPos, new Vector2(size, size));
+            RectTransform rect = starObj.GetComponent<RectTransform>();
+            rect.localEulerAngles = new Vector3(0f, 0f, rotZ);
+
+            Image img = starObj.GetComponent<Image>();
+            img.sprite = SpriteGenerator.GetGoldenStarSprite();
+            img.preserveAspect = true;
+            img.color = Color.white;
+            img.raycastTarget = false;
+            return rect;
+        }
+
+        private Text CreateStyledText(string name, Transform parent, string content, Font font, int fontSize,
+            Color color, Vector2 anchoredPos, Vector2 sizeDelta, bool centeredRect, Color shadowColor, Vector2 shadowDist)
+        {
+            GameObject obj = new GameObject(name);
+            obj.transform.SetParent(parent, false);
+            RectTransform rect = obj.AddComponent<RectTransform>();
+            if (centeredRect)
+            {
+                rect.anchorMin = new Vector2(0.5f, 0.5f);
+                rect.anchorMax = new Vector2(0.5f, 0.5f);
+                rect.anchoredPosition = anchoredPos;
+                rect.sizeDelta = sizeDelta;
+            }
+            else
+            {
+                rect.anchorMin = Vector2.zero;
+                rect.anchorMax = Vector2.one;
+                rect.anchoredPosition = anchoredPos;
+                rect.sizeDelta = sizeDelta;
+            }
+
+            Text txt = obj.AddComponent<Text>();
+            txt.text = content;
+            txt.font = font;
+            txt.fontSize = fontSize;
+            txt.fontStyle = FontStyle.Bold;
+            txt.alignment = TextAnchor.MiddleCenter;
+            txt.color = color;
+            txt.raycastTarget = false;
+
+            Shadow shadow = obj.AddComponent<Shadow>();
+            shadow.effectColor = shadowColor;
+            shadow.effectDistance = shadowDist;
+            return txt;
+        }
+
+        private Button CreateVictoryActionButton(string name, Transform parent, Vector2 anchoredPos, Vector2 sizeDelta,
+            Sprite sprite, string label, Font font, int fontSize, Color textColor, Color shadowColor, Vector2 shadowDist,
+            UnityEngine.Events.UnityAction onClick, out Text labelText)
+        {
+            GameObject btnObj = CreateUIPanel(name, parent, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), anchoredPos, sizeDelta);
+            Image btnImg = btnObj.GetComponent<Image>();
+            btnImg.sprite = sprite;
+            btnImg.type = Image.Type.Sliced;
+            btnImg.color = Color.white;
+
+            labelText = CreateStyledText("BtnText", btnObj.transform, label, font, fontSize,
+                textColor, Vector2.zero, Vector2.zero, false, shadowColor, shadowDist);
+
+            Button btn = btnObj.AddComponent<Button>();
+            btn.targetGraphic = btnImg;
+            if (onClick != null) btn.onClick.AddListener(onClick);
+            return btn;
         }
 
         private void BuildFeedbackBanner(Font font)
@@ -1357,6 +1771,7 @@ namespace BlockMergePuzzle.UI
             int mins = Mathf.FloorToInt(_timeRemaining / 60f);
             int secs = Mathf.FloorToInt(_timeRemaining % 60f);
             _timeText.text = string.Format("{0:D2}:{1:D2}", mins, secs);
+            _lastDisplayedTimeString = _timeText.text;
 
             if (_freezeTimerRemaining > 0f)
             {
@@ -1386,6 +1801,7 @@ namespace BlockMergePuzzle.UI
 
         public void OnPauseClicked()
         {
+            if (IsVictoryShowing) return;
             if (SoundManager.Instance != null) SoundManager.Instance.PlayButton();
             if (_pauseButtonImg != null) StartCoroutine(CoButtonPunch(_pauseButtonImg.transform));
             TogglePause();
@@ -1489,6 +1905,7 @@ namespace BlockMergePuzzle.UI
 
         public void TogglePause()
         {
+            if (IsVictoryShowing) return;
             _isPaused = !_isPaused;
             if (_pausePanel != null)
             {
@@ -1508,12 +1925,60 @@ namespace BlockMergePuzzle.UI
             Time.timeScale = 1f;
         }
 
-        public void RestartLevel()
+        public void OnVictoryNextClicked()
         {
+            if (SoundManager.Instance != null) SoundManager.Instance.PlayButton();
+            NextLevel();
+        }
+
+        public void OnVictoryReplayClicked()
+        {
+            if (SoundManager.Instance != null) SoundManager.Instance.PlayButton();
+            HideGameOver();
+            RestartLevel();
+        }
+
+        public void NextLevel()
+        {
+            if (_isLoadingNextLevel) return;
+
             Time.timeScale = 1f;
             _isPaused = false;
             if (_pausePanel != null) _pausePanel.SetActive(false);
-            if (_victoryPanel != null) _victoryPanel.SetActive(false);
+            HideGameOver();
+
+            int currentLevel = GetCurrentLevelNumber();
+            int nextLevel = currentLevel < MaxLevelNumber ? (currentLevel + 1) : 1;
+            string nextSceneName = "Level" + nextLevel;
+
+            if (Application.CanStreamedLevelBeLoaded(nextSceneName))
+            {
+                _isLoadingNextLevel = true;
+                SceneManager.LoadScene(nextSceneName);
+                return;
+            }
+
+            _isLoadingNextLevel = false;
+            if (LevelManager.Instance != null)
+            {
+                LevelManager.Instance.SwitchLevel((LevelId)nextLevel);
+            }
+            ResetTimer();
+            UpdateLevelDisplay();
+            UpdateBoosterUnlockStates();
+            if (_tutorialGuide != null)
+            {
+                _tutorialGuide.HandleLevelReset();
+            }
+        }
+
+        public void RestartLevel()
+        {
+            _isLoadingNextLevel = false;
+            Time.timeScale = 1f;
+            _isPaused = false;
+            if (_pausePanel != null) _pausePanel.SetActive(false);
+            HideGameOver();
 
             Scene activeScene = SceneManager.GetActiveScene();
             if (activeScene.buildIndex >= 0 &&
@@ -1650,7 +2115,140 @@ namespace BlockMergePuzzle.UI
 
         public void ShowVictoryPopup()
         {
-            if (_victoryPanel != null) _victoryPanel.SetActive(true);
+            if (_victoryPanel == null)
+            {
+                RebuildVictoryPanel();
+            }
+            if (_victoryPanel == null || _victoryPanel.activeSelf) return;
+
+            _isPaused = false;
+            Time.timeScale = 1f;
+            if (_pausePanel != null) _pausePanel.SetActive(false);
+
+            StopTimer();
+            Gameplay.PlayerPieceController.Instance?.ResetSelection();
+
+            UpdateVictoryBannerContent();
+            _victoryPanel.transform.SetAsLastSibling();
+            _victoryPanel.SetActive(true);
+
+            if (Application.isPlaying)
+            {
+                if (_victoryAnimCoroutine != null) StopCoroutine(_victoryAnimCoroutine);
+                _victoryAnimCoroutine = StartCoroutine(CoAnimateVictoryBanner());
+            }
+            else
+            {
+                if (_victoryCanvasGroup != null) _victoryCanvasGroup.alpha = 1f;
+                if (_victoryDialogRect != null) _victoryDialogRect.localScale = Vector3.one;
+                if (_victoryStars != null)
+                {
+                    for (int i = 0; i < _victoryStars.Length; i++)
+                    {
+                        if (_victoryStars[i] != null) _victoryStars[i].localScale = Vector3.one;
+                    }
+                }
+            }
+        }
+
+        private void UpdateVictoryBannerContent()
+        {
+            int currentLevel = GetCurrentLevelNumber();
+            bool hasNext = currentLevel < MaxLevelNumber;
+            int nextLevel = hasNext ? (currentLevel + 1) : 1;
+
+            if (_victoryRibbonText != null)
+            {
+                _victoryRibbonText.text = hasNext ? ("LEVEL " + currentLevel + " CLEAR!") : "ALL LEVELS CLEAR!";
+            }
+            if (_victoryTitleText != null)
+            {
+                _victoryTitleText.text = "CHIẾN THẮNG!";
+            }
+            if (_victorySubtitleText != null)
+            {
+                _victorySubtitleText.text = hasNext
+                    ? ("Hoàn thành Level " + currentLevel + "! Sẵn sàng sang Level " + nextLevel + "?")
+                    : ("Chúc mừng! Bạn đã chinh phục tất cả " + MaxLevelNumber + " màn chơi!");
+            }
+            if (_victoryTimeInfoText != null)
+            {
+                _victoryTimeInfoText.text = "Thời gian còn lại: " + FormatTimeMMSS(_timeRemaining);
+            }
+            if (_victoryNextBtnText != null)
+            {
+                _victoryNextBtnText.text = hasNext ? ("NEXT LEVEL " + nextLevel + "  >") : "CHƠI TỪ LEVEL 1";
+            }
+        }
+
+        private IEnumerator CoAnimateVictoryBanner()
+        {
+            if (_victoryCanvasGroup != null) _victoryCanvasGroup.alpha = 0f;
+            if (_victoryDialogRect != null) _victoryDialogRect.localScale = Vector3.one * 0.65f;
+            if (_victoryStars != null)
+            {
+                for (int i = 0; i < _victoryStars.Length; i++)
+                {
+                    if (_victoryStars[i] != null) _victoryStars[i].localScale = Vector3.zero;
+                }
+            }
+
+            float fadeDur = 0.20f;
+            float popDur = 0.34f;
+            float elapsed = 0f;
+
+            while (elapsed < popDur)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                if (_victoryCanvasGroup != null)
+                {
+                    _victoryCanvasGroup.alpha = Mathf.Clamp01(elapsed / fadeDur);
+                }
+                if (_victoryDialogRect != null)
+                {
+                    float t = Mathf.Clamp01(elapsed / popDur);
+                    float scale = EvaluateOvershootScale(t, 0.65f, 1.06f, 1.0f, 0.68f);
+                    _victoryDialogRect.localScale = Vector3.one * scale;
+                }
+                yield return null;
+            }
+
+            if (_victoryCanvasGroup != null) _victoryCanvasGroup.alpha = 1f;
+            if (_victoryDialogRect != null) _victoryDialogRect.localScale = Vector3.one;
+
+            if (_victoryStars != null)
+            {
+                for (int i = 0; i < _victoryStars.Length; i++)
+                {
+                    RectTransform starRect = _victoryStars[i];
+                    if (starRect == null) continue;
+
+                    float starDur = 0.22f;
+                    float starElapsed = 0f;
+                    while (starElapsed < starDur)
+                    {
+                        starElapsed += Time.unscaledDeltaTime;
+                        float st = Mathf.Clamp01(starElapsed / starDur);
+                        float s = EvaluateOvershootScale(st, 0f, 1.18f, 1.0f, 0.65f);
+                        starRect.localScale = Vector3.one * s;
+                        yield return null;
+                    }
+                    starRect.localScale = Vector3.one;
+                }
+            }
+
+            _victoryAnimCoroutine = null;
+        }
+
+        private static float EvaluateOvershootScale(float t, float startScale, float peakScale, float endScale, float peakT)
+        {
+            if (t < peakT)
+            {
+                float k = Mathf.Sin((t / peakT) * Mathf.PI * 0.5f);
+                return Mathf.Lerp(startScale, peakScale, k);
+            }
+            float k2 = (t - peakT) / Mathf.Max(0.0001f, 1f - peakT);
+            return Mathf.Lerp(peakScale, endScale, k2);
         }
 
         public void ShowGameOver(int score, int bestScore)
@@ -1660,6 +2258,11 @@ namespace BlockMergePuzzle.UI
 
         public void HideGameOver()
         {
+            if (_victoryAnimCoroutine != null)
+            {
+                StopCoroutine(_victoryAnimCoroutine);
+                _victoryAnimCoroutine = null;
+            }
             if (_victoryPanel != null) _victoryPanel.SetActive(false);
         }
 

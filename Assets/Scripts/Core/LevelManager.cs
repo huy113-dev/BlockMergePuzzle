@@ -38,6 +38,48 @@ namespace BlockMergePuzzle.Core
             set => _currentLevel = value;
         }
 
+        [Header("Tuỳ Chỉnh Giá Trị Băng (Frozen Block)")]
+        [Tooltip("Giá trị số trên lớp băng của khối bị đóng băng (VD: Level 7 mặc định = 2; chỉnh = 0 để tắt băng).")]
+        [SerializeField] private int _frozenBlockIceCount = 2;
+        public int FrozenBlockIceCount
+        {
+            get => _frozenBlockIceCount;
+            set
+            {
+                _frozenBlockIceCount = Mathf.Max(0, value);
+                ApplyFrozenBlockIceCountToScene();
+            }
+        }
+
+        private void OnValidate()
+        {
+            _frozenBlockIceCount = Mathf.Max(0, _frozenBlockIceCount);
+            if (_currentLevel == LevelId.Level7)
+            {
+                ApplyFrozenBlockIceCountToScene();
+            }
+        }
+
+        public void SyncInspectorIceCountFromPiece(int newIceCount)
+        {
+            _frozenBlockIceCount = Mathf.Max(0, newIceCount);
+        }
+
+        private void ApplyFrozenBlockIceCountToScene()
+        {
+            if (_piecesRoot == null) _piecesRoot = transform.Find("Active_Pieces");
+            if (_piecesRoot == null) return;
+
+            foreach (var piece in _piecesRoot.GetComponentsInChildren<PuzzlePiece>(true))
+            {
+                if (piece == null) continue;
+                if (piece.IsFrozen || (_currentLevel == LevelId.Level7 && piece.Shape == PieceShape.Square_2x2))
+                {
+                    piece.SetIceCount(_frozenBlockIceCount);
+                }
+            }
+        }
+
         public int CurrentColumns => GetLevelColumns(_currentLevel);
         public int CurrentRows => GetLevelRows(_currentLevel);
 
@@ -81,6 +123,14 @@ namespace BlockMergePuzzle.Core
             InitialSceneLevel = _currentLevel;
         }
 
+        private void OnDestroy()
+        {
+            if (Instance == this)
+            {
+                Instance = null;
+            }
+        }
+
         private void Start()
         {
             InitializeLevel();
@@ -111,12 +161,13 @@ namespace BlockMergePuzzle.Core
             BuildBackground();
             BuildBoardFrame();
             BuildExitGates();
-            if (_currentLevel == LevelId.Level1 || _currentLevel == LevelId.Level2 || _currentLevel == LevelId.Level3 || _currentLevel == LevelId.Level4)
+            if (_currentLevel == LevelId.Level1 || _currentLevel == LevelId.Level2 || _currentLevel == LevelId.Level3 || _currentLevel == LevelId.Level4 || _currentLevel == LevelId.Level5 || _currentLevel == LevelId.Level6 || _currentLevel == LevelId.Level7 || _currentLevel == LevelId.Level8 || _currentLevel == LevelId.Level9 || _currentLevel == LevelId.Level10)
             {
                 SpawnPieces();
             }
             FitCameraToBoard();
             FitBackgroundToCamera();
+            ApplyLevel25DTilt();
         }
 #endif
 
@@ -201,7 +252,34 @@ namespace BlockMergePuzzle.Core
             SoundManager.Instance?.ResetMergeCombo();
             FitCameraToBoard();
             FitBackgroundToCamera();
+            ApplyLevel25DTilt();
             OnLevelInitialized?.Invoke();
+        }
+
+        private void ApplyLevel25DTilt()
+        {
+            if (_frameRoot == null) _frameRoot = transform.Find("Board_Frame");
+            if (_gatesRoot == null) _gatesRoot = transform.Find("Exit_Gates");
+            if (_piecesRoot == null) _piecesRoot = transform.Find("Active_Pieces");
+
+            if (_frameRoot != null)
+            {
+                _frameRoot.localPosition = Vector3.zero;
+                _frameRoot.localRotation = Quaternion.identity;
+                _frameRoot.localScale = Vector3.one;
+            }
+            if (_gatesRoot != null)
+            {
+                _gatesRoot.localPosition = Vector3.zero;
+                _gatesRoot.localRotation = Quaternion.identity;
+                _gatesRoot.localScale = Vector3.one;
+            }
+            if (_piecesRoot != null)
+            {
+                _piecesRoot.localPosition = Vector3.zero;
+                _piecesRoot.localRotation = Quaternion.identity;
+                _piecesRoot.localScale = Vector3.one;
+            }
         }
 
         private void FitCameraToBoard()
@@ -212,8 +290,11 @@ namespace BlockMergePuzzle.Core
             if (screenRatio > 0.75f) screenRatio = 1440f / 3200f; // Force target portrait ratio (0.45) in Edit Mode
             float paddingX = 0.12f;
             float paddingY = 0.40f;
-            float sizeByWidth  = (CurrentFrameWidth  / 2f + paddingX) / screenRatio;
-            float sizeByHeight =  CurrentFrameHeight / 2f + paddingY;
+            bool useFixedRef = _currentLevel == LevelId.Level8 || _currentLevel == LevelId.Level9 || _currentLevel == LevelId.Level10;
+            float refW = useFixedRef ? 8.000f : CurrentFrameWidth;
+            float refH = useFixedRef ? 8.000f : CurrentFrameHeight;
+            float sizeByWidth  = (refW / 2f + paddingX) / screenRatio;
+            float sizeByHeight =  refH / 2f + paddingY;
             cam.orthographicSize = Mathf.Max(sizeByWidth, sizeByHeight);
             cam.transform.position = new Vector3(0f, 0f, -10f);
         }
@@ -385,11 +466,12 @@ namespace BlockMergePuzzle.Core
                     // Top Red Gate (col 2, row 0 -> exit at (2, -1)) with High-Tech Holographic Glowing Display
                     _activeGates.Add(ExitGateView.Create(
                         PieceColor.Red, 2, GateSide.Top, Vector2.up,
-                        _boardCenter + GetLevelFrameOffset(LevelId.Level1) + new Vector3(0f, 1.409f, 0f),
+                        GridToWorld(2, 0),
                         new Vector2(1.15f, 0.90f), _gatesRoot,
                         new[] { new Vector2Int(2, -1) },
                         default,
-                        true));
+                        true,
+                        new[] { new Vector2Int(2, 0) }));
                     break;
 
                 case LevelId.Level2:
@@ -407,7 +489,7 @@ namespace BlockMergePuzzle.Core
                     _activeGates.Add(ExitGateView.Create(
                         PieceColor.Red, 3, GateSide.Right, Vector2.right,
                         GridToWorld(5, 3),
-                        new Vector2(0.95f, 1.15f), _gatesRoot,
+                        new Vector2(0.74f, 1.04f), _gatesRoot,
                         new[] { new Vector2Int(6, 3) },
                         default,
                         true,
@@ -419,7 +501,7 @@ namespace BlockMergePuzzle.Core
                     _activeGates.Add(ExitGateView.Create(
                         PieceColor.Green, 4, GateSide.Left, Vector2.left,
                         GridToWorld(0, 0),
-                        new Vector2(0.95f, 1.15f), _gatesRoot,
+                        new Vector2(0.66f, 1.04f), _gatesRoot,
                         new[] { new Vector2Int(-1, 0) },
                         default,
                         true,
@@ -429,7 +511,7 @@ namespace BlockMergePuzzle.Core
                     _activeGates.Add(ExitGateView.Create(
                         PieceColor.Red, 4, GateSide.Right, Vector2.right,
                         GridToWorld(4, 3),
-                        new Vector2(0.95f, 1.15f), _gatesRoot,
+                        new Vector2(0.74f, 0.98f), _gatesRoot,
                         new[] { new Vector2Int(5, 3) },
                         default,
                         true,
@@ -469,127 +551,291 @@ namespace BlockMergePuzzle.Core
                     break;
 
                 case LevelId.Level5:
-                    // Top Orange Gate (col 2, row 0)
+                    // Top Yellow Gate (cols 3..4, row 0 -> exit at (3, -1), (4, -1)) with High-Tech Holographic Display
                     _activeGates.Add(ExitGateView.Create(
-                        PieceColor.Orange, 2, GateSide.Top, Vector2.up,
-                        GridToWorld(2, 0) + Vector3.up * (ch * 0.85f), hGateSize, _gatesRoot,
-                        new[] { new Vector2Int(2, -1) }));
-                    // Bottom Green Gate (col 2, row 6)
+                        PieceColor.Yellow, 5, GateSide.Top, Vector2.up,
+                        (GridToWorld(3, 0) + GridToWorld(4, 0)) * 0.5f,
+                        new Vector2(1.50f, 0.65f), _gatesRoot,
+                        new[] { new Vector2Int(3, -1), new Vector2Int(4, -1) },
+                        default,
+                        true,
+                        new[] { new Vector2Int(3, 0), new Vector2Int(4, 0) }));
+
+                    // Bottom Green Gate (cols 3..4, row 10 -> exit at (3, 11), (4, 11)) with High-Tech Holographic Display
                     _activeGates.Add(ExitGateView.Create(
                         PieceColor.Green, 2, GateSide.Bottom, Vector2.down,
-                        GridToWorld(2, 6) + Vector3.down * (ch * 0.85f), hGateSize, _gatesRoot,
-                        new[] { new Vector2Int(2, 7) }));
+                        (GridToWorld(3, 10) + GridToWorld(4, 10)) * 0.5f,
+                        new Vector2(1.50f, 0.65f), _gatesRoot,
+                        new[] { new Vector2Int(3, 11), new Vector2Int(4, 11) },
+                        default,
+                        true,
+                        new[] { new Vector2Int(3, 10), new Vector2Int(4, 10) }));
                     break;
 
                 case LevelId.Level6:
-                    // Top Red Gate (col 2, row 1)
+                    // Top Red Gate (cols 2..4, row 0 -> exit at (2,-1), (3,-1), (4,-1))
                     _activeGates.Add(ExitGateView.Create(
                         PieceColor.Red, 2, GateSide.Top, Vector2.up,
-                        GridToWorld(2, 1) + Vector3.up * (ch * 0.85f), hGateSize, _gatesRoot,
-                        new[] { new Vector2Int(2, 0) }));
-                    // Right Green Gate (col 4, row 2)
+                        GridToWorld(3, 0),
+                        new Vector2(2.85f, 0.65f), _gatesRoot,
+                        new[] { new Vector2Int(2, -1), new Vector2Int(3, -1), new Vector2Int(4, -1) },
+                        default,
+                        true,
+                        new[] { new Vector2Int(2, 0), new Vector2Int(3, 0), new Vector2Int(4, 0) }));
+
+                    // Right Green Gate (col 6, rows 1..2 -> exit at (7,1), (7,2))
                     _activeGates.Add(ExitGateView.Create(
                         PieceColor.Green, 2, GateSide.Right, Vector2.right,
-                        GridToWorld(4, 2) + Vector3.right * (cw * 0.85f), vGateSize, _gatesRoot,
-                        new[] { new Vector2Int(5, 2) }));
-                    // Left Orange Gate (col 0, row 4)
+                        (GridToWorld(6, 1) + GridToWorld(6, 2)) * 0.5f,
+                        new Vector2(0.65f, 1.85f), _gatesRoot,
+                        new[] { new Vector2Int(7, 1), new Vector2Int(7, 2) },
+                        default,
+                        true,
+                        new[] { new Vector2Int(6, 1), new Vector2Int(6, 2) }));
+
+                    // Left Orange Gate (col 0, row 3 -> exit at (-1,3))
                     _activeGates.Add(ExitGateView.Create(
                         PieceColor.Orange, 2, GateSide.Left, Vector2.left,
-                        GridToWorld(0, 4) + Vector3.left * (cw * 0.85f), vGateSize, _gatesRoot,
-                        new[] { new Vector2Int(-1, 4) }));
-                    // Left Pink Gate (col 0, row 5)
+                        GridToWorld(0, 3),
+                        new Vector2(0.65f, 0.92f), _gatesRoot,
+                        new[] { new Vector2Int(-1, 3) },
+                        default,
+                        true,
+                        new[] { new Vector2Int(0, 3) }));
+
+                    // Left Pink Gate (col 0, rows 5..6 -> exit at (-1,5), (-1,6))
                     _activeGates.Add(ExitGateView.Create(
-                        PieceColor.Pink, 2, GateSide.Left, Vector2.left,
-                        GridToWorld(0, 5) + Vector3.left * (cw * 0.85f), vGateSize, _gatesRoot,
-                        new[] { new Vector2Int(-1, 5) }));
+                        PieceColor.Pink, 3, GateSide.Left, Vector2.left,
+                        (GridToWorld(0, 5) + GridToWorld(0, 6)) * 0.5f,
+                        new Vector2(0.65f, 1.85f), _gatesRoot,
+                        new[] { new Vector2Int(-1, 5), new Vector2Int(-1, 6) },
+                        default,
+                        true,
+                        new[] { new Vector2Int(0, 5), new Vector2Int(0, 6) }));
                     break;
 
                 case LevelId.Level7:
-                    // Top Green Gate (col 3, row 0)
+                    // Top Green Gate (cols 3..4, row 0 -> exit at (3,-1), (4,-1))
                     _activeGates.Add(ExitGateView.Create(
                         PieceColor.Green, 2, GateSide.Top, Vector2.up,
-                        GridToWorld(3, 0) + Vector3.up * (ch * 0.85f), hGateSize, _gatesRoot,
-                        new[] { new Vector2Int(3, -1) }));
-                    // Left Orange Gate (col 0, row 2)
+                        (GridToWorld(3, 0) + GridToWorld(4, 0)) * 0.5f,
+                        new Vector2(1.78f, 0.63f), _gatesRoot,
+                        new[] { new Vector2Int(3, -1), new Vector2Int(4, -1) },
+                        default,
+                        true,
+                        new[] { new Vector2Int(3, 0), new Vector2Int(4, 0) }));
+
+                    // Left Yellow Gate (col 0, row 3 -> exit at (-1,3))
                     _activeGates.Add(ExitGateView.Create(
-                        PieceColor.Orange, 2, GateSide.Left, Vector2.left,
-                        GridToWorld(0, 2) + Vector3.left * (cw * 0.85f), vGateSize, _gatesRoot,
-                        new[] { new Vector2Int(-1, 2) }));
-                    // Right Pink Gate (col 6, row 2)
+                        PieceColor.Yellow, 2, GateSide.Left, Vector2.left,
+                        GridToWorld(0, 3),
+                        new Vector2(0.62f, 0.96f), _gatesRoot,
+                        new[] { new Vector2Int(-1, 3) },
+                        default,
+                        true,
+                        new[] { new Vector2Int(0, 3) }));
+
+                    // Right Pink Gate (col 7, row 3 -> exit at (8,3))
                     _activeGates.Add(ExitGateView.Create(
                         PieceColor.Pink, 2, GateSide.Right, Vector2.right,
-                        GridToWorld(6, 2) + Vector3.right * (cw * 0.85f), vGateSize, _gatesRoot,
-                        new[] { new Vector2Int(7, 2) }));
+                        GridToWorld(7, 3),
+                        new Vector2(0.62f, 0.96f), _gatesRoot,
+                        new[] { new Vector2Int(8, 3) },
+                        default,
+                        true,
+                        new[] { new Vector2Int(7, 3) }));
                     break;
 
                 case LevelId.Level8:
-                    // Top Red Gate (col 0, row 0)
+                    // Top Green Gate (cols 4..5, row 0 -> exit at (4,-1), (5,-1))
                     _activeGates.Add(ExitGateView.Create(
-                        PieceColor.Red, 2, GateSide.Top, Vector2.up,
-                        GridToWorld(0, 0) + Vector3.up * (ch * 0.85f), hGateSize, _gatesRoot,
-                        new[] { new Vector2Int(0, -1) }));
-                    // Right Pink Gate (col 3, row 2)
+                        PieceColor.Green, 2, GateSide.Top, Vector2.up,
+                        (GridToWorld(4, 0) + GridToWorld(5, 0)) * 0.5f,
+                        new Vector2(1.71f, 0.68f), _gatesRoot,
+                        new[] { new Vector2Int(4, -1), new Vector2Int(5, -1) },
+                        default,
+                        true,
+                        new[] { new Vector2Int(4, 0), new Vector2Int(5, 0) }));
+
+                    // Right Orange Gate (col 7, row 1 -> exit at (8,1))
                     _activeGates.Add(ExitGateView.Create(
-                        PieceColor.Pink, 2, GateSide.Right, Vector2.right,
-                        GridToWorld(3, 2) + Vector3.right * (cw * 0.85f), vGateSize, _gatesRoot,
-                        new[] { new Vector2Int(4, 2) }));
-                    // Right Blue Gate (col 3, row 4)
+                        PieceColor.Orange, 2, GateSide.Right, Vector2.right,
+                        GridToWorld(7, 1),
+                        new Vector2(0.64f, 0.91f), _gatesRoot,
+                        new[] { new Vector2Int(8, 1) },
+                        default,
+                        true,
+                        new[] { new Vector2Int(7, 1) }));
+
+                    // Left Purple Gate (col 0, rows 3..4 -> exit at (-1,3), (-1,4))
+                    _activeGates.Add(ExitGateView.Create(
+                        PieceColor.Purple, 2, GateSide.Left, Vector2.left,
+                        (GridToWorld(0, 3) + GridToWorld(0, 4)) * 0.5f,
+                        new Vector2(0.64f, 1.75f), _gatesRoot,
+                        new[] { new Vector2Int(-1, 3), new Vector2Int(-1, 4) },
+                        default,
+                        true,
+                        new[] { new Vector2Int(0, 3), new Vector2Int(0, 4) }));
+
+                    // Right Blue Gate (col 7, rows 3..4 -> exit at (8,3), (8,4))
                     _activeGates.Add(ExitGateView.Create(
                         PieceColor.Blue, 2, GateSide.Right, Vector2.right,
-                        GridToWorld(3, 4) + Vector3.right * (cw * 0.85f), vGateSize, _gatesRoot,
-                        new[] { new Vector2Int(4, 4) }));
-                    // Bottom Green Gate (col 1, row 5)
+                        (GridToWorld(7, 3) + GridToWorld(7, 4)) * 0.5f,
+                        new Vector2(0.64f, 1.75f), _gatesRoot,
+                        new[] { new Vector2Int(8, 3), new Vector2Int(8, 4) },
+                        default,
+                        true,
+                        new[] { new Vector2Int(7, 3), new Vector2Int(7, 4) }));
+
+                    // Left Yellow Gate (col 0, row 6 -> exit at (-1,6))
                     _activeGates.Add(ExitGateView.Create(
-                        PieceColor.Green, 2, GateSide.Bottom, Vector2.down,
-                        GridToWorld(1, 5) + Vector3.down * (ch * 0.85f), hGateSize, _gatesRoot,
-                        new[] { new Vector2Int(1, 6) }));
+                        PieceColor.Yellow, 2, GateSide.Left, Vector2.left,
+                        GridToWorld(0, 6),
+                        new Vector2(0.64f, 0.91f), _gatesRoot,
+                        new[] { new Vector2Int(-1, 6) },
+                        default,
+                        true,
+                        new[] { new Vector2Int(0, 6) }));
                     break;
 
                 case LevelId.Level9:
-                    // Top Purple Gate (col 2, row 0)
+                    // Top-Left Red Gate (col 0, row 0 -> exit at (0, -1))
                     _activeGates.Add(ExitGateView.Create(
-                        PieceColor.Purple, 2, GateSide.Top, Vector2.up,
-                        GridToWorld(2, 0) + Vector3.up * (ch * 0.85f), hGateSize, _gatesRoot,
-                        new[] { new Vector2Int(2, -1) }));
-                    // Left Orange Gate (col 0, row 2)
+                        PieceColor.Red, 2, GateSide.Top, Vector2.up,
+                        GridToWorld(0, 0),
+                        new Vector2(1.07f, 0.64f), _gatesRoot,
+                        new[] { new Vector2Int(0, -1) },
+                        default,
+                        true,
+                        new[] { new Vector2Int(0, 0) }));
+
+                    // Top-Right Purple Gate (col 3, row 0 -> exit at (3, -1))
                     _activeGates.Add(ExitGateView.Create(
-                        PieceColor.Orange, 2, GateSide.Left, Vector2.left,
-                        GridToWorld(0, 2) + Vector3.left * (cw * 0.85f), vGateSize, _gatesRoot,
-                        new[] { new Vector2Int(-1, 2) }));
-                    // Right Green Gate (col 4, row 2)
+                        PieceColor.Purple, 3, GateSide.Top, Vector2.up,
+                        GridToWorld(3, 0),
+                        new Vector2(1.08f, 0.65f), _gatesRoot,
+                        new[] { new Vector2Int(3, -1) },
+                        default,
+                        true,
+                        new[] { new Vector2Int(3, 0) }));
+
+                    // Right-Upper Yellow Gate (col 4, row 3 -> exit at (5, 3))
                     _activeGates.Add(ExitGateView.Create(
-                        PieceColor.Green, 2, GateSide.Right, Vector2.right,
-                        GridToWorld(4, 2) + Vector3.right * (cw * 0.85f), vGateSize, _gatesRoot,
-                        new[] { new Vector2Int(5, 2) }));
-                    // Bottom-Left Red Gate (col 1, row 6)
+                        PieceColor.Yellow, 3, GateSide.Right, Vector2.right,
+                        GridToWorld(4, 3),
+                        new Vector2(0.64f, 1.05f), _gatesRoot,
+                        new[] { new Vector2Int(5, 3) },
+                        default,
+                        true,
+                        new[] { new Vector2Int(4, 3) }));
+
+                    // Right-Lower Blue Gate (col 4, row 4 -> exit at (5, 4))
                     _activeGates.Add(ExitGateView.Create(
-                        PieceColor.Red, 2, GateSide.Bottom, Vector2.down,
-                        GridToWorld(1, 6) + Vector3.down * (ch * 0.85f), hGateSize, _gatesRoot,
-                        new[] { new Vector2Int(1, 7) }));
-                    // Bottom-Right Blue Gate (col 3, row 6)
+                        PieceColor.Blue, 2, GateSide.Right, Vector2.right,
+                        GridToWorld(4, 4),
+                        new Vector2(0.64f, 1.05f), _gatesRoot,
+                        new[] { new Vector2Int(5, 4) },
+                        default,
+                        true,
+                        new[] { new Vector2Int(4, 4) }));
+
+                    // Bottom-Center Green Gate (cols 1..2, row 7 -> exit at (1, 8), (2, 8))
                     _activeGates.Add(ExitGateView.Create(
-                        PieceColor.Blue, 2, GateSide.Bottom, Vector2.down,
-                        GridToWorld(3, 6) + Vector3.down * (ch * 0.85f), hGateSize, _gatesRoot,
-                        new[] { new Vector2Int(3, 7) }));
+                        PieceColor.Green, 3, GateSide.Bottom, Vector2.down,
+                        (GridToWorld(1, 7) + GridToWorld(2, 7)) * 0.5f,
+                        new Vector2(2.20f, 0.65f), _gatesRoot,
+                        new[] { new Vector2Int(1, 8), new Vector2Int(2, 8) },
+                        default,
+                        true,
+                        new[] { new Vector2Int(1, 7), new Vector2Int(2, 7) }));
                     break;
 
                 case LevelId.Level10:
-                    // Top Red Gate (col 3, row 0): Needs 3
-                    _activeGates.Add(ExitGateView.Create(
-                        PieceColor.Red, 3, GateSide.Top, Vector2.up,
-                        GridToWorld(3, 0) + Vector3.up * (ch * 0.85f), hGateSize, _gatesRoot,
-                        new[] { new Vector2Int(3, -1) }));
-                    // Left Green Gate (col 1, row 3): Needs 2
-                    _activeGates.Add(ExitGateView.Create(
-                        PieceColor.Green, 2, GateSide.Left, Vector2.left,
-                        GridToWorld(1, 3) + Vector3.left * (cw * 0.85f), vGateSize, _gatesRoot,
-                        new[] { new Vector2Int(0, 3) }));
-                    // Right Green Gate (col 5, row 3): Needs 2
-                    _activeGates.Add(ExitGateView.Create(
-                        PieceColor.Green, 2, GateSide.Right, Vector2.right,
-                        GridToWorld(5, 3) + Vector3.right * (cw * 0.85f), vGateSize, _gatesRoot,
-                        new[] { new Vector2Int(6, 3) }));
+                    // Christmas-tree board (map_lv10). Grid: cols 0..8 (0 & 8 = side gate pads), rows 0..10 (0 & 10 = top/bottom gate pads)
+                    // Top Red Gate (col 4, row 0 -> exit at (4, -1)): Needs 4
+                    ExitGateView topRedGate = ExitGateView.Create(
+                        PieceColor.Red, 4, GateSide.Top, Vector2.up,
+                        GridToWorld(4, 0),
+                        new Vector2(0.77f, 0.38f), _gatesRoot,
+                        new[] { new Vector2Int(4, -1) },
+                        default,
+                        true,
+                        new[] { new Vector2Int(4, 0) });
+                    ApplyLevel10GateVisualScale(topRedGate, 0.52f, new Vector2(0.74f, 0.36f), 0.038f);
+                    _activeGates.Add(topRedGate);
+
+                    // Bottom Orange Gate (col 4, row 10 -> exit at (4, 11)): Needs 2
+                    ExitGateView bottomOrangeGate = ExitGateView.Create(
+                        PieceColor.Orange, 2, GateSide.Bottom, Vector2.down,
+                        GridToWorld(4, 10),
+                        new Vector2(0.75f, 0.40f), _gatesRoot,
+                        new[] { new Vector2Int(4, 11) },
+                        default,
+                        true,
+                        new[] { new Vector2Int(4, 10) });
+                    ApplyLevel10GateVisualScale(bottomOrangeGate, 0.52f, new Vector2(0.72f, 0.38f), 0.038f);
+                    _activeGates.Add(bottomOrangeGate);
+
+                    // Left Green Gate (col 0, rows 6..8 -> exit at (-1, 6..8)): Needs 5
+                    ExitGateView leftGreenGate = ExitGateView.Create(
+                        PieceColor.Green, 5, GateSide.Left, Vector2.left,
+                        GridToWorld(0, 7),
+                        new Vector2(0.42f, 2.18f), _gatesRoot,
+                        new[] { new Vector2Int(-1, 6), new Vector2Int(-1, 7), new Vector2Int(-1, 8) },
+                        default,
+                        true,
+                        new[] { new Vector2Int(0, 6), new Vector2Int(0, 7), new Vector2Int(0, 8) });
+                    ApplyLevel10GateVisualScale(leftGreenGate, 0.55f, new Vector2(0.40f, 1.78f), 0.038f);
+                    _activeGates.Add(leftGreenGate);
+
+                    // Right Green Gate (col 8, rows 6..8 -> exit at (9, 6..8)): Needs 4
+                    ExitGateView rightGreenGate = ExitGateView.Create(
+                        PieceColor.Green, 4, GateSide.Right, Vector2.right,
+                        GridToWorld(8, 7),
+                        new Vector2(0.40f, 2.18f), _gatesRoot,
+                        new[] { new Vector2Int(9, 6), new Vector2Int(9, 7), new Vector2Int(9, 8) },
+                        default,
+                        true,
+                        new[] { new Vector2Int(8, 6), new Vector2Int(8, 7), new Vector2Int(8, 8) });
+                    ApplyLevel10GateVisualScale(rightGreenGate, 0.55f, new Vector2(0.38f, 1.78f), 0.038f);
+                    _activeGates.Add(rightGreenGate);
                     break;
+            }
+        }
+
+        private static void ApplyLevel10GateVisualScale(ExitGateView gate, float rootScale, Vector2 padWorldSize, float digitCharSize)
+        {
+            if (gate == null) return;
+            Transform labelRoot = gate.transform.Find("LabelRoot");
+            if (labelRoot == null) return;
+
+            labelRoot.localScale = new Vector3(rootScale, rootScale, 1f);
+
+            Transform pad = labelRoot.Find("GateHoloPad");
+            if (pad != null)
+            {
+                pad.localScale = new Vector3(
+                    padWorldSize.x / (2.40f * rootScale),
+                    padWorldSize.y / (2.40f * rootScale),
+                    1f);
+            }
+
+            Transform outerRing = labelRoot.Find("GateTechRing");
+            if (outerRing != null)
+            {
+                outerRing.localScale = new Vector3(0.345f, 0.345f, 1f);
+            }
+
+            Transform innerRing = labelRoot.Find("GateInnerRing");
+            if (innerRing != null)
+            {
+                // Matches ExitGateView.Update() pulse baseline (0.340f) so scale stays consistent in Play Mode
+                innerRing.localScale = new Vector3(0.340f, 0.340f, 1f);
+            }
+
+            foreach (var tm in labelRoot.GetComponentsInChildren<TextMesh>(true))
+            {
+                if (tm != null) tm.characterSize = digitCharSize;
             }
         }
 
@@ -603,8 +849,8 @@ namespace BlockMergePuzzle.Core
             switch (level)
             {
                 case LevelId.Level1:
-                    SpawnPiece(PieceColor.Red, PieceShape.Single_1x1, 1, new Vector2Int(0, 1));
-                    SpawnPiece(PieceColor.Red, PieceShape.Single_1x1, 1, new Vector2Int(4, 1));
+                    SpawnPiece(PieceColor.Red, PieceShape.Single_1x1, 1, new Vector2Int(0, 2));
+                    SpawnPiece(PieceColor.Red, PieceShape.Single_1x1, 1, new Vector2Int(4, 2));
                     break;
 
                 case LevelId.Level2:
@@ -645,66 +891,165 @@ namespace BlockMergePuzzle.Core
                     break;
 
                 case LevelId.Level5:
-                    SpawnPiece(PieceColor.Orange, PieceShape.Single_1x1, 1, new Vector2Int(1, 2));
-                    SpawnPiece(PieceColor.Orange, PieceShape.Single_1x1, 1, new Vector2Int(3, 2));
-                    SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 1, new Vector2Int(1, 4));
-                    SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 1, new Vector2Int(3, 4));
-                    SpawnPiece(PieceColor.Blue, PieceShape.Horizontal_2x1, 1, new Vector2Int(1, 3));
+                    // Row 1 (cols 3..4): Yellow 2x1 [3]
+                    SpawnPiece(PieceColor.Yellow, PieceShape.Horizontal_2x1, 3, new Vector2Int(3, 1));
+
+                    // Row 2 (cols 2..5): Yellow 2x1 [2] at (2,2), Yellow 2x1 [3] at (4,2)
+                    SpawnPiece(PieceColor.Yellow, PieceShape.Horizontal_2x1, 2, new Vector2Int(2, 2));
+                    SpawnPiece(PieceColor.Yellow, PieceShape.Horizontal_2x1, 3, new Vector2Int(4, 2));
+
+                    // Rows 3..4 (cols 2..5): Yellow 1x2 [3] at (2,3), Yellow 2x1 [3] at (3,3), Yellow 2x1 [1] at (3,4), Yellow 1x2 [3] at (5,3)
+                    SpawnPiece(PieceColor.Yellow, PieceShape.Vertical_1x2, 3, new Vector2Int(2, 3));
+                    SpawnPiece(PieceColor.Yellow, PieceShape.Horizontal_2x1, 3, new Vector2Int(3, 3));
+                    SpawnPiece(PieceColor.Yellow, PieceShape.Horizontal_2x1, 1, new Vector2Int(3, 4));
+                    SpawnPiece(PieceColor.Yellow, PieceShape.Vertical_1x2, 3, new Vector2Int(5, 3));
+
+                    // Rows 5..6 (cols 0..7 / 1..6): Green L [1] at (0,5), Yellow 1x2 [1, 2, 3, 1] at cols 2..5, Green L [1] at (6,5)
+                    SpawnPiece(PieceColor.Green, PieceShape.ShapeL_TopRight, 1, new Vector2Int(0, 5));
+                    SpawnPiece(PieceColor.Yellow, PieceShape.Vertical_1x2, 1, new Vector2Int(2, 5));
+                    SpawnPiece(PieceColor.Yellow, PieceShape.Vertical_1x2, 2, new Vector2Int(3, 5));
+                    SpawnPiece(PieceColor.Yellow, PieceShape.Vertical_1x2, 3, new Vector2Int(4, 5));
+                    SpawnPiece(PieceColor.Yellow, PieceShape.Vertical_1x2, 1, new Vector2Int(5, 5));
+                    SpawnPiece(PieceColor.Green, PieceShape.ShapeL_TopLeft, 1, new Vector2Int(6, 5));
+
+                    // Rows 7..8 (cols 1..6 / 2..5): Green L [1] at (1,7), Yellow 2x1 [1] at (3,7), Green L [1] at (5,7)
+                    SpawnPiece(PieceColor.Green, PieceShape.ShapeL_TopRight, 1, new Vector2Int(1, 7));
+                    SpawnPiece(PieceColor.Yellow, PieceShape.Horizontal_2x1, 1, new Vector2Int(3, 7));
+                    SpawnPiece(PieceColor.Green, PieceShape.ShapeL_TopLeft, 1, new Vector2Int(5, 7));
+
+                    // Rows 8..9 (cols 3..4): Green 2x2 [2] at (3,8)
+                    SpawnPiece(PieceColor.Green, PieceShape.Square_2x2, 2, new Vector2Int(3, 8));
                     break;
 
                 case LevelId.Level6:
-                    SpawnPiece(PieceColor.Red, PieceShape.Single_1x1, 1, new Vector2Int(1, 1));
-                    SpawnPiece(PieceColor.Red, PieceShape.Single_1x1, 1, new Vector2Int(3, 1));
-                    SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 1, new Vector2Int(2, 2));
-                    SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 1, new Vector2Int(3, 3));
-                    SpawnPiece(PieceColor.Orange, PieceShape.Single_1x1, 1, new Vector2Int(1, 4));
-                    SpawnPiece(PieceColor.Orange, PieceShape.Single_1x1, 1, new Vector2Int(2, 4));
-                    SpawnPiece(PieceColor.Pink, PieceShape.Single_1x1, 1, new Vector2Int(1, 5));
-                    SpawnPiece(PieceColor.Pink, PieceShape.Single_1x1, 1, new Vector2Int(2, 5));
+                    // Top row (row 1): Green 1x1 [1] at (1,1), Pink 1x2 [2] at (2,1), Orange 1x1 [1] at (3,1), Green 1x2 [1] at (4,1), Green 1x1 [1] at (5,1)
+                    SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 1, new Vector2Int(1, 1));
+                    SpawnPiece(PieceColor.Pink, PieceShape.Vertical_1x2, 2, new Vector2Int(2, 1));
+                    SpawnPiece(PieceColor.Orange, PieceShape.Single_1x1, 1, new Vector2Int(3, 1));
+                    SpawnPiece(PieceColor.Green, PieceShape.Vertical_1x2, 1, new Vector2Int(4, 1));
+                    SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 1, new Vector2Int(5, 1));
+
+                    // Center Red Cross 3x3 [2] at origin (2,2) -> occupies (3,2), (2,3), (3,3), (4,3), (3,4)
+                    SpawnPiece(PieceColor.Red, PieceShape.Cross_3x3, 2, new Vector2Int(2, 2));
+
+                    // Lower section: Orange 1x1 [1] at (1,5), Pink 1x2 [1] at (1,6), Green 1x2 [1] at (3,6), Pink 1x2 [1] at (5,6)
+                    SpawnPiece(PieceColor.Orange, PieceShape.Single_1x1, 1, new Vector2Int(1, 5));
+                    SpawnPiece(PieceColor.Pink, PieceShape.Vertical_1x2, 1, new Vector2Int(1, 6));
+                    SpawnPiece(PieceColor.Green, PieceShape.Vertical_1x2, 1, new Vector2Int(3, 6));
+                    SpawnPiece(PieceColor.Pink, PieceShape.Vertical_1x2, 1, new Vector2Int(5, 6));
                     break;
 
                 case LevelId.Level7:
-                    SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 1, new Vector2Int(2, 1));
-                    SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 1, new Vector2Int(4, 1));
-                    SpawnPiece(PieceColor.Orange, PieceShape.Single_1x1, 1, new Vector2Int(1, 2));
-                    SpawnPiece(PieceColor.Orange, PieceShape.Single_1x1, 1, new Vector2Int(2, 3));
+                    // Top-center Green 2x2 [2] at (3,1) encased in Ice [_frozenBlockIceCount]
+                    PuzzlePiece frozenGreen2x2 = SpawnPiece(PieceColor.Green, PieceShape.Square_2x2, 2, new Vector2Int(3, 1));
+                    frozenGreen2x2.SetIceCount(Mathf.Max(0, _frozenBlockIceCount));
+
+                    // Middle row (row 2): Pink 1x1 [1] at (2,2) and Pink 1x1 [1] at (5,2)
+                    SpawnPiece(PieceColor.Pink, PieceShape.Single_1x1, 1, new Vector2Int(2, 2));
                     SpawnPiece(PieceColor.Pink, PieceShape.Single_1x1, 1, new Vector2Int(5, 2));
-                    SpawnPiece(PieceColor.Pink, PieceShape.Single_1x1, 1, new Vector2Int(4, 3));
+
+                    // Bottom row (row 3): Yellow 2x1 [1] at (1,3) and Yellow 2x1 [1] at (5,3)
+                    SpawnPiece(PieceColor.Yellow, PieceShape.Horizontal_2x1, 1, new Vector2Int(1, 3));
+                    SpawnPiece(PieceColor.Yellow, PieceShape.Horizontal_2x1, 1, new Vector2Int(5, 3));
                     break;
 
                 case LevelId.Level8:
-                    SpawnPiece(PieceColor.Red, PieceShape.Single_1x1, 1, new Vector2Int(0, 1));
-                    SpawnPiece(PieceColor.Red, PieceShape.Single_1x1, 1, new Vector2Int(1, 1));
-                    SpawnPiece(PieceColor.Pink, PieceShape.Single_1x1, 1, new Vector2Int(2, 2));
-                    SpawnPiece(PieceColor.Pink, PieceShape.Single_1x1, 1, new Vector2Int(2, 3));
-                    SpawnPiece(PieceColor.Blue, PieceShape.Single_1x1, 1, new Vector2Int(2, 4));
-                    SpawnPiece(PieceColor.Blue, PieceShape.Single_1x1, 1, new Vector2Int(1, 4));
-                    SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 1, new Vector2Int(0, 5));
-                    SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 1, new Vector2Int(1, 3));
+                    // Top-left 1x1 cluster (cols 1..2, rows 0..1)
+                    SpawnPiece(PieceColor.Orange, PieceShape.Single_1x1, 1, new Vector2Int(1, 0));
+                    SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 1, new Vector2Int(2, 0));
+                    SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 1, new Vector2Int(1, 1));
+                    SpawnPiece(PieceColor.Orange, PieceShape.Single_1x1, 1, new Vector2Int(2, 1));
+
+                    // Upper-left Green 2x2 [1] at (1, 2) (cols 1..2, rows 2..3)
+                    SpawnPiece(PieceColor.Green, PieceShape.Square_2x2, 1, new Vector2Int(1, 2));
+
+                    // Upper-middle vertical 1x2 blocks (cols 3..4, rows 1..2)
+                    SpawnPiece(PieceColor.Blue, PieceShape.Vertical_1x2, 1, new Vector2Int(3, 1));
+                    SpawnPiece(PieceColor.Purple, PieceShape.Vertical_1x2, 1, new Vector2Int(4, 1));
+
+                    // Lower-middle vertical 1x2 blocks (cols 3..4, rows 5..6)
+                    SpawnPiece(PieceColor.Purple, PieceShape.Vertical_1x2, 1, new Vector2Int(3, 5));
+                    SpawnPiece(PieceColor.Blue, PieceShape.Vertical_1x2, 1, new Vector2Int(4, 5));
+
+                    // Middle-right Green 2x2 [1] at (5, 4) (cols 5..6, rows 4..5)
+                    SpawnPiece(PieceColor.Green, PieceShape.Square_2x2, 1, new Vector2Int(5, 4));
+
+                    // Lower-right 1x1 cluster (cols 5..6, rows 6..7)
+                    SpawnPiece(PieceColor.Yellow, PieceShape.Single_1x1, 1, new Vector2Int(5, 6));
+                    SpawnPiece(PieceColor.Purple, PieceShape.Single_1x1, 1, new Vector2Int(6, 6));
+                    SpawnPiece(PieceColor.Purple, PieceShape.Single_1x1, 1, new Vector2Int(5, 7));
+                    SpawnPiece(PieceColor.Yellow, PieceShape.Single_1x1, 1, new Vector2Int(6, 7));
+
+                    // Bottom-right Purple 2x1 [2] at (5, 8) (cols 5..6, row 8)
+                    SpawnPiece(PieceColor.Purple, PieceShape.Horizontal_2x1, 2, new Vector2Int(5, 8));
                     break;
 
                 case LevelId.Level9:
-                    SpawnPiece(PieceColor.Purple, PieceShape.Single_1x1, 1, new Vector2Int(1, 1));
-                    SpawnPiece(PieceColor.Purple, PieceShape.Single_1x1, 1, new Vector2Int(3, 1));
-                    SpawnPiece(PieceColor.Orange, PieceShape.Single_1x1, 1, new Vector2Int(1, 2));
-                    SpawnPiece(PieceColor.Orange, PieceShape.Single_1x1, 1, new Vector2Int(2, 3));
-                    SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 1, new Vector2Int(3, 2));
-                    SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 1, new Vector2Int(2, 1));
-                    SpawnPiece(PieceColor.Red, PieceShape.Single_1x1, 1, new Vector2Int(1, 5));
-                    SpawnPiece(PieceColor.Red, PieceShape.Single_1x1, 1, new Vector2Int(2, 4));
-                    SpawnPiece(PieceColor.Blue, PieceShape.Single_1x1, 1, new Vector2Int(3, 5));
+                    // Upper section (rows 1..2): Red 1x2 [1] at (0,1), Green 2x2 [2] at (1,1), Red 1x2 [1] at (3,1)
+                    SpawnPiece(PieceColor.Red, PieceShape.Vertical_1x2, 1, new Vector2Int(0, 1));
+                    SpawnPiece(PieceColor.Green, PieceShape.Square_2x2, 2, new Vector2Int(1, 1));
+                    SpawnPiece(PieceColor.Red, PieceShape.Vertical_1x2, 1, new Vector2Int(3, 1));
+
+                    // Middle section (rows 3..4): Purple 1x2 [2] at (0,3), Green 2x2 [2] at (1,3), Purple 1x2 [1] at (3,3)
+                    SpawnPiece(PieceColor.Purple, PieceShape.Vertical_1x2, 2, new Vector2Int(0, 3));
+                    SpawnPiece(PieceColor.Green, PieceShape.Square_2x2, 2, new Vector2Int(1, 3));
+                    SpawnPiece(PieceColor.Purple, PieceShape.Vertical_1x2, 1, new Vector2Int(3, 3));
+
+                    // Lower section (rows 5..6): Purple 1x2 [1] at (0,5)
+                    SpawnPiece(PieceColor.Purple, PieceShape.Vertical_1x2, 1, new Vector2Int(0, 5));
+
+                    // Row 5 (cols 1..3): Yellow 1x1 [1] at (1,5), Blue 1x1 [1] at (2,5), Yellow 1x1 [2] at (3,5)
+                    SpawnPiece(PieceColor.Yellow, PieceShape.Single_1x1, 1, new Vector2Int(1, 5));
                     SpawnPiece(PieceColor.Blue, PieceShape.Single_1x1, 1, new Vector2Int(2, 5));
+                    SpawnPiece(PieceColor.Yellow, PieceShape.Single_1x1, 2, new Vector2Int(3, 5));
+
+                    // Row 6 (cols 1..2): Blue 1x1 [1] at (1,6), Yellow 1x1 [1] at (2,6) ((3,6) is empty)
+                    SpawnPiece(PieceColor.Blue, PieceShape.Single_1x1, 1, new Vector2Int(1, 6));
+                    SpawnPiece(PieceColor.Yellow, PieceShape.Single_1x1, 1, new Vector2Int(2, 6));
                     break;
 
                 case LevelId.Level10:
-                    SpawnPiece(PieceColor.Red, PieceShape.Single_1x1, 2, new Vector2Int(3, 1));
-                    SpawnPiece(PieceColor.Red, PieceShape.Single_1x1, 1, new Vector2Int(3, 2));
-                    SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 1, new Vector2Int(2, 3));
-                    SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 1, new Vector2Int(1, 4));
-                    SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 1, new Vector2Int(4, 3));
-                    SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 1, new Vector2Int(5, 4));
-                    SpawnPiece(PieceColor.Blue, PieceShape.Horizontal_2x1, 1, new Vector2Int(2, 5));
-                    SpawnPiece(PieceColor.Yellow, PieceShape.Vertical_1x2, 1, new Vector2Int(4, 5));
+                    // Row 1 (tree top, col 4)
+                    SpawnPiece(PieceColor.Red, PieceShape.Single_1x1, 1, new Vector2Int(4, 1));
+
+                    // Row 2 (cols 3..5)
+                    SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 2, new Vector2Int(3, 2));
+                    SpawnPiece(PieceColor.Green, PieceShape.Horizontal_2x1, 1, new Vector2Int(4, 2));
+
+                    // Row 3 (cols 3..5)
+                    SpawnPiece(PieceColor.Red, PieceShape.Single_1x1, 2, new Vector2Int(3, 3));
+                    SpawnPiece(PieceColor.Green, PieceShape.Vertical_1x2, 1, new Vector2Int(4, 3));
+                    SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 2, new Vector2Int(5, 3));
+
+                    // Row 4 (cols 2..6)
+                    SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 1, new Vector2Int(2, 4));
+                    SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 3, new Vector2Int(3, 4));
+                    SpawnPiece(PieceColor.Red, PieceShape.Single_1x1, 3, new Vector2Int(5, 4));
+                    SpawnPiece(PieceColor.Green, PieceShape.Vertical_1x2, 2, new Vector2Int(6, 4));
+
+                    // Row 5 (cols 2..6)
+                    SpawnPiece(PieceColor.Green, PieceShape.Horizontal_2x1, 2, new Vector2Int(2, 5));
+                    SpawnPiece(PieceColor.Green, PieceShape.Horizontal_2x1, 3, new Vector2Int(4, 5));
+
+                    // Rows 6..7 (cols 1..7)
+                    SpawnPiece(PieceColor.Green, PieceShape.Vertical_1x2, 3, new Vector2Int(1, 6));
+                    SpawnPiece(PieceColor.Green, PieceShape.ShapeL_BottomLeft, 3, new Vector2Int(2, 6));
+                    SpawnPiece(PieceColor.Red, PieceShape.Single_1x1, 1, new Vector2Int(3, 6));
+                    SpawnPiece(PieceColor.Green, PieceShape.Vertical_1x2, 4, new Vector2Int(4, 6));
+                    SpawnPiece(PieceColor.Green, PieceShape.ShapeL_BottomLeft, 3, new Vector2Int(5, 6));
+                    SpawnPiece(PieceColor.Red, PieceShape.Single_1x1, 2, new Vector2Int(6, 6));
+                    SpawnPiece(PieceColor.Green, PieceShape.Vertical_1x2, 1, new Vector2Int(7, 6));
+
+                    // Row 8 (cols 1..7)
+                    SpawnPiece(PieceColor.Red, PieceShape.Single_1x1, 1, new Vector2Int(1, 8));
+                    SpawnPiece(PieceColor.Green, PieceShape.Horizontal_2x1, 1, new Vector2Int(2, 8));
+                    SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 3, new Vector2Int(4, 8));
+                    SpawnPiece(PieceColor.Red, PieceShape.Single_1x1, 3, new Vector2Int(5, 8));
+                    SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 2, new Vector2Int(6, 8));
+                    SpawnPiece(PieceColor.Green, PieceShape.Single_1x1, 1, new Vector2Int(7, 8));
+
+                    // Row 9 (tree trunk, col 4)
+                    SpawnPiece(PieceColor.Orange, PieceShape.Single_1x1, 2, new Vector2Int(4, 9));
                     break;
             }
         }
@@ -713,12 +1058,26 @@ namespace BlockMergePuzzle.Core
         {
             Vector3 worldPos = CalculatePieceWorldCenter(shape, origin);
             Vector2? customCellSize = _currentLevel == LevelId.Level1
-                ? new Vector2(1.125f, 1.06f)
-                : (_currentLevel == LevelId.Level3
-                    ? new Vector2(1.05f, 1.00f)
-                    : (_currentLevel == LevelId.Level4
-                        ? new Vector2(1.30f, 1.25f)
-                        : (Vector2?)null));
+                ? new Vector2(1.31f, 1.16f)
+                : (_currentLevel == LevelId.Level2
+                    ? new Vector2(1.19f, 1.04f)
+                    : (_currentLevel == LevelId.Level3
+                        ? new Vector2(1.20f, 1.13f)
+                        : (_currentLevel == LevelId.Level4
+                            ? new Vector2(1.30f, 1.25f)
+                            : (_currentLevel == LevelId.Level5
+                                ? new Vector2(0.772f, 0.718f)
+                                : (_currentLevel == LevelId.Level6
+                                    ? new Vector2(0.955f, 0.940f)
+                                    : (_currentLevel == LevelId.Level7
+                                        ? new Vector2(0.895f, 0.945f)
+                                        : (_currentLevel == LevelId.Level8
+                                            ? new Vector2(0.872f, 0.872f)
+                                            : (_currentLevel == LevelId.Level9
+                                                ? new Vector2(1.162f, 1.058f)
+                                                : (_currentLevel == LevelId.Level10
+                                                    ? new Vector2(0.780f, 0.710f)
+                                                    : (Vector2?)null)))))))));
             PuzzlePiece piece = PuzzlePiece.Create(color, shape, value, origin, worldPos, _piecesRoot, customCellSize);
 
             foreach (var cell in piece.OccupiedCells)
@@ -747,9 +1106,14 @@ namespace BlockMergePuzzle.Core
                     return (GridToWorld(origin.x, origin.y) + GridToWorld(origin.x + 1, origin.y)) * 0.5f;
 
                 case PieceShape.ShapeL_TopRight:
+                case PieceShape.ShapeL_TopLeft:
                 case PieceShape.ShapeL_BottomLeft:
+                case PieceShape.Square_2x2:
                     // 2x2 bounding box center
                     return (GridToWorld(origin.x, origin.y) + GridToWorld(origin.x + 1, origin.y + 1)) * 0.5f;
+
+                case PieceShape.Cross_3x3:
+                    return GridToWorld(origin.x + 1, origin.y + 1);
 
                 default:
                     return GridToWorld(origin.x, origin.y);
@@ -766,21 +1130,21 @@ namespace BlockMergePuzzle.Core
             { new Vector2Int(2, 3), new Vector3(0.030f, -0.047f, 0f) },
             { new Vector2Int(3, 3), new Vector3(1.284f, -0.047f, 0f) },
             { new Vector2Int(4, 3), new Vector3(2.496f, -0.047f, 0f) },
-            { new Vector2Int(5, 3), new Vector3(3.508f, -0.047f, 0f) },
+            { new Vector2Int(5, 3), new Vector3(3.481f, -0.059f, 0f) },
             { new Vector2Int(2, 4), new Vector3(0.030f, -1.137f, 0f) },
             { new Vector2Int(2, 5), new Vector3(0.030f, -2.240f, 0f) },
         };
 
         private static readonly Dictionary<Vector2Int, Vector3> Level3CellPositions = new Dictionary<Vector2Int, Vector3>()
         {
-            { new Vector2Int(0, 0), new Vector3( -2.385f,   3.627f, 0f) },
+            { new Vector2Int(0, 0), new Vector3( -2.133f,   3.641f, 0f) },
             { new Vector2Int(1, 0), new Vector3( -1.116f,   3.627f, 0f) },
             { new Vector2Int(2, 0), new Vector3(  0.153f,   3.621f, 0f) },
             { new Vector2Int(2, 1), new Vector3(  0.153f,   2.418f, 0f) },
             { new Vector2Int(2, 2), new Vector3(  0.159f,   1.222f, 0f) },
             { new Vector2Int(2, 3), new Vector3(  0.159f,   0.027f, 0f) },
             { new Vector2Int(3, 3), new Vector3(  1.422f,   0.086f, 0f) },
-            { new Vector2Int(4, 3), new Vector3(  2.691f,   0.086f, 0f) },
+            { new Vector2Int(4, 3), new Vector3(  2.505f,   0.073f, 0f) },
             { new Vector2Int(2, 4), new Vector3(  0.179f,  -1.169f, 0f) },
             { new Vector2Int(2, 5), new Vector3(  0.186f,  -2.358f, 0f) },
             { new Vector2Int(0, 6), new Vector3( -2.385f,  -3.528f, 0f) },
@@ -817,8 +1181,287 @@ namespace BlockMergePuzzle.Core
             { new Vector2Int(3, 4), new Vector3(  2.460f,  -2.460f, 0f) },
         };
 
+        private static readonly Dictionary<Vector2Int, Vector3> Level5CellPositions = new Dictionary<Vector2Int, Vector3>()
+        {
+            // Row 0 (Top Yellow Gate Pad) - Y = 3.856f
+            { new Vector2Int(3, 0), new Vector3( -0.400f,   3.856f, 0f) },
+            { new Vector2Int(4, 0), new Vector3(  0.394f,   3.856f, 0f) },
+
+            // Row 1 - Y = 3.133f
+            { new Vector2Int(3, 1), new Vector3( -0.400f,   3.133f, 0f) },
+            { new Vector2Int(4, 1), new Vector3(  0.394f,   3.133f, 0f) },
+
+            // Row 2 - Y = 2.394f
+            { new Vector2Int(2, 2), new Vector3( -1.187f,   2.394f, 0f) },
+            { new Vector2Int(3, 2), new Vector3( -0.400f,   2.394f, 0f) },
+            { new Vector2Int(4, 2), new Vector3(  0.394f,   2.394f, 0f) },
+            { new Vector2Int(5, 2), new Vector3(  1.181f,   2.394f, 0f) },
+
+            // Row 3 - Y = 1.658f
+            { new Vector2Int(2, 3), new Vector3( -1.187f,   1.658f, 0f) },
+            { new Vector2Int(3, 3), new Vector3( -0.400f,   1.658f, 0f) },
+            { new Vector2Int(4, 3), new Vector3(  0.394f,   1.658f, 0f) },
+            { new Vector2Int(5, 3), new Vector3(  1.181f,   1.658f, 0f) },
+
+            // Row 4 - Y = 0.924f
+            { new Vector2Int(2, 4), new Vector3( -1.187f,   0.924f, 0f) },
+            { new Vector2Int(3, 4), new Vector3( -0.400f,   0.924f, 0f) },
+            { new Vector2Int(4, 4), new Vector3(  0.394f,   0.924f, 0f) },
+            { new Vector2Int(5, 4), new Vector3(  1.181f,   0.924f, 0f) },
+
+            // Row 5 (Widest row, cols 0..7) - Y = 0.189f
+            { new Vector2Int(0, 5), new Vector3( -2.766f,   0.189f, 0f) },
+            { new Vector2Int(1, 5), new Vector3( -1.974f,   0.189f, 0f) },
+            { new Vector2Int(2, 5), new Vector3( -1.187f,   0.189f, 0f) },
+            { new Vector2Int(3, 5), new Vector3( -0.400f,   0.189f, 0f) },
+            { new Vector2Int(4, 5), new Vector3(  0.394f,   0.189f, 0f) },
+            { new Vector2Int(5, 5), new Vector3(  1.181f,   0.189f, 0f) },
+            { new Vector2Int(6, 5), new Vector3(  1.970f,   0.189f, 0f) },
+            { new Vector2Int(7, 5), new Vector3(  2.755f,   0.189f, 0f) },
+
+            // Row 6 - Y = -0.544f
+            { new Vector2Int(1, 6), new Vector3( -1.974f,  -0.544f, 0f) },
+            { new Vector2Int(2, 6), new Vector3( -1.187f,  -0.544f, 0f) },
+            { new Vector2Int(3, 6), new Vector3( -0.400f,  -0.544f, 0f) },
+            { new Vector2Int(4, 6), new Vector3(  0.394f,  -0.544f, 0f) },
+            { new Vector2Int(5, 6), new Vector3(  1.181f,  -0.544f, 0f) },
+            { new Vector2Int(6, 6), new Vector3(  1.970f,  -0.544f, 0f) },
+
+            // Row 7 - Y = -1.277f
+            { new Vector2Int(1, 7), new Vector3( -1.974f,  -1.277f, 0f) },
+            { new Vector2Int(2, 7), new Vector3( -1.187f,  -1.277f, 0f) },
+            { new Vector2Int(3, 7), new Vector3( -0.400f,  -1.277f, 0f) },
+            { new Vector2Int(4, 7), new Vector3(  0.394f,  -1.277f, 0f) },
+            { new Vector2Int(5, 7), new Vector3(  1.181f,  -1.277f, 0f) },
+            { new Vector2Int(6, 7), new Vector3(  1.970f,  -1.277f, 0f) },
+
+            // Row 8 - Y = -2.009f
+            { new Vector2Int(2, 8), new Vector3( -1.187f,  -2.009f, 0f) },
+            { new Vector2Int(3, 8), new Vector3( -0.400f,  -2.009f, 0f) },
+            { new Vector2Int(4, 8), new Vector3(  0.394f,  -2.009f, 0f) },
+            { new Vector2Int(5, 8), new Vector3(  1.181f,  -2.009f, 0f) },
+
+            // Row 9 - Y = -2.742f
+            { new Vector2Int(3, 9), new Vector3( -0.400f,  -2.742f, 0f) },
+            { new Vector2Int(4, 9), new Vector3(  0.394f,  -2.742f, 0f) },
+
+            // Row 10 (Bottom Green Gate Pad) - Y = -3.437f
+            { new Vector2Int(3, 10), new Vector3( -0.400f,  -3.437f, 0f) },
+            { new Vector2Int(4, 10), new Vector3(  0.394f,  -3.437f, 0f) },
+        };
+
+        private static readonly Dictionary<Vector2Int, Vector3> Level6CellPositions = new Dictionary<Vector2Int, Vector3>()
+        {
+            // Row 0 (Top Red Gate Pad, cols 2..4) - Y = 3.253f
+            { new Vector2Int(2, 0), new Vector3( -0.882f,   3.253f, 0f) },
+            { new Vector2Int(3, 0), new Vector3(  0.121f,   3.253f, 0f) },
+            { new Vector2Int(4, 0), new Vector3(  1.125f,   3.253f, 0f) },
+
+            // Row 1 (cols 1..5 + Right Green Gate top at col 6) - Y = 2.395f
+            { new Vector2Int(1, 1), new Vector3( -1.893f,   2.395f, 0f) },
+            { new Vector2Int(2, 1), new Vector3( -0.882f,   2.395f, 0f) },
+            { new Vector2Int(3, 1), new Vector3(  0.121f,   2.395f, 0f) },
+            { new Vector2Int(4, 1), new Vector3(  1.125f,   2.395f, 0f) },
+            { new Vector2Int(5, 1), new Vector3(  2.133f,   2.395f, 0f) },
+            { new Vector2Int(6, 1), new Vector3(  2.962f,   2.395f, 0f) },
+
+            // Row 2 (cols 2..5 + Right Green Gate bottom at col 6) - Y = 1.413f
+            { new Vector2Int(2, 2), new Vector3( -0.882f,   1.413f, 0f) },
+            { new Vector2Int(3, 2), new Vector3(  0.121f,   1.413f, 0f) },
+            { new Vector2Int(4, 2), new Vector3(  1.125f,   1.413f, 0f) },
+            { new Vector2Int(5, 2), new Vector3(  2.133f,   1.413f, 0f) },
+            { new Vector2Int(6, 2), new Vector3(  2.962f,   1.413f, 0f) },
+
+            // Row 3 (Left Orange Gate at col 0 + cols 1..4) - Y = 0.430f
+            { new Vector2Int(0, 3), new Vector3( -2.730f,   0.430f, 0f) },
+            { new Vector2Int(1, 3), new Vector3( -1.893f,   0.430f, 0f) },
+            { new Vector2Int(2, 3), new Vector3( -0.882f,   0.430f, 0f) },
+            { new Vector2Int(3, 3), new Vector3(  0.121f,   0.430f, 0f) },
+            { new Vector2Int(4, 3), new Vector3(  1.125f,   0.430f, 0f) },
+
+            // Row 4 (cols 2..4) - Y = -0.549f
+            { new Vector2Int(2, 4), new Vector3( -0.882f,  -0.549f, 0f) },
+            { new Vector2Int(3, 4), new Vector3(  0.121f,  -0.549f, 0f) },
+            { new Vector2Int(4, 4), new Vector3(  1.125f,  -0.549f, 0f) },
+
+            // Row 5 (Left Pink Gate top at col 0 + cols 1..5) - Y = -1.534f
+            { new Vector2Int(0, 5), new Vector3( -2.730f,  -1.534f, 0f) },
+            { new Vector2Int(1, 5), new Vector3( -1.893f,  -1.534f, 0f) },
+            { new Vector2Int(2, 5), new Vector3( -0.882f,  -1.534f, 0f) },
+            { new Vector2Int(3, 5), new Vector3(  0.121f,  -1.534f, 0f) },
+            { new Vector2Int(4, 5), new Vector3(  1.125f,  -1.534f, 0f) },
+            { new Vector2Int(5, 5), new Vector3(  2.133f,  -1.534f, 0f) },
+
+            // Row 6 (Left Pink Gate bottom at col 0 + cols 1..5) - Y = -2.514f
+            { new Vector2Int(0, 6), new Vector3( -2.730f,  -2.514f, 0f) },
+            { new Vector2Int(1, 6), new Vector3( -1.893f,  -2.514f, 0f) },
+            { new Vector2Int(2, 6), new Vector3( -0.882f,  -2.514f, 0f) },
+            { new Vector2Int(3, 6), new Vector3(  0.121f,  -2.514f, 0f) },
+            { new Vector2Int(4, 6), new Vector3(  1.125f,  -2.514f, 0f) },
+            { new Vector2Int(5, 6), new Vector3(  2.133f,  -2.514f, 0f) },
+
+            // Row 7 (Bottom 3 prongs at cols 1, 3, 5) - Y = -3.496f
+            { new Vector2Int(1, 7), new Vector3( -1.893f,  -3.496f, 0f) },
+            { new Vector2Int(3, 7), new Vector3(  0.121f,  -3.496f, 0f) },
+            { new Vector2Int(5, 7), new Vector3(  2.133f,  -3.496f, 0f) },
+        };
+
+        private static readonly Dictionary<Vector2Int, Vector3> Level7CellPositions = new Dictionary<Vector2Int, Vector3>()
+        {
+            // Row 0 (Top Green Gate Pad, cols 3..4) - Y = 1.533f
+            { new Vector2Int(3, 0), new Vector3( -0.443f,   1.533f, 0f) },
+            { new Vector2Int(4, 0), new Vector3(  0.476f,   1.533f, 0f) },
+
+            // Row 1 (Top playable row, cols 3..4) - Y = 0.720f
+            { new Vector2Int(3, 1), new Vector3( -0.443f,   0.720f, 0f) },
+            { new Vector2Int(4, 1), new Vector3(  0.476f,   0.720f, 0f) },
+
+            // Row 2 (Middle playable row, cols 2..5) - Y = -0.265f
+            { new Vector2Int(2, 2), new Vector3( -1.361f,  -0.265f, 0f) },
+            { new Vector2Int(3, 2), new Vector3( -0.443f,  -0.265f, 0f) },
+            { new Vector2Int(4, 2), new Vector3(  0.476f,  -0.265f, 0f) },
+            { new Vector2Int(5, 2), new Vector3(  1.395f,  -0.265f, 0f) },
+
+            // Row 3 (Bottom row: Left Yellow Gate at col 0, playable cols 1..6, Right Pink Gate at col 7) - Y = -1.252f
+            { new Vector2Int(0, 3), new Vector3( -3.069f,  -1.252f, 0f) },
+            { new Vector2Int(1, 3), new Vector3( -2.293f,  -1.252f, 0f) },
+            { new Vector2Int(2, 3), new Vector3( -1.361f,  -1.252f, 0f) },
+            { new Vector2Int(3, 3), new Vector3( -0.443f,  -1.252f, 0f) },
+            { new Vector2Int(4, 3), new Vector3(  0.476f,  -1.252f, 0f) },
+            { new Vector2Int(5, 3), new Vector3(  1.395f,  -1.252f, 0f) },
+            { new Vector2Int(6, 3), new Vector3(  2.333f,  -1.252f, 0f) },
+            { new Vector2Int(7, 3), new Vector3(  3.085f,  -1.252f, 0f) },
+        };
+
+        private static readonly Dictionary<Vector2Int, Vector3> Level8CellPositions = new Dictionary<Vector2Int, Vector3>()
+        {
+            // Row 0 (Playable cols 1..2 at Y = 3.642f; Top Green Gate Pad cols 4..5 at Y = 3.473f)
+            { new Vector2Int(1, 0), new Vector3( -2.241f,   3.642f, 0f) },
+            { new Vector2Int(2, 0), new Vector3( -1.346f,   3.642f, 0f) },
+            { new Vector2Int(4, 0), new Vector3(  0.462f,   3.473f, 0f) },
+            { new Vector2Int(5, 0), new Vector3(  1.364f,   3.473f, 0f) },
+
+            // Row 1 (Playable cols 1..6 + Right Orange Gate at col 7) - Y = 2.746f
+            { new Vector2Int(1, 1), new Vector3( -2.241f,   2.746f, 0f) },
+            { new Vector2Int(2, 1), new Vector3( -1.346f,   2.746f, 0f) },
+            { new Vector2Int(3, 1), new Vector3( -0.439f,   2.746f, 0f) },
+            { new Vector2Int(4, 1), new Vector3(  0.462f,   2.746f, 0f) },
+            { new Vector2Int(5, 1), new Vector3(  1.364f,   2.746f, 0f) },
+            { new Vector2Int(6, 1), new Vector3(  2.253f,   2.746f, 0f) },
+            { new Vector2Int(7, 1), new Vector3(  2.941f,   2.746f, 0f) },
+
+            // Row 2 (Playable cols 1..6) - Y = 1.849f
+            { new Vector2Int(1, 2), new Vector3( -2.241f,   1.849f, 0f) },
+            { new Vector2Int(2, 2), new Vector3( -1.346f,   1.849f, 0f) },
+            { new Vector2Int(3, 2), new Vector3( -0.439f,   1.849f, 0f) },
+            { new Vector2Int(4, 2), new Vector3(  0.462f,   1.849f, 0f) },
+            { new Vector2Int(5, 2), new Vector3(  1.364f,   1.849f, 0f) },
+            { new Vector2Int(6, 2), new Vector3(  2.253f,   1.849f, 0f) },
+
+            // Row 3 (Left Purple Gate top at col 0, Playable cols 1,2,4,5,6 [col 3 is obstacle hole], Right Blue Gate top at col 7) - Y = 0.935f
+            { new Vector2Int(0, 3), new Vector3( -2.927f,   0.935f, 0f) },
+            { new Vector2Int(1, 3), new Vector3( -2.241f,   0.935f, 0f) },
+            { new Vector2Int(2, 3), new Vector3( -1.346f,   0.935f, 0f) },
+            { new Vector2Int(4, 3), new Vector3(  0.462f,   0.935f, 0f) },
+            { new Vector2Int(5, 3), new Vector3(  1.364f,   0.935f, 0f) },
+            { new Vector2Int(6, 3), new Vector3(  2.253f,   0.935f, 0f) },
+            { new Vector2Int(7, 3), new Vector3(  2.941f,   0.935f, 0f) },
+
+            // Row 4 (Left Purple Gate bottom at col 0, Playable cols 1,2,3,5,6 [col 4 is obstacle hole], Right Blue Gate bottom at col 7) - Y = 0.029f
+            { new Vector2Int(0, 4), new Vector3( -2.927f,   0.029f, 0f) },
+            { new Vector2Int(1, 4), new Vector3( -2.241f,   0.029f, 0f) },
+            { new Vector2Int(2, 4), new Vector3( -1.346f,   0.029f, 0f) },
+            { new Vector2Int(3, 4), new Vector3( -0.439f,   0.029f, 0f) },
+            { new Vector2Int(5, 4), new Vector3(  1.364f,   0.029f, 0f) },
+            { new Vector2Int(6, 4), new Vector3(  2.253f,   0.029f, 0f) },
+            { new Vector2Int(7, 4), new Vector3(  2.941f,   0.029f, 0f) },
+
+            // Row 5 (Playable cols 1..6) - Y = -0.868f
+            { new Vector2Int(1, 5), new Vector3( -2.241f,  -0.868f, 0f) },
+            { new Vector2Int(2, 5), new Vector3( -1.346f,  -0.868f, 0f) },
+            { new Vector2Int(3, 5), new Vector3( -0.439f,  -0.868f, 0f) },
+            { new Vector2Int(4, 5), new Vector3(  0.462f,  -0.868f, 0f) },
+            { new Vector2Int(5, 5), new Vector3(  1.364f,  -0.868f, 0f) },
+            { new Vector2Int(6, 5), new Vector3(  2.253f,  -0.868f, 0f) },
+
+            // Row 6 (Left Yellow Gate at col 0, Playable cols 1..6) - Y = -1.776f
+            { new Vector2Int(0, 6), new Vector3( -2.927f,  -1.776f, 0f) },
+            { new Vector2Int(1, 6), new Vector3( -2.241f,  -1.776f, 0f) },
+            { new Vector2Int(2, 6), new Vector3( -1.346f,  -1.776f, 0f) },
+            { new Vector2Int(3, 6), new Vector3( -0.439f,  -1.776f, 0f) },
+            { new Vector2Int(4, 6), new Vector3(  0.462f,  -1.776f, 0f) },
+            { new Vector2Int(5, 6), new Vector3(  1.364f,  -1.776f, 0f) },
+            { new Vector2Int(6, 6), new Vector3(  1.777f + 0.476f,  -1.776f, 0f) },
+
+            // Row 7 (Bottom-right extension cols 5..6) - Y = -2.665f
+            { new Vector2Int(5, 7), new Vector3(  1.364f,  -2.665f, 0f) },
+            { new Vector2Int(6, 7), new Vector3(  2.253f,  -2.665f, 0f) },
+
+            // Row 8 (Bottom-right extension cols 5..6) - Y = -3.549f
+            { new Vector2Int(5, 8), new Vector3(  1.364f,  -3.549f, 0f) },
+            { new Vector2Int(6, 8), new Vector3(  2.253f,  -3.549f, 0f) },
+        };
+
+        private static readonly Dictionary<Vector2Int, Vector3> Level9CellPositions = new Dictionary<Vector2Int, Vector3>()
+        {
+            // Row 0 (Top Gate Pads: Red at col 0, Purple at col 3) - Y = 3.627f
+            { new Vector2Int(0, 0), new Vector3( -2.129f,   3.627f, 0f) },
+            { new Vector2Int(3, 0), new Vector3(  1.466f,   3.627f, 0f) },
+
+            // Row 1 (Playable cols 0..3) - Y = 2.738f
+            { new Vector2Int(0, 1), new Vector3( -2.129f,   2.738f, 0f) },
+            { new Vector2Int(1, 1), new Vector3( -0.929f,   2.738f, 0f) },
+            { new Vector2Int(2, 1), new Vector3(  0.265f,   2.738f, 0f) },
+            { new Vector2Int(3, 1), new Vector3(  1.466f,   2.738f, 0f) },
+
+            // Row 2 (Playable cols 0..3) - Y = 1.648f
+            { new Vector2Int(0, 2), new Vector3( -2.129f,   1.648f, 0f) },
+            { new Vector2Int(1, 2), new Vector3( -0.929f,   1.648f, 0f) },
+            { new Vector2Int(2, 2), new Vector3(  0.265f,   1.648f, 0f) },
+            { new Vector2Int(3, 2), new Vector3(  1.466f,   1.648f, 0f) },
+
+            // Row 3 (Playable cols 0..3 + Right Yellow Gate at col 4) - Y = 0.554f
+            { new Vector2Int(0, 3), new Vector3( -2.129f,   0.554f, 0f) },
+            { new Vector2Int(1, 3), new Vector3( -0.929f,   0.554f, 0f) },
+            { new Vector2Int(2, 3), new Vector3(  0.265f,   0.554f, 0f) },
+            { new Vector2Int(3, 3), new Vector3(  1.466f,   0.554f, 0f) },
+            { new Vector2Int(4, 3), new Vector3(  2.405f,   0.554f, 0f) },
+
+            // Row 4 (Playable cols 0..3 + Right Blue Gate at col 4) - Y = -0.534f
+            { new Vector2Int(0, 4), new Vector3( -2.129f,  -0.534f, 0f) },
+            { new Vector2Int(1, 4), new Vector3( -0.929f,  -0.534f, 0f) },
+            { new Vector2Int(2, 4), new Vector3(  0.265f,  -0.534f, 0f) },
+            { new Vector2Int(3, 4), new Vector3(  1.466f,  -0.534f, 0f) },
+            { new Vector2Int(4, 4), new Vector3(  2.405f,  -0.534f, 0f) },
+
+            // Row 5 (Playable cols 0..3) - Y = -1.629f
+            { new Vector2Int(0, 5), new Vector3( -2.129f,  -1.629f, 0f) },
+            { new Vector2Int(1, 5), new Vector3( -0.929f,  -1.629f, 0f) },
+            { new Vector2Int(2, 5), new Vector3(  0.265f,  -1.629f, 0f) },
+            { new Vector2Int(3, 5), new Vector3(  1.466f,  -1.629f, 0f) },
+
+            // Row 6 (Playable cols 0..3) - Y = -2.720f
+            { new Vector2Int(0, 6), new Vector3( -2.129f,  -2.720f, 0f) },
+            { new Vector2Int(1, 6), new Vector3( -0.929f,  -2.720f, 0f) },
+            { new Vector2Int(2, 6), new Vector3(  0.265f,  -2.720f, 0f) },
+            { new Vector2Int(3, 6), new Vector3(  1.466f,  -2.720f, 0f) },
+
+            // Row 7 (Bottom Green Gate Pad cols 1..2) - Y = -3.605f
+            { new Vector2Int(1, 7), new Vector3( -0.929f,  -3.605f, 0f) },
+            { new Vector2Int(2, 7), new Vector3(  0.265f,  -3.605f, 0f) },
+        };
+
         public Vector3 GridToWorld(int col, int row)
         {
+            if (_currentLevel == LevelId.Level1)
+            {
+                float[] colX = { -2.728f, -1.358f, -0.013f, 1.335f, 2.712f };
+                float[] rowY = { 1.212f, 0.073f, -1.125f };
+                float cx = (col >= 0 && col < colX.Length) ? colX[col] : (-2.728f + col * 1.360f);
+                float ry = (row >= 0 && row < rowY.Length) ? rowY[row] : (1.212f - row * 1.169f);
+                return _boardCenter + new Vector3(cx, ry, 0f);
+            }
+
             if (_currentLevel == LevelId.Level2)
             {
                 if (Level2CellPositions.TryGetValue(new Vector2Int(col, row), out Vector3 pos))
@@ -853,6 +1496,81 @@ namespace BlockMergePuzzle.Core
                 }
             }
 
+            if (_currentLevel == LevelId.Level5)
+            {
+                if (Level5CellPositions.TryGetValue(new Vector2Int(col, row), out Vector3 pos))
+                {
+                    return _boardCenter + pos;
+                }
+                float[] colX = { -2.766f, -1.974f, -1.187f, -0.400f, 0.394f, 1.181f, 1.970f, 2.755f };
+                float[] rowY = { 3.856f, 3.133f, 2.394f, 1.658f, 0.924f, 0.189f, -0.544f, -1.277f, -2.009f, -2.742f, -3.437f };
+                float cx = (col >= 0 && col < colX.Length) ? colX[col] : (-2.766f + col * 0.790f);
+                float ry = (row >= 0 && row < rowY.Length) ? rowY[row] : (3.856f - row * 0.734f);
+                return _boardCenter + new Vector3(cx, ry, 0f);
+            }
+
+            if (_currentLevel == LevelId.Level6)
+            {
+                if (Level6CellPositions.TryGetValue(new Vector2Int(col, row), out Vector3 pos))
+                {
+                    return _boardCenter + pos;
+                }
+                float[] colX = { -2.730f, -1.893f, -0.882f, 0.121f, 1.125f, 2.133f, 2.962f };
+                float[] rowY = { 3.253f, 2.395f, 1.413f, 0.430f, -0.549f, -1.534f, -2.514f, -3.496f };
+                float cx = (col >= 0 && col < colX.Length) ? colX[col] : (-2.730f + col * 1.005f);
+                float ry = (row >= 0 && row < rowY.Length) ? rowY[row] : (3.253f - row * 0.982f);
+                return _boardCenter + new Vector3(cx, ry, 0f);
+            }
+
+            if (_currentLevel == LevelId.Level7)
+            {
+                if (Level7CellPositions.TryGetValue(new Vector2Int(col, row), out Vector3 pos))
+                {
+                    return _boardCenter + pos;
+                }
+                float[] colX = { -3.069f, -2.293f, -1.361f, -0.443f, 0.476f, 1.395f, 2.333f, 3.085f };
+                float[] rowY = { 1.533f, 0.720f, -0.265f, -1.252f };
+                float cx = (col >= 0 && col < colX.Length) ? colX[col] : (-3.069f + col * 0.925f);
+                float ry = (row >= 0 && row < rowY.Length) ? rowY[row] : (1.533f - row * 0.986f);
+                return _boardCenter + new Vector3(cx, ry, 0f);
+            }
+
+            if (_currentLevel == LevelId.Level8)
+            {
+                if (Level8CellPositions.TryGetValue(new Vector2Int(col, row), out Vector3 pos))
+                {
+                    return _boardCenter + pos;
+                }
+                float[] colX = { -2.927f, -2.241f, -1.346f, -0.439f, 0.462f, 1.364f, 2.253f, 2.941f };
+                float[] rowY = { 3.642f, 2.746f, 1.849f, 0.935f, 0.029f, -0.868f, -1.776f, -2.665f, -3.549f };
+                float cx = (col >= 0 && col < colX.Length) ? colX[col] : (-2.927f + col * 0.899f);
+                float ry = (row >= 0 && row < rowY.Length) ? rowY[row] : (3.642f - row * 0.899f);
+                return _boardCenter + new Vector3(cx, ry, 0f);
+            }
+
+            if (_currentLevel == LevelId.Level9)
+            {
+                if (Level9CellPositions.TryGetValue(new Vector2Int(col, row), out Vector3 pos))
+                {
+                    return _boardCenter + pos;
+                }
+                float[] colX = { -2.129f, -0.929f, 0.265f, 1.466f, 2.405f };
+                float[] rowY = { 3.627f, 2.738f, 1.648f, 0.554f, -0.534f, -1.629f, -2.720f, -3.605f };
+                float cx = (col >= 0 && col < colX.Length) ? colX[col] : (-2.129f + col * 1.198f);
+                float ry = (row >= 0 && row < rowY.Length) ? rowY[row] : (3.627f - row * 1.092f);
+                return _boardCenter + new Vector3(cx, ry, 0f);
+            }
+
+            if (_currentLevel == LevelId.Level10)
+            {
+                // Pixel-measured cell centers of map_lv10 (500x500 sprite, 11 world units) relative to frame center
+                float[] colX = { -3.058f, -2.442f, -1.639f, -0.831f, -0.011f, 0.787f, 1.606f, 2.409f, 3.025f };
+                float[] rowY = { 4.488f, 3.916f, 3.179f, 2.442f, 1.716f, 0.979f, 0.242f, -0.495f, -1.232f, -1.969f, -2.563f };
+                float cx = (col >= 0 && col < colX.Length) ? colX[col] : (-3.058f + col * 0.808f);
+                float ry = (row >= 0 && row < rowY.Length) ? rowY[row] : (4.488f - row * 0.736f);
+                return _boardCenter + GetLevelFrameOffset(LevelId.Level10) + new Vector3(cx, ry, 0f);
+            }
+
             float cw = CurrentCellWidth;
             float ch = CurrentCellHeight;
             float totalW = CurrentColumns * cw;
@@ -879,12 +1597,12 @@ namespace BlockMergePuzzle.Core
                 case LevelId.Level2: return 6;
                 case LevelId.Level3: return 5;
                 case LevelId.Level4: return 4;
-                case LevelId.Level5: return 5;
-                case LevelId.Level6: return 5;
-                case LevelId.Level7: return 7;
-                case LevelId.Level8: return 4;
+                case LevelId.Level5: return 8;
+                case LevelId.Level6: return 7;
+                case LevelId.Level7: return 8;
+                case LevelId.Level8: return 8;
                 case LevelId.Level9: return 5;
-                case LevelId.Level10: return 7;
+                case LevelId.Level10: return 9;
                 default: return 7;
             }
         }
@@ -893,16 +1611,16 @@ namespace BlockMergePuzzle.Core
         {
             switch (level)
             {
-                case LevelId.Level1: return 2;
+                case LevelId.Level1: return 3;
                 case LevelId.Level2: return 6;
                 case LevelId.Level3: return 7;
                 case LevelId.Level4: return 5;
-                case LevelId.Level5: return 7;
-                case LevelId.Level6: return 7;
+                case LevelId.Level5: return 11;
+                case LevelId.Level6: return 8;
                 case LevelId.Level7: return 4;
-                case LevelId.Level8: return 6;
-                case LevelId.Level9: return 7;
-                case LevelId.Level10: return 7;
+                case LevelId.Level8: return 9;
+                case LevelId.Level9: return 8;
+                case LevelId.Level10: return 11;
                 default: return 6;
             }
         }
@@ -915,12 +1633,12 @@ namespace BlockMergePuzzle.Core
                 case LevelId.Level2: return 1.16f;
                 case LevelId.Level3: return 1.269f;
                 case LevelId.Level4: return 1.565f;
-                case LevelId.Level5: return 1.10f;
-                case LevelId.Level6: return 1.05f;
-                case LevelId.Level7: return 0.98f;
-                case LevelId.Level8: return 1.15f;
-                case LevelId.Level9: return 1.05f;
-                case LevelId.Level10: return 0.98f;
+                case LevelId.Level5: return 0.790f;
+                case LevelId.Level6: return 1.005f;
+                case LevelId.Level7: return 0.925f;
+                case LevelId.Level8: return 0.899f;
+                case LevelId.Level9: return 1.198f;
+                case LevelId.Level10: return 0.808f;
                 default: return 1.00f;
             }
         }
@@ -933,12 +1651,12 @@ namespace BlockMergePuzzle.Core
                 case LevelId.Level2: return 1.03f;
                 case LevelId.Level3: return 1.192f;
                 case LevelId.Level4: return 1.420f;
-                case LevelId.Level5: return 1.10f;
-                case LevelId.Level6: return 1.05f;
-                case LevelId.Level7: return 0.85f;
-                case LevelId.Level8: return 1.10f;
-                case LevelId.Level9: return 1.05f;
-                case LevelId.Level10: return 0.98f;
+                case LevelId.Level5: return 0.734f;
+                case LevelId.Level6: return 0.982f;
+                case LevelId.Level7: return 0.986f;
+                case LevelId.Level8: return 0.899f;
+                case LevelId.Level9: return 1.092f;
+                case LevelId.Level10: return 0.736f;
                 default: return 1.00f;
             }
         }
@@ -952,11 +1670,11 @@ namespace BlockMergePuzzle.Core
                 case LevelId.Level3: return 7.600f;
                 case LevelId.Level4: return 7.088f;
                 case LevelId.Level5: return 8.000f;
-                case LevelId.Level6: return 7.519f;
+                case LevelId.Level6: return 8.000f;
                 case LevelId.Level7: return 8.000f;
-                case LevelId.Level8: return 8.000f;
-                case LevelId.Level9: return 7.947f;
-                case LevelId.Level10: return 8.000f;
+                case LevelId.Level8: return 9.360f;
+                case LevelId.Level9: return 7.467f;
+                case LevelId.Level10: return 11.000f;
                 default: return 8.000f;
             }
         }
@@ -969,12 +1687,12 @@ namespace BlockMergePuzzle.Core
                 case LevelId.Level2: return 7.263f;
                 case LevelId.Level3: return 9.673f;
                 case LevelId.Level4: return 8.390f;
-                case LevelId.Level5: return 9.890f;
-                case LevelId.Level6: return 10.000f;
-                case LevelId.Level7: return 3.878f;
-                case LevelId.Level8: return 9.811f;
+                case LevelId.Level5: return 9.948f;
+                case LevelId.Level6: return 9.943f;
+                case LevelId.Level7: return 5.362f;
+                case LevelId.Level8: return 10.502f;
                 case LevelId.Level9: return 10.000f;
-                case LevelId.Level10: return 8.209f;
+                case LevelId.Level10: return 11.000f;
                 default: return 7.535f;
             }
         }
@@ -985,7 +1703,9 @@ namespace BlockMergePuzzle.Core
             {
                 case LevelId.Level1: return new Vector3(0f, -0.20f, 0f);
                 case LevelId.Level4: return new Vector3(0.07f, 0.29f, 0f);
-                case LevelId.Level7: return new Vector3(0f, -0.15f, 0f);
+                case LevelId.Level8: return new Vector3(0.174f, 0f, 0f);
+                case LevelId.Level9: return new Vector3(-0.060f, 0.048f, 0f);
+                case LevelId.Level10: return new Vector3(0f, -0.650f, 0f);
                 default: return Vector3.zero;
             }
         }
@@ -996,7 +1716,6 @@ namespace BlockMergePuzzle.Core
             {
                 case LevelId.Level1: return new Vector3(0f, -0.526f, 0f);
                 case LevelId.Level2: return new Vector3(0.617f, 0.426f, 0f);
-                case LevelId.Level7: return new Vector3(0f, -0.15f, 0f);
                 default: return Vector3.zero;
             }
         }
@@ -1006,7 +1725,7 @@ namespace BlockMergePuzzle.Core
             switch (level)
             {
                 case LevelId.Level1:
-                    return (col == 2 && row == 0) || (row == 1 && col >= 0 && col < 5);
+                    return (col == 2 && (row == 0 || row == 1)) || (row == 2 && col >= 0 && col < 5);
 
                 case LevelId.Level2:
                     return (col == 2 && row >= 0 && row < 6) || (row == 3 && col >= 0 && col < 6);
@@ -1025,42 +1744,50 @@ namespace BlockMergePuzzle.Core
                     return false;
 
                 case LevelId.Level5:
-                    if (row == 0 || row == 6) return col == 2;
-                    if (row == 1 || row == 5) return col >= 1 && col <= 3;
-                    if (row >= 2 && row <= 4) return col >= 0 && col <= 4;
+                    if (row == 0 || row == 1 || row == 9 || row == 10) return col >= 3 && col <= 4;
+                    if (row == 2 || row == 3 || row == 4 || row == 8) return col >= 2 && col <= 5;
+                    if (row == 5) return col >= 0 && col <= 7;
+                    if (row == 6 || row == 7) return col >= 1 && col <= 6;
                     return false;
 
                 case LevelId.Level6:
-                    if (row == 0) return false;
-                    if (row == 1) return col >= 1 && col <= 3;
-                    if (row == 2) return col >= 2 && col <= 4;
-                    if (row == 3) return col >= 1 && col <= 4;
-                    if (row == 4 || row == 5) return col >= 0 && col <= 3;
-                    if (row == 6) return col >= 0 && col <= 2;
+                    if (row == 0) return col >= 2 && col <= 4;
+                    if (row == 1) return col >= 1 && col <= 6;
+                    if (row == 2) return col >= 2 && col <= 6;
+                    if (row == 3) return col >= 0 && col <= 4;
+                    if (row == 4) return col >= 2 && col <= 4;
+                    if (row == 5 || row == 6) return col >= 0 && col <= 5;
+                    if (row == 7) return col == 1 || col == 3 || col == 5;
                     return false;
 
                 case LevelId.Level7:
-                    if (row == 0) return col >= 2 && col <= 4;
-                    if (row == 1) return col >= 1 && col <= 5;
-                    if (row == 2 || row == 3) return col >= 0 && col <= 6;
+                    if (row == 0 || row == 1) return col >= 3 && col <= 4;
+                    if (row == 2) return col >= 2 && col <= 5;
+                    if (row == 3) return col >= 0 && col <= 7;
                     return false;
 
                 case LevelId.Level8:
-                    if (col >= 0 && col <= 1 && row >= 0 && row <= 5) return true;
-                    if (col >= 2 && col <= 3 && row >= 1 && row <= 5) return true;
+                    if (row == 0) return col == 1 || col == 2 || col == 4 || col == 5;
+                    if (row == 1) return col >= 1 && col <= 7;
+                    if (row == 2 || row == 5) return col >= 1 && col <= 6;
+                    if (row == 3) return col >= 0 && col <= 7 && col != 3;
+                    if (row == 4) return col >= 0 && col <= 7 && col != 4;
+                    if (row == 6) return col >= 0 && col <= 6;
+                    if (row == 7 || row == 8) return col == 5 || col == 6;
                     return false;
 
                 case LevelId.Level9:
-                    if (col >= 1 && col <= 3 && row >= 0 && row <= 6) return true;
-                    if ((row == 2 || row == 5) && col >= 0 && col <= 4) return true;
+                    if (row == 0) return col == 0 || col == 3;
+                    if (row == 1 || row == 2 || row == 5 || row == 6) return col >= 0 && col <= 3;
+                    if (row == 3 || row == 4) return col >= 0 && col <= 4;
+                    if (row == 7) return col == 1 || col == 2;
                     return false;
 
                 case LevelId.Level10:
-                    if (row == 0) return col == 3;
-                    if (row == 1 || row == 2) return col >= 2 && col <= 4;
-                    if (row == 3 || row == 4) return col >= 1 && col <= 5;
-                    if (row == 5) return col >= 0 && col <= 6;
-                    if (row == 6) return col >= 2 && col <= 4;
+                    if (row == 0 || row == 1 || row == 9 || row == 10) return col == 4;
+                    if (row == 2 || row == 3) return col >= 3 && col <= 5;
+                    if (row == 4 || row == 5) return col >= 2 && col <= 6;
+                    if (row >= 6 && row <= 8) return col >= 0 && col <= 8;
                     return false;
 
                 default:
@@ -1123,10 +1850,15 @@ namespace BlockMergePuzzle.Core
             return true;
         }
 
+        private static bool AreShapesMergeable(PieceShape a, PieceShape b)
+        {
+            return a == b;
+        }
+
         public bool CheckMergeOpportunity(PuzzlePiece piece, Vector2Int origin, Vector2Int direction, out PuzzlePiece targetPiece)
         {
             targetPiece = null;
-            if (piece == null || direction == Vector2Int.zero) return false;
+            if (piece == null || piece.IsFrozen || direction == Vector2Int.zero) return false;
 
             Vector2Int candidateOrigin = origin + direction;
             List<Vector2Int> candidateCells = piece.GetOccupiedCellsForOrigin(candidateOrigin);
@@ -1148,9 +1880,9 @@ namespace BlockMergePuzzle.Core
                 }
             }
 
-            if (hit != null && !multiple)
+            if (hit != null && !multiple && !hit.IsFrozen)
             {
-                bool sameShape = (piece.Shape == hit.Shape);
+                bool sameShape = AreShapesMergeable(piece.Shape, hit.Shape);
                 bool sameColor = (piece.PieceColor == hit.PieceColor);
                 bool sameValue = (piece.Value == hit.Value);
 
@@ -1167,10 +1899,29 @@ namespace BlockMergePuzzle.Core
             return false;
         }
 
+        private static bool IsPieceSpanAlignedWithGate(ExitGateView gate, Vector2Int direction, List<Vector2Int> candidateCells)
+        {
+            if (gate == null) return false;
+            List<Vector2Int> coords = (gate.GateCoords != null && gate.GateCoords.Count > 0) ? gate.GateCoords : gate.TriggerCoords;
+            if (coords == null || coords.Count == 0) return true;
+
+            foreach (var c in candidateCells)
+            {
+                bool matched = false;
+                foreach (var gc in coords)
+                {
+                    if (direction.y != 0 && gc.x == c.x) { matched = true; break; }
+                    if (direction.x != 0 && gc.y == c.y) { matched = true; break; }
+                }
+                if (!matched) return false;
+            }
+            return true;
+        }
+
         public bool CheckEscapeOpportunity(PuzzlePiece piece, Vector2Int origin, Vector2Int direction, out ExitGateView targetGate)
         {
             targetGate = null;
-            if (piece == null || direction == Vector2Int.zero) return false;
+            if (piece == null || piece.IsFrozen || direction == Vector2Int.zero) return false;
 
             Vector2Int candidateOrigin = origin + direction;
             List<Vector2Int> candidateCells = piece.GetOccupiedCellsForOrigin(candidateOrigin);
@@ -1182,24 +1933,34 @@ namespace BlockMergePuzzle.Core
                 if (gate != null) break;
             }
 
-            if (gate == null)
+            bool anyOutside = false;
+            bool hitOtherPiece = false;
+            foreach (var c in candidateCells)
             {
-                bool anyOutside = false;
-                foreach (var c in candidateCells)
+                if (!IsValidCoord(c.x, c.y))
                 {
-                    if (!IsValidCoord(c.x, c.y))
-                    {
-                        anyOutside = true;
-                        break;
-                    }
+                    anyOutside = true;
                 }
-                if (anyOutside)
+                else
                 {
-                    gate = CheckGateAlignment(piece, direction, candidateCells);
+                    PuzzlePiece occ = GetPieceAt(c.x, c.y);
+                    if (occ != null && occ != piece)
+                    {
+                        hitOtherPiece = true;
+                    }
                 }
             }
 
-            if (gate != null && gate.TriggerDirection == direction && piece.PieceColor == gate.GateColor && piece.Value >= gate.RequiredValue)
+            if (gate != null)
+            {
+                if (anyOutside || hitOtherPiece || !IsPieceSpanAlignedWithGate(gate, direction, candidateCells)) return false;
+            }
+            else if (anyOutside && !hitOtherPiece)
+            {
+                gate = CheckGateAlignment(piece, direction, candidateCells);
+            }
+
+            if (gate != null && gate.TriggerDirection == direction && piece.PieceColor == gate.GateColor && piece.Value == gate.RequiredValue)
             {
                 targetGate = gate;
                 return true;
@@ -1239,6 +2000,12 @@ namespace BlockMergePuzzle.Core
                 FailReason = string.Empty
             };
 
+            if (piece != null && piece.IsFrozen)
+            {
+                result.FailReason = $"Khối đang bị đóng băng! Hãy đưa {piece.IceCount} khối khác thoát cổng để phá băng.";
+                return result;
+            }
+
             int maxStepsPossible = Mathf.Clamp(maxStepsRequested, 1, 8);
             Vector2Int currentOrigin = piece.GridOrigin;
 
@@ -1272,17 +2039,43 @@ namespace BlockMergePuzzle.Core
 
                 if (gate != null)
                 {
+                    bool blockedByWallOrPiece = false;
+                    foreach (var c in candidateCells)
+                    {
+                        if (!IsValidCoord(c.x, c.y) && !gate.ContainsGateCell(c))
+                        {
+                            blockedByWallOrPiece = true;
+                            break;
+                        }
+                        if (IsValidCoord(c.x, c.y))
+                        {
+                            PuzzlePiece occ = GetPieceAt(c.x, c.y);
+                            if (occ != null && occ != piece)
+                            {
+                                blockedByWallOrPiece = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (blockedByWallOrPiece || !IsPieceSpanAlignedWithGate(gate, direction, candidateCells))
+                    {
+                        break;
+                    }
+
                     if (gate.TriggerDirection == direction)
                     {
-                        // Check gate conditions: matching color & sufficient value
+                        // Check gate conditions: matching color & exact required value
                         if (piece.PieceColor != gate.GateColor)
                         {
                             result.FailReason = $"Sai màu cổng! Cổng này màu {gate.ColorDisplayName}, khối của bạn màu {piece.ColorDisplayName}.";
                             break; // Gate acts as a wall - DO NOT STEP ON IT
                         }
-                        if (piece.Value < gate.RequiredValue)
+                        if (piece.Value != gate.RequiredValue)
                         {
-                            result.FailReason = $"Chưa đủ số yêu cầu! Cổng cần số {gate.RequiredValue}, khối mới có số {piece.Value}.";
+                            result.FailReason = piece.Value < gate.RequiredValue
+                                ? $"Chưa đủ số yêu cầu! Cổng cần đúng số {gate.RequiredValue}, khối mới có số {piece.Value}."
+                                : $"Số quá lớn! Cổng chỉ nhận đúng số {gate.RequiredValue}, khối đang có số {piece.Value}.";
                             break; // Gate acts as a wall - DO NOT STEP ON IT
                         }
 
@@ -1329,12 +2122,18 @@ namespace BlockMergePuzzle.Core
 
                 if (hitPiece != null)
                 {
+                    if (hitPiece.IsFrozen)
+                    {
+                        result.FailReason = "Khối mục tiêu đang bị đóng băng!";
+                        break;
+                    }
+
                     // Check merge condition on straight-line collision:
                     // 1) CÃ¹ng Shape
                     // 2) CÃ¹ng Color
                     // 3) CÃ¹ng Number
                     // 4) Tháº³ng nhau trÃªn dÆ°á»›i trÃ¡i pháº£i (KHÃ”NG ÄÆ¯á»¢C MERGE CHÃ‰O)
-                    bool sameShape = (piece.Shape == hitPiece.Shape);
+                    bool sameShape = AreShapesMergeable(piece.Shape, hitPiece.Shape);
                     bool sameColor = (piece.PieceColor == hitPiece.PieceColor);
                     bool sameValue = (piece.Value == hitPiece.Value);
 
@@ -1419,6 +2218,13 @@ namespace BlockMergePuzzle.Core
         public bool TrySlidePieceSteps(PuzzlePiece piece, Vector2Int direction, int maxStepsRequested)
         {
             if (piece == null || piece.IsSliding || piece.IsEscaping) return false;
+            if (piece.IsFrozen)
+            {
+                piece.PlayFrozenShake();
+                SoundManager.Instance?.PlayError();
+                GameUI.Instance?.ShowFeedbackError($"Khối đang bị đóng băng! Hãy đưa {piece.IceCount} khối khác thoát cổng để phá băng.");
+                return false;
+            }
 
             SlideResult result = RaycastSlide(piece, direction, maxStepsRequested);
 
@@ -1613,6 +2419,16 @@ namespace BlockMergePuzzle.Core
             SoundManager.Instance.PlayDrop();
             piece.SlideTo(gatePos, piece.GridOrigin, actualDuration, () =>
             {
+                // Each block escaping a gate decrements ice counters on any frozen blocks
+                for (int i = 0; i < _activePieces.Count; i++)
+                {
+                    PuzzlePiece other = _activePieces[i];
+                    if (other != null && other != piece && other.IsFrozen)
+                    {
+                        other.DecrementIceCount();
+                    }
+                }
+
                 piece.PlayEscapeAnimation(gate.ExitDirection, () =>
                 {
                     _activePieces.Remove(piece);
@@ -1631,8 +2447,8 @@ namespace BlockMergePuzzle.Core
         {
             if (_activePieces.Count == 0)
             {
-                SoundManager.Instance.PlayGameOver();
-                GameUI.Instance.ShowVictoryPopup();
+                SoundManager.Instance?.PlayVictory();
+                GameUI.Instance?.ShowVictoryPopup();
             }
         }
 
@@ -1645,7 +2461,14 @@ namespace BlockMergePuzzle.Core
                 _initialPiecesTemplate = null;
             }
 #if UNITY_EDITOR
-            BakeEditModeLevel();
+            if (!Application.isPlaying)
+            {
+                BakeEditModeLevel();
+            }
+            else
+            {
+                InitializeLevel(true);
+            }
 #else
             InitializeLevel(true);
 #endif

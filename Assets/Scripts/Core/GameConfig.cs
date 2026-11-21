@@ -22,7 +22,10 @@ namespace BlockMergePuzzle.Core
         Vertical_1x2,
         Horizontal_2x1,
         ShapeL_TopRight,    // 2 cells top, 1 cell bottom right: [(0,0), (1,0), (1,1)]
-        ShapeL_BottomLeft   // 1 cell top left, 2 cells bottom: [(0,0), (0,1), (1,1)]
+        ShapeL_BottomLeft,  // 1 cell top left, 2 cells bottom: [(0,0), (0,1), (1,1)]
+        ShapeL_TopLeft,     // 2 cells top, 1 cell bottom left: [(0,0), (1,0), (0,1)]
+        Square_2x2,         // 2x2 square block: [(0,0), (1,0), (0,1), (1,1)]
+        Cross_3x3           // 3x3 plus/cross block: [(1,0), (0,1), (1,1), (2,1), (1,2)]
     }
 
     public enum GateSide

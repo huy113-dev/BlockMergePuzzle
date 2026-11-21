@@ -37,6 +37,8 @@ namespace BlockMergePuzzle.Audio
         private AudioClip _errorClip;
         private AudioClip _escapeClip;
         private AudioClip _vanishClip;
+        private AudioClip _iceCrackClip;
+        private AudioClip _victoryClip;
 
         // Combo merge settings: max 4 levels, 1.5s timeout reset
         private int _mergeComboCount = 0;
@@ -126,6 +128,8 @@ namespace BlockMergePuzzle.Audio
                 ?? Resources.Load<AudioClip>("Sound/mergeblock");
             _vanishClip = Resources.Load<AudioClip>("Sound/block_vanish")
                 ?? Resources.Load<AudioClip>("Sound/Block_Vanish");
+            _iceCrackClip = Resources.Load<AudioClip>("Sound/icecrak")
+                ?? Resources.Load<AudioClip>("Sound/ice_crack");
 
 #if UNITY_EDITOR
             if (_moveBlockClip == null)
@@ -143,11 +147,17 @@ namespace BlockMergePuzzle.Audio
                 _vanishClip = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Resources/Sound/block_vanish.mp3")
                     ?? UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Sound/Block_Vanish.mp3");
             }
+            if (_iceCrackClip == null)
+            {
+                _iceCrackClip = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Sound/icecrak.wav")
+                    ?? UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Resources/Sound/icecrak.wav");
+            }
 #endif
 
             EnsureClipLoaded(_moveBlockClip);
             EnsureClipLoaded(_mergeBlockClip);
             EnsureClipLoaded(_vanishClip);
+            EnsureClipLoaded(_iceCrackClip);
         }
 
         private static void EnsureClipLoaded(AudioClip clip)
@@ -175,6 +185,7 @@ namespace BlockMergePuzzle.Audio
             _buttonClip = GenerateTone(0.05f, 800f, 600f, 0.3f);
             _errorClip = GenerateErrorTone();
             _escapeClip = GenerateEscapeTone();
+            _victoryClip = GenerateVictoryFanfare();
         }
 
         public void PlayDrop()
@@ -239,6 +250,11 @@ namespace BlockMergePuzzle.Audio
             PlayClip(_gameOverClip, 0.8f, 1.0f);
         }
 
+        public void PlayVictory()
+        {
+            PlayClip(_victoryClip, 0.85f, 1.0f);
+        }
+
         public void PlayButton()
         {
             PlayClip(_buttonClip, 0.5f, 1.0f);
@@ -247,6 +263,15 @@ namespace BlockMergePuzzle.Audio
         public void PlayPickup()
         {
             PlayClip(_moveBlockClip != null ? _moveBlockClip : _buttonClip, 0.70f, Random.Range(1.15f, 1.25f));
+        }
+
+        public void PlayIceCrack(float volume = 1.0f, float pitch = 1.0f)
+        {
+            if (_iceCrackClip == null)
+            {
+                LoadAudioClips();
+            }
+            PlayClip(_iceCrackClip != null ? _iceCrackClip : _mergeBaseClip, volume, pitch);
         }
 
         private AudioClip GenerateTone(float duration, float startFreq, float endFreq, float volume)
@@ -353,6 +378,37 @@ namespace BlockMergePuzzle.Audio
             }
 
             AudioClip clip = AudioClip.Create("GameOver", samplesCount, 1, sampleRate, false);
+            clip.SetData(data, 0);
+            return clip;
+        }
+
+        private AudioClip GenerateVictoryFanfare()
+        {
+            float duration = 0.78f;
+            int sampleRate = 44100;
+            int samplesCount = (int)(duration * sampleRate);
+            float[] data = new float[samplesCount];
+            float[] notes = { 523.25f, 659.25f, 783.99f, 1046.50f }; // C5, E5, G5, C6
+            float[] starts = { 0.00f, 0.11f, 0.22f, 0.34f };
+
+            for (int i = 0; i < samplesCount; i++)
+            {
+                float t = (float)i / sampleRate;
+                float sample = 0f;
+                for (int n = 0; n < notes.Length; n++)
+                {
+                    float nt = t - starts[n];
+                    if (nt < 0f) continue;
+                    float decay = n == notes.Length - 1 ? 4.5f : 8.5f;
+                    float env = Mathf.Min(1f, nt / 0.012f) * Mathf.Exp(-nt * decay);
+                    float wave = Mathf.Sin(2f * Mathf.PI * notes[n] * nt)
+                               + Mathf.Sin(4f * Mathf.PI * notes[n] * nt) * 0.32f;
+                    sample += wave * env * 0.28f;
+                }
+                data[i] = Mathf.Clamp(sample, -0.95f, 0.95f);
+            }
+
+            AudioClip clip = AudioClip.Create("VictoryFanfare", samplesCount, 1, sampleRate, false);
             clip.SetData(data, 0);
             return clip;
         }

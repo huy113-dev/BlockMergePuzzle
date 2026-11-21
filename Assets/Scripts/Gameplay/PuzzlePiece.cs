@@ -7,20 +7,30 @@ using BlockMergePuzzle.Utils;
 
 namespace BlockMergePuzzle.Gameplay
 {
+    [ExecuteAlways]
     public class PuzzlePiece : MonoBehaviour
     {
         [field: SerializeField] public PieceColor PieceColor { get; private set; }
         [field: SerializeField] public PieceShape Shape { get; private set; }
         [field: SerializeField] public int Value { get; private set; }
+        [field: Tooltip("Giá trị số trên lớp băng (0 = không đóng băng; > 0 = số khối khác cần thoát cổng để phá băng).")]
+        [field: SerializeField] public int IceCount { get; private set; }
+
+        public bool IsFrozen => IceCount > 0;
 
         [field: SerializeField] public Vector2Int GridOrigin { get; private set; }
         [field: SerializeField] public List<Vector2Int> ShapeOffsets { get; private set; } = new List<Vector2Int>();
+        [SerializeField] private Vector2 _cellSize;
         public List<Vector2Int> OccupiedCells => GetOccupiedCellsForOrigin(GridOrigin);
 
         public bool IsSliding { get; private set; }
         public bool IsEscaping { get; private set; }
 
         private Transform _visualRoot;
+        private Transform _iceOverlayRoot;
+        private SpriteRenderer _iceRenderer;
+        private List<TextMesh> _iceTextLayers = new List<TextMesh>();
+        private string _lastSyncedIceString = "";
         private List<SpriteRenderer> _renderers = new List<SpriteRenderer>();
         private List<TextMesh> _textLayers = new List<TextMesh>();
         private List<MeshRenderer> _textMeshLayers = new List<MeshRenderer>();
@@ -42,6 +52,54 @@ namespace BlockMergePuzzle.Gameplay
             }
 
             EnsureVisualReferences();
+            SyncIceCountFromChildTextIfEdited();
+            _lastSyncedIceString = IceCount.ToString();
+            RefreshIceStateVisuals();
+        }
+
+        private void Update()
+        {
+            SyncIceCountFromChildTextIfEdited();
+        }
+
+        private void SyncIceCountFromChildTextIfEdited()
+        {
+            if (_iceOverlayRoot == null)
+            {
+                if (_visualRoot == null) _visualRoot = transform.Find("VisualRoot");
+                if (_visualRoot != null) _iceOverlayRoot = _visualRoot.Find("IceOverlayRoot");
+            }
+            if (_iceOverlayRoot == null) return;
+
+            if (_iceTextLayers == null || _iceTextLayers.Count == 0)
+            {
+                _iceTextLayers = new List<TextMesh>(_iceOverlayRoot.GetComponentsInChildren<TextMesh>(true));
+            }
+            if (_iceTextLayers.Count == 0) return;
+
+            if (string.IsNullOrEmpty(_lastSyncedIceString))
+            {
+                _lastSyncedIceString = IceCount.ToString();
+            }
+
+            for (int i = 0; i < _iceTextLayers.Count; i++)
+            {
+                TextMesh tm = _iceTextLayers[i];
+                if (tm != null && tm.text != _lastSyncedIceString)
+                {
+                    string raw = tm.text != null ? tm.text.Trim() : "";
+                    if (int.TryParse(raw, out int parsedIce) && parsedIce >= 0)
+                    {
+                        IceCount = parsedIce;
+                        _lastSyncedIceString = IceCount.ToString();
+                        UpdateIceNumberLabels();
+                        RefreshIceStateVisuals();
+                        LevelManager lm = GetComponentInParent<LevelManager>();
+                        if (lm != null && !Application.isPlaying) lm.SyncInspectorIceCountFromPiece(IceCount);
+                    }
+                    break;
+                }
+            }
         }
 
         private void EnsureVisualReferences()
@@ -53,9 +111,22 @@ namespace BlockMergePuzzle.Gameplay
 
             if (_visualRoot != null)
             {
+                _iceOverlayRoot = _visualRoot.Find("IceOverlayRoot");
+                if (_iceOverlayRoot != null)
+                {
+                    Transform iceSpriteTr = _iceOverlayRoot.Find("IceBlockSprite");
+                    if (iceSpriteTr != null) _iceRenderer = iceSpriteTr.GetComponent<SpriteRenderer>();
+                    _iceTextLayers = new List<TextMesh>(_iceOverlayRoot.GetComponentsInChildren<TextMesh>(true));
+                }
+
                 if (_renderers == null || _renderers.Count == 0)
                 {
-                    _renderers = new List<SpriteRenderer>(_visualRoot.GetComponentsInChildren<SpriteRenderer>(true));
+                    _renderers = new List<SpriteRenderer>();
+                    foreach (var sr in _visualRoot.GetComponentsInChildren<SpriteRenderer>(true))
+                    {
+                        if (_iceOverlayRoot != null && sr.transform.IsChildOf(_iceOverlayRoot)) continue;
+                        _renderers.Add(sr);
+                    }
                 }
 
                 if (_textLayers == null || _textLayers.Count == 0)
@@ -109,6 +180,45 @@ namespace BlockMergePuzzle.Gameplay
             _visualRoot.SetParent(transform, false);
 
             Vector2 cellSize = customCellSize ?? new Vector2(GameConfig.CellWidth, GameConfig.CellHeight);
+            _cellSize = cellSize;
+            BuildVisuals(cellSize);
+            BuildColliders(cellSize);
+            BuildNumberLabel();
+        }
+
+        public void SetShape(PieceShape newShape)
+        {
+            if (Shape == newShape) return;
+            Shape = newShape;
+            SetupShapeOffsets(newShape);
+
+            EnsureVisualReferences();
+            Vector2 cellSize = (_cellSize.x > 0.01f && _cellSize.y > 0.01f)
+                ? _cellSize
+                : new Vector2(
+                    LevelManager.Instance != null ? LevelManager.Instance.CurrentCellWidth : GameConfig.CellWidth,
+                    LevelManager.Instance != null ? LevelManager.Instance.CurrentCellHeight : GameConfig.CellHeight);
+            _cellSize = cellSize;
+
+            if (_visualRoot != null)
+            {
+                for (int i = _visualRoot.childCount - 1; i >= 0; i--)
+                {
+                    if (Application.isPlaying) Destroy(_visualRoot.GetChild(i).gameObject);
+                    else DestroyImmediate(_visualRoot.GetChild(i).gameObject);
+                }
+            }
+            _renderers.Clear();
+            _textLayers.Clear();
+            _textMeshLayers.Clear();
+
+            foreach (var col in GetComponents<Collider2D>())
+            {
+                if (Application.isPlaying) Destroy(col);
+                else DestroyImmediate(col);
+            }
+            _colliders.Clear();
+
             BuildVisuals(cellSize);
             BuildColliders(cellSize);
             BuildNumberLabel();
@@ -141,12 +251,35 @@ namespace BlockMergePuzzle.Gameplay
                     ShapeOffsets.Add(new Vector2Int(1, 1));
                     break;
 
+                case PieceShape.ShapeL_TopLeft:
+                    // Top-left L (2 cells top, 1 cell bottom-left)
+                    // [(0, 0), (1, 0), (0, 1)]
+                    ShapeOffsets.Add(new Vector2Int(0, 0));
+                    ShapeOffsets.Add(new Vector2Int(1, 0));
+                    ShapeOffsets.Add(new Vector2Int(0, 1));
+                    break;
+
                 case PieceShape.ShapeL_BottomLeft:
                     // Bottom-left L (like orange L in designer screenshot)
                     // [(0, 0), (0, 1), (1, 1)]
                     ShapeOffsets.Add(new Vector2Int(0, 0));
                     ShapeOffsets.Add(new Vector2Int(0, 1));
                     ShapeOffsets.Add(new Vector2Int(1, 1));
+                    break;
+
+                case PieceShape.Square_2x2:
+                    ShapeOffsets.Add(new Vector2Int(0, 0));
+                    ShapeOffsets.Add(new Vector2Int(1, 0));
+                    ShapeOffsets.Add(new Vector2Int(0, 1));
+                    ShapeOffsets.Add(new Vector2Int(1, 1));
+                    break;
+
+                case PieceShape.Cross_3x3:
+                    ShapeOffsets.Add(new Vector2Int(1, 0));
+                    ShapeOffsets.Add(new Vector2Int(0, 1));
+                    ShapeOffsets.Add(new Vector2Int(1, 1));
+                    ShapeOffsets.Add(new Vector2Int(2, 1));
+                    ShapeOffsets.Add(new Vector2Int(1, 2));
                     break;
             }
         }
@@ -186,9 +319,21 @@ namespace BlockMergePuzzle.Gameplay
                     CreateSubRenderer("ShapeL_TopRight", sprite, Vector3.zero, new Vector2(cw * 1.96f, ch * 1.96f));
                     break;
 
+                case PieceShape.ShapeL_TopLeft:
+                    CreateSubRenderer("ShapeL_TopLeft", sprite, Vector3.zero, new Vector2(cw * 1.96f, ch * 1.96f));
+                    break;
+
                 case PieceShape.ShapeL_BottomLeft:
                     // Uses exact Vector 115 from designer (288x265 L-shape)
                     CreateSubRenderer("ShapeL_BottomLeft", sprite, Vector3.zero, new Vector2(cw * 1.96f, ch * 1.96f));
+                    break;
+
+                case PieceShape.Square_2x2:
+                    CreateSubRenderer("Cell_2x2", sprite, Vector3.zero, new Vector2(cw * 1.96f, ch * 1.96f));
+                    break;
+
+                case PieceShape.Cross_3x3:
+                    CreateSubRenderer("Cell_Cross_3x3", sprite, Vector3.zero, new Vector2(cw * 2.96f, ch * 2.96f));
                     break;
             }
         }
@@ -203,9 +348,9 @@ namespace BlockMergePuzzle.Gameplay
             sr.sprite = sprite;
             sr.sortingOrder = _baseSortingOrder;
 
-            // Only tint uncolored procedural sprites; pre-colored assets (Vector*, Group*, gem_*) stay true to artwork
+            // Only tint uncolored procedural sprites; pre-colored assets (Vector*, Group*, gem_*, block_*) stay true to artwork
             bool isPreColored = sprite != null &&
-                (sprite.name.StartsWith("Vector") || sprite.name.StartsWith("Group") || sprite.name.StartsWith("gem_"));
+                (sprite.name.StartsWith("Vector") || sprite.name.StartsWith("Group") || sprite.name.StartsWith("gem_") || sprite.name.StartsWith("block_"));
             sr.color = isPreColored ? UnityEngine.Color.white : GameConfig.GetColorRGB(PieceColor);
 
             if (sprite != null && sprite.rect.width > 0 && sprite.rect.height > 0)
@@ -256,6 +401,18 @@ namespace BlockMergePuzzle.Gameplay
                     _colliders.Add(boxBR);
                     break;
 
+                case PieceShape.ShapeL_TopLeft:
+                    BoxCollider2D boxTopL = gameObject.AddComponent<BoxCollider2D>();
+                    boxTopL.offset = new Vector2(0f, ch * 0.5f);
+                    boxTopL.size = new Vector2(cw * 1.96f, ch * 0.96f);
+                    _colliders.Add(boxTopL);
+
+                    BoxCollider2D boxBL = gameObject.AddComponent<BoxCollider2D>();
+                    boxBL.offset = new Vector2(-cw * 0.5f, -ch * 0.5f);
+                    boxBL.size = new Vector2(cw * 0.96f, ch * 0.96f);
+                    _colliders.Add(boxBL);
+                    break;
+
                 case PieceShape.ShapeL_BottomLeft:
                     BoxCollider2D boxTL = gameObject.AddComponent<BoxCollider2D>();
                     boxTL.offset = new Vector2(-cw * 0.5f, ch * 0.5f);
@@ -266,6 +423,24 @@ namespace BlockMergePuzzle.Gameplay
                     boxBot.offset = new Vector2(0f, -ch * 0.5f);
                     boxBot.size = new Vector2(cw * 1.96f, ch * 0.96f);
                     _colliders.Add(boxBot);
+                    break;
+
+                case PieceShape.Square_2x2:
+                    BoxCollider2D box2x2 = gameObject.AddComponent<BoxCollider2D>();
+                    box2x2.size = new Vector2(cw * 1.96f, ch * 1.96f);
+                    _colliders.Add(box2x2);
+                    break;
+
+                case PieceShape.Cross_3x3:
+                    BoxCollider2D boxCrossH = gameObject.AddComponent<BoxCollider2D>();
+                    boxCrossH.offset = Vector2.zero;
+                    boxCrossH.size = new Vector2(cw * 2.96f, ch * 0.96f);
+                    _colliders.Add(boxCrossH);
+
+                    BoxCollider2D boxCrossV = gameObject.AddComponent<BoxCollider2D>();
+                    boxCrossV.offset = Vector2.zero;
+                    boxCrossV.size = new Vector2(cw * 0.96f, ch * 2.96f);
+                    _colliders.Add(boxCrossV);
                     break;
             }
         }
@@ -311,12 +486,16 @@ namespace BlockMergePuzzle.Gameplay
         private void BuildNumberLabel()
         {
             Vector3 textOffset = Vector3.zero;
-            float cw = GameConfig.CellWidth;
-            float ch = GameConfig.CellHeight;
+            float cw = _cellSize.x > 0.01f ? _cellSize.x : GameConfig.CellWidth;
+            float ch = _cellSize.y > 0.01f ? _cellSize.y : GameConfig.CellHeight;
 
             if (Shape == PieceShape.ShapeL_TopRight)
             {
-                textOffset = new Vector3(cw * 0.40f, ch * 0.45f, 0f);
+                textOffset = new Vector3(cw * 0.42f, ch * 0.44f, 0f);
+            }
+            else if (Shape == PieceShape.ShapeL_TopLeft)
+            {
+                textOffset = new Vector3(-cw * 0.42f, ch * 0.44f, 0f);
             }
             else if (Shape == PieceShape.ShapeL_BottomLeft)
             {
@@ -327,7 +506,7 @@ namespace BlockMergePuzzle.Gameplay
             _textMeshLayers.Clear();
 
             const int fs = 140;
-            const float cs = 0.036f;
+            float cs = ch < 0.85f ? 0.028f : 0.036f;
             UnityEngine.Color stone = GetStoneSurfaceColor(PieceColor);
 
             // Reversed lighting (top-left light source) creates recessed chiseled-in-stone deboss:
@@ -363,6 +542,464 @@ namespace BlockMergePuzzle.Gameplay
             }
         }
 
+        private void OnValidate()
+        {
+            IceCount = Mathf.Max(0, IceCount);
+            Value = Mathf.Max(1, Value);
+
+            EnsureVisualReferences();
+            if (_visualRoot != null)
+            {
+                string valStr = Value.ToString();
+                string iceStr = IceCount.ToString();
+                _lastSyncedIceString = iceStr;
+
+                foreach (var tm in _visualRoot.GetComponentsInChildren<TextMesh>(true))
+                {
+                    if (tm == null) continue;
+                    if (_iceOverlayRoot != null && tm.transform.IsChildOf(_iceOverlayRoot))
+                        tm.text = iceStr;
+                    else
+                        tm.text = valStr;
+                }
+
+                RefreshIceStateVisuals();
+                LevelManager lm = GetComponentInParent<LevelManager>();
+                if (lm != null && !Application.isPlaying) lm.SyncInspectorIceCountFromPiece(IceCount);
+
+#if UNITY_EDITOR
+                if (IceCount > 0 && _iceOverlayRoot == null)
+                {
+                    UnityEditor.EditorApplication.delayCall += () =>
+                    {
+                        if (this != null && IceCount > 0 && _iceOverlayRoot == null)
+                        {
+                            SetIceCount(IceCount);
+                        }
+                    };
+                }
+#endif
+            }
+        }
+
+        public void SetIceCount(int iceCount)
+        {
+            IceCount = Mathf.Max(0, iceCount);
+            _lastSyncedIceString = IceCount.ToString();
+            EnsureVisualReferences();
+
+            if (IceCount > 0)
+            {
+                if (_iceOverlayRoot == null)
+                {
+                    BuildIceOverlay();
+                }
+                UpdateIceNumberLabels();
+            }
+
+            RefreshIceStateVisuals();
+        }
+
+        private Vector2 GetShapeVisualSize(Vector2 cellSize)
+        {
+            float cw = cellSize.x > 0.01f ? cellSize.x : GameConfig.CellWidth;
+            float ch = cellSize.y > 0.01f ? cellSize.y : GameConfig.CellHeight;
+            switch (Shape)
+            {
+                case PieceShape.Single_1x1: return new Vector2(cw * 0.96f, ch * 0.96f);
+                case PieceShape.Vertical_1x2: return new Vector2(cw * 0.96f, ch * 1.96f);
+                case PieceShape.Horizontal_2x1: return new Vector2(cw * 1.96f, ch * 0.96f);
+                case PieceShape.Cross_3x3: return new Vector2(cw * 2.96f, ch * 2.96f);
+                default: return new Vector2(cw * 1.96f, ch * 1.96f);
+            }
+        }
+
+        private void BuildIceOverlay()
+        {
+            if (_visualRoot == null) return;
+            Transform existing = _visualRoot.Find("IceOverlayRoot");
+            if (existing != null)
+            {
+                if (Application.isPlaying) Destroy(existing.gameObject);
+                else DestroyImmediate(existing.gameObject);
+            }
+
+            _iceOverlayRoot = new GameObject("IceOverlayRoot").transform;
+            _iceOverlayRoot.SetParent(_visualRoot, false);
+            _iceOverlayRoot.localPosition = new Vector3(0f, 0f, -0.10f);
+
+            Vector2 targetSize = GetShapeVisualSize(_cellSize);
+            Sprite iceSprite = GemSpriteManager.GetIceOverlaySprite();
+
+            GameObject spriteObj = new GameObject("IceBlockSprite");
+            spriteObj.transform.SetParent(_iceOverlayRoot, false);
+            spriteObj.transform.localPosition = Vector3.zero;
+
+            _iceRenderer = spriteObj.AddComponent<SpriteRenderer>();
+            _iceRenderer.sprite = iceSprite;
+            _iceRenderer.sortingOrder = _baseSortingOrder + 6;
+            _iceRenderer.color = UnityEngine.Color.white;
+
+            if (iceSprite != null && iceSprite.rect.width > 0 && iceSprite.rect.height > 0)
+            {
+                float nativeW = iceSprite.rect.width / iceSprite.pixelsPerUnit;
+                float nativeH = iceSprite.rect.height / iceSprite.pixelsPerUnit;
+                spriteObj.transform.localScale = new Vector3(targetSize.x / nativeW, targetSize.y / nativeH, 1f);
+            }
+
+            _iceTextLayers.Clear();
+            const int fs = 140;
+            bool isLargeShape = (Shape == PieceShape.Square_2x2 || Shape == PieceShape.Cross_3x3);
+            float cs = isLargeShape ? 0.070f : 0.046f;
+
+            // 1. Soft icy cyan outer glow around digit
+            UnityEngine.Color cyanGlow = new UnityEngine.Color(0.35f, 0.92f, 1.00f, 0.56f);
+            Vector2[] glowDirs = new Vector2[]
+            {
+                new Vector2(-1f, 0f), new Vector2(1f, 0f), new Vector2(0f, -1f), new Vector2(0f, 1f),
+                new Vector2(-0.707f, -0.707f), new Vector2(0.707f, -0.707f),
+                new Vector2(-0.707f, 0.707f), new Vector2(0.707f, 0.707f)
+            };
+            for (int i = 0; i < glowDirs.Length; i++)
+            {
+                Vector3 off = new Vector3(glowDirs[i].x * 0.052f, glowDirs[i].y * 0.052f, -0.02f);
+                CreateIceDigitLayer($"IceGlow_{i}", off, fs, cs, cyanGlow, _baseSortingOrder + 7);
+            }
+
+            // 2. Thick white 3D lower-left/bottom frost extrusion matching reference image
+            UnityEngine.Color frostRim = new UnityEngine.Color(0.95f, 0.99f, 1.00f, 1.00f);
+            Vector2[] extrudeOffsets = new Vector2[]
+            {
+                new Vector2(-0.036f, -0.038f),
+                new Vector2(-0.018f, -0.042f),
+                new Vector2( 0.000f, -0.042f),
+                new Vector2( 0.020f, -0.038f),
+                new Vector2(-0.040f, -0.018f),
+                new Vector2(-0.040f,  0.000f),
+                new Vector2(-0.032f,  0.018f)
+            };
+            for (int i = 0; i < extrudeOffsets.Length; i++)
+            {
+                Vector3 off = new Vector3(extrudeOffsets[i].x, extrudeOffsets[i].y, -0.04f);
+                CreateIceDigitLayer($"IceExtrude_{i}", off, fs, cs, frostRim, _baseSortingOrder + 8);
+            }
+
+            // 3. Crisp thick pure-white outline surrounding the blue number
+            UnityEngine.Color pureWhite = UnityEngine.Color.white;
+            int ringSteps = 16;
+            float outlineRadius = 0.031f;
+            for (int i = 0; i < ringSteps; i++)
+            {
+                float ang = (i * Mathf.PI * 2f) / ringSteps;
+                Vector3 off = new Vector3(Mathf.Cos(ang) * outlineRadius, Mathf.Sin(ang) * outlineRadius, -0.06f);
+                CreateIceDigitLayer($"IceOutline_{i}", off, fs, cs, pureWhite, _baseSortingOrder + 9);
+            }
+
+            // 4. Vibrant royal-blue main digit face (#0358FA)
+            UnityEngine.Color royalBlue = new UnityEngine.Color(0.015f, 0.345f, 0.980f, 1.00f);
+            CreateIceDigitLayer("IceNumberFace", new Vector3(0f, 0f, -0.08f), fs, cs, royalBlue, _baseSortingOrder + 10);
+        }
+
+        private TextMesh CreateIceDigitLayer(string layerName, Vector3 localPos, int fontSize, float charSize, UnityEngine.Color color, int sortOrder)
+        {
+            GameObject obj = new GameObject(layerName);
+            obj.transform.SetParent(_iceOverlayRoot, false);
+            obj.transform.localPosition = localPos;
+
+            TextMesh tm = obj.AddComponent<TextMesh>();
+            tm.text = IceCount.ToString();
+            tm.fontSize = fontSize;
+            tm.characterSize = charSize;
+            tm.anchor = TextAnchor.MiddleCenter;
+            tm.alignment = TextAlignment.Center;
+            tm.fontStyle = FontStyle.Bold;
+            tm.color = color;
+
+            MeshRenderer mr = obj.GetComponent<MeshRenderer>();
+            mr.sortingOrder = sortOrder;
+
+            _iceTextLayers.Add(tm);
+            return tm;
+        }
+
+        private void UpdateIceNumberLabels()
+        {
+            if (_iceTextLayers == null) return;
+            string s = IceCount.ToString();
+            _lastSyncedIceString = s;
+            for (int i = 0; i < _iceTextLayers.Count; i++)
+            {
+                if (_iceTextLayers[i] != null) _iceTextLayers[i].text = s;
+            }
+        }
+
+        private void RefreshIceStateVisuals()
+        {
+            bool frozen = IsFrozen;
+            if (_iceOverlayRoot != null)
+            {
+                _iceOverlayRoot.gameObject.SetActive(frozen);
+            }
+
+            // Hide underlying block and its carved number while encased in ice ("block ẩn bên trong")
+            if (_renderers != null)
+            {
+                for (int i = 0; i < _renderers.Count; i++)
+                {
+                    if (_renderers[i] != null) _renderers[i].enabled = !frozen;
+                }
+            }
+            if (_textMeshLayers != null)
+            {
+                for (int i = 0; i < _textMeshLayers.Count; i++)
+                {
+                    if (_textMeshLayers[i] != null) _textMeshLayers[i].enabled = !frozen;
+                }
+            }
+        }
+
+        public void DecrementIceCount()
+        {
+            if (!IsFrozen) return;
+            EnsureVisualReferences();
+
+            IceCount = Mathf.Max(0, IceCount - 1);
+            if (IceCount > 0)
+            {
+                UpdateIceNumberLabels();
+                if (gameObject.activeInHierarchy)
+                {
+                    StartCoroutine(CoIceCrackPulse());
+                }
+            }
+            else
+            {
+                Audio.SoundManager.Instance?.PlayIceCrack(1.0f, 1.0f);
+                if (gameObject.activeInHierarchy)
+                {
+                    StartCoroutine(CoShatterIce());
+                }
+                else
+                {
+                    RefreshIceStateVisuals();
+                    LevelManager lm = GetComponentInParent<LevelManager>();
+                    if (lm != null && !Application.isPlaying) lm.SyncInspectorIceCountFromPiece(IceCount);
+                }
+            }
+        }
+
+        public void PlayFrozenShake()
+        {
+            if (!gameObject.activeInHierarchy) return;
+            if (_activeTween != null) StopCoroutine(_activeTween);
+            _activeTween = StartCoroutine(CoFrozenShake());
+        }
+
+        private IEnumerator CoFrozenShake()
+        {
+            EnsureVisualReferences();
+            Vector3 baseLocalPos = Vector3.zero;
+            float duration = 0.24f;
+            float elapsed = 0f;
+
+            while (elapsed < duration)
+            {
+                elapsed += Time.deltaTime;
+                float t = Mathf.Clamp01(elapsed / duration);
+                float damper = 1f - t;
+                float offsetX = Mathf.Sin(t * Mathf.PI * 5f) * 0.085f * damper;
+                if (_visualRoot != null)
+                {
+                    _visualRoot.localPosition = new Vector3(offsetX, 0f, 0f);
+                }
+                yield return null;
+            }
+
+            if (_visualRoot != null) _visualRoot.localPosition = baseLocalPos;
+            _activeTween = null;
+        }
+
+        private IEnumerator CoIceCrackPulse()
+        {
+            SpawnIceShardsVFX(10, 0.7f);
+            if (_iceOverlayRoot == null) yield break;
+
+            float duration = 0.20f;
+            float elapsed = 0f;
+            while (elapsed < duration)
+            {
+                elapsed += Time.deltaTime;
+                float t = Mathf.Clamp01(elapsed / duration);
+                float bump = Mathf.Sin(t * Mathf.PI);
+                _iceOverlayRoot.localScale = Vector3.one * (1f + 0.13f * bump);
+                yield return null;
+            }
+            _iceOverlayRoot.localScale = Vector3.one;
+        }
+
+        private IEnumerator CoShatterIce()
+        {
+            // Reveal hidden block inside immediately as the ice shell bursts apart
+            if (_renderers != null)
+            {
+                for (int i = 0; i < _renderers.Count; i++)
+                    if (_renderers[i] != null) _renderers[i].enabled = true;
+            }
+            if (_textMeshLayers != null)
+            {
+                for (int i = 0; i < _textMeshLayers.Count; i++)
+                    if (_textMeshLayers[i] != null) _textMeshLayers[i].enabled = true;
+            }
+
+            SpawnIceShardsVFX(26, 1.25f);
+
+            float duration = 0.22f;
+            float elapsed = 0f;
+            while (elapsed < duration)
+            {
+                elapsed += Time.deltaTime;
+                float t = Mathf.Clamp01(elapsed / duration);
+
+                if (_iceOverlayRoot != null)
+                {
+                    _iceOverlayRoot.localScale = Vector3.one * Mathf.Lerp(1.0f, 1.32f, t);
+                }
+                if (_iceRenderer != null)
+                {
+                    UnityEngine.Color c = _iceRenderer.color;
+                    c.a = 1f - t;
+                    _iceRenderer.color = c;
+                }
+                if (_iceTextLayers != null)
+                {
+                    for (int i = 0; i < _iceTextLayers.Count; i++)
+                    {
+                        if (_iceTextLayers[i] != null)
+                        {
+                            UnityEngine.Color tc = _iceTextLayers[i].color;
+                            tc.a = (1f - t);
+                            _iceTextLayers[i].color = tc;
+                        }
+                    }
+                }
+                if (_visualRoot != null)
+                {
+                    float pop = 1f + Mathf.Sin(t * Mathf.PI) * 0.12f;
+                    _visualRoot.localScale = Vector3.one * pop;
+                }
+
+                yield return null;
+            }
+
+            if (_visualRoot != null) _visualRoot.localScale = Vector3.one;
+            if (_iceOverlayRoot != null)
+            {
+                _iceOverlayRoot.localScale = Vector3.one;
+                _iceOverlayRoot.gameObject.SetActive(false);
+            }
+        }
+
+        private void SpawnIceShardsVFX(int count, float intensity)
+        {
+            GameObject vfx = new GameObject("IceShatterVFX");
+            vfx.transform.position = transform.position + new Vector3(0f, 0f, -0.5f);
+            IceShatterVfxRunner runner = vfx.AddComponent<IceShatterVfxRunner>();
+            runner.Play(count, intensity);
+        }
+
+        private class IceShatterVfxRunner : MonoBehaviour
+        {
+            private struct IceParticle
+            {
+                public Transform Tr;
+                public SpriteRenderer Sr;
+                public Vector3 Vel;
+                public float Spin;
+                public float Scale;
+                public float Lifetime;
+                public float Age;
+            }
+
+            public void Play(int count, float intensity)
+            {
+                StartCoroutine(CoRun(count, intensity));
+            }
+
+            private IEnumerator CoRun(int count, float intensity)
+            {
+                Sprite shardSp = SpriteGenerator.GetShardSprite();
+                List<IceParticle> list = new List<IceParticle>(count);
+
+                for (int i = 0; i < count; i++)
+                {
+                    GameObject go = new GameObject("IceShard");
+                    go.transform.SetParent(transform, false);
+                    float ang = UnityEngine.Random.Range(0f, Mathf.PI * 2f);
+                    float dist = UnityEngine.Random.Range(0.05f, 0.55f * intensity);
+                    go.transform.localPosition = new Vector3(Mathf.Cos(ang) * dist, Mathf.Sin(ang) * dist, 0f);
+                    go.transform.localRotation = Quaternion.Euler(0f, 0f, UnityEngine.Random.Range(0f, 360f));
+
+                    float sc = UnityEngine.Random.Range(0.08f, 0.22f) * intensity;
+                    go.transform.localScale = Vector3.one * sc;
+
+                    SpriteRenderer sr = go.AddComponent<SpriteRenderer>();
+                    sr.sprite = shardSp;
+                    sr.sortingOrder = 130;
+                    sr.color = (i % 2 == 0)
+                        ? new UnityEngine.Color(0.75f, 0.96f, 1.00f, 0.95f)
+                        : new UnityEngine.Color(0.42f, 0.72f, 0.98f, 0.95f);
+
+                    float speed = UnityEngine.Random.Range(1.8f, 4.5f) * intensity;
+                    Vector3 vel = new Vector3(Mathf.Cos(ang) * speed, Mathf.Sin(ang) * speed + 0.8f, 0f);
+
+                    list.Add(new IceParticle
+                    {
+                        Tr = go.transform,
+                        Sr = sr,
+                        Vel = vel,
+                        Spin = UnityEngine.Random.Range(-420f, 420f),
+                        Scale = sc,
+                        Lifetime = UnityEngine.Random.Range(0.24f, 0.42f),
+                        Age = 0f
+                    });
+                }
+
+                while (list.Count > 0)
+                {
+                    float dt = Time.deltaTime;
+                    for (int i = list.Count - 1; i >= 0; i--)
+                    {
+                        IceParticle p = list[i];
+                        p.Age += dt;
+                        if (p.Age >= p.Lifetime)
+                        {
+                            if (p.Tr != null) Destroy(p.Tr.gameObject);
+                            list.RemoveAt(i);
+                            continue;
+                        }
+                        float t = p.Age / p.Lifetime;
+                        p.Vel += new Vector3(0f, -6.5f * dt, 0f);
+                        if (p.Tr != null)
+                        {
+                            p.Tr.localPosition += p.Vel * dt;
+                            p.Tr.Rotate(0f, 0f, p.Spin * dt);
+                            p.Tr.localScale = Vector3.one * (p.Scale * (1f - t * 0.7f));
+                        }
+                        if (p.Sr != null)
+                        {
+                            UnityEngine.Color c = p.Sr.color;
+                            c.a = 1f - t * t;
+                            p.Sr.color = c;
+                        }
+                        list[i] = p;
+                    }
+                    yield return null;
+                }
+
+                Destroy(gameObject);
+            }
+        }
+
         public void SetGridOrigin(Vector2Int newOrigin)
         {
             GridOrigin = newOrigin;
@@ -371,17 +1008,118 @@ namespace BlockMergePuzzle.Gameplay
         public void SetSortingOrder(int order)
         {
             EnsureVisualReferences();
-            foreach (var r in _renderers)
+            for (int i = 0; i < _renderers.Count; i++)
             {
-                if (r != null) r.sortingOrder = order;
+                SpriteRenderer r = _renderers[i];
+                if (r == null) continue;
+                string n = r.gameObject.name;
+                if (n.StartsWith("Shadow25D")) r.sortingOrder = order - 4;
+                else if (n.StartsWith("Depth25D_")) r.sortingOrder = order - 2;
+                else if (n.StartsWith("Specular25D")) r.sortingOrder = order + 1;
+                else r.sortingOrder = order;
             }
             if (_textMeshLayers != null)
             {
                 for (int i = 0; i < _textMeshLayers.Count; i++)
                 {
-                    if (_textMeshLayers[i] != null) _textMeshLayers[i].sortingOrder = order + 1 + i;
+                    if (_textMeshLayers[i] != null) _textMeshLayers[i].sortingOrder = order + 2 + i;
                 }
             }
+        }
+
+        public void Apply25DBlockExtrusion()
+        {
+            EnsureVisualReferences();
+            if (_visualRoot == null || _renderers == null || _renderers.Count == 0) return;
+
+            SpriteRenderer mainSr = null;
+            for (int i = 0; i < _renderers.Count; i++)
+            {
+                if (_renderers[i] != null && _renderers[i].gameObject.name.StartsWith("Cell_") || (_renderers[i] != null && _renderers[i].gameObject.name.StartsWith("ShapeL_")))
+                {
+                    mainSr = _renderers[i];
+                    break;
+                }
+            }
+            if (mainSr == null) mainSr = _renderers[0];
+            if (mainSr == null || mainSr.sprite == null) return;
+
+            // Clean any previous 2.5D layers
+            for (int i = _visualRoot.childCount - 1; i >= 0; i--)
+            {
+                Transform c = _visualRoot.GetChild(i);
+                if (c.name.StartsWith("Shadow25D") || c.name.StartsWith("Depth25D_") || c.name.StartsWith("Specular25D"))
+                {
+                    if (Application.isPlaying) Destroy(c.gameObject);
+                    else DestroyImmediate(c.gameObject);
+                }
+            }
+
+            Sprite sp = mainSr.sprite;
+            Vector3 mainScale = mainSr.transform.localScale;
+            UnityEngine.Color baseStone = GetStoneSurfaceColor(PieceColor);
+
+            // Elevate top face slightly so front 3D bevel wall is visible in cell socket
+            Vector3 topFaceOffset = new Vector3(0f, 0.055f, -0.06f);
+            mainSr.transform.localPosition = topFaceOffset;
+
+            // 1. Deep floor drop shadow inside cell socket
+            GameObject shadowObj = new GameObject("Shadow25D");
+            shadowObj.transform.SetParent(_visualRoot, false);
+            shadowObj.transform.localPosition = new Vector3(0.025f, -0.115f, 0.02f);
+            shadowObj.transform.localScale = new Vector3(mainScale.x * 1.03f, mainScale.y * 1.02f, 1f);
+            SpriteRenderer shadowSr = shadowObj.AddComponent<SpriteRenderer>();
+            shadowSr.sprite = sp;
+            shadowSr.color = new UnityEngine.Color(0.02f, 0.02f, 0.06f, 0.72f);
+            shadowSr.sortingOrder = _baseSortingOrder - 4;
+            _renderers.Add(shadowSr);
+
+            // 2. Stacked 2.5D front-side crystal extrusion wall (6 slices from bottom to top face)
+            int steps = 6;
+            for (int s = steps; s >= 1; s--)
+            {
+                float t = (float)s / steps; // 1 = bottom-most edge, 0 = top face
+                GameObject sliceObj = new GameObject($"Depth25D_{s}");
+                sliceObj.transform.SetParent(_visualRoot, false);
+                float yPos = Mathf.Lerp(topFaceOffset.y, -0.070f, t);
+                float zPos = Mathf.Lerp(topFaceOffset.z, -0.01f, t);
+                sliceObj.transform.localPosition = new Vector3(0f, yPos, zPos);
+                sliceObj.transform.localScale = mainScale;
+
+                SpriteRenderer sliceSr = sliceObj.AddComponent<SpriteRenderer>();
+                sliceSr.sprite = sp;
+                float shade = Mathf.Lerp(0.68f, 0.34f, t);
+                sliceSr.color = new UnityEngine.Color(
+                    Mathf.Clamp01(baseStone.r * shade + 0.05f),
+                    Mathf.Clamp01(baseStone.g * shade + 0.05f),
+                    Mathf.Clamp01(baseStone.b * shade + 0.08f),
+                    1.0f);
+                sliceSr.sortingOrder = _baseSortingOrder - 2;
+                _renderers.Add(sliceSr);
+            }
+
+            // Shift carved digit layers along with elevated top face
+            string[] layerNames = new[] { "NumberCarveHighlight", "NumberCarveShadow", "NumberCarveDepth", "NumberLabel", "NumberShadow" };
+            foreach (var n in layerNames)
+            {
+                Transform t = _visualRoot.Find(n);
+                if (t != null)
+                {
+                    t.localPosition += new Vector3(0f, 0.055f, -0.06f);
+                }
+            }
+
+            Update25DPerspectiveScale();
+        }
+
+        public void Update25DPerspectiveScale()
+        {
+            if (LevelManager.Instance != null && LevelManager.Instance.CurrentLevel != LevelId.Level9) return;
+            // Match the 2.5D trapezoidal perspective taper of the board (top narrower, bottom wider)
+            float wy = transform.position.y;
+            float normY = Mathf.Clamp((wy - 0.073f) / 4.2f, -1f, 1f);
+            float perspScaleX = Mathf.Lerp(1.045f, 0.905f, (normY + 1f) * 0.5f);
+            transform.localScale = new Vector3(perspScaleX, 0.90f, 1f);
         }
 
         public void SetLifted(bool lifted)

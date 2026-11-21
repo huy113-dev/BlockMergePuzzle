@@ -204,6 +204,8 @@ namespace BlockMergePuzzle.Utils
 #endif
             return GetSpriteExplicit("Sprites/Main Scene/Map", $"Map_lv{levelIndex}")
                 ?? GetSpriteExplicit("Sprites/Main Scene/Map", $"map_lv{levelIndex}")
+                ?? GetSpriteExplicit("Sprites/Main Scene/Map", $"map_lv{levelIndex} (1)")
+                ?? GetSpriteExplicit("Sprites/Main Scene/Map", $"map_lv{levelIndex} (2)")
                 ?? GetSpriteExplicit("Sprites/Main Scene/Map", $"Map_lv{levelIndex}.png")
                 ?? GetSpriteExplicit("Sprites/Main Scene/Map", $"map_lv{levelIndex}.png")
                 ?? GetSprite($"map_lv{levelIndex}");
@@ -316,6 +318,11 @@ namespace BlockMergePuzzle.Utils
             return GetSpriteExplicit("Sprites/Main Scene/Block/Block", spriteName);
         }
 
+        public static Sprite GetIceOverlaySprite()
+        {
+            return GetNewBlockSprite("ice_block_overlay") ?? SpriteGenerator.GetIceOverlaySprite();
+        }
+
         public static Sprite GetPieceSprite(PieceColor color, PieceShape shape)
         {
             switch (shape)
@@ -327,9 +334,9 @@ namespace BlockMergePuzzle.Utils
                         case PieceColor.Pink: return GetNewBlockSprite("Group 344") ?? GetSprite("Vector 112") ?? GetSprite("gem_magenta");
                         case PieceColor.Red: return GetNewBlockSprite("Group 345") ?? GetSprite("Vector 113") ?? GetSprite("gem_red");
                         case PieceColor.Yellow: return GetNewBlockSprite("Group 347") ?? GetSprite("gem_yellow");
-                        case PieceColor.Purple: return GetSprite("gem_purple");
+                        case PieceColor.Purple: return GetNewBlockSprite("Group 343") ?? GetSprite("gem_purple");
                         case PieceColor.Orange: return GetNewBlockSprite("Group 348") ?? GetSprite("gem_orange_1x1");
-                        case PieceColor.Blue: return GetSprite("gem_blue_1x1");
+                        case PieceColor.Blue: return GetNewBlockSprite("Group 669") ?? GetSprite("gem_blue_1x1");
                         default: return GetNewBlockSprite("Group 346") ?? GetSprite("Vector 109") ?? GetSprite("gem_green");
                     }
 
@@ -350,19 +357,45 @@ namespace BlockMergePuzzle.Utils
                     switch (color)
                     {
                         case PieceColor.Blue: return GetSprite("gem_blue_2x1");
-                        case PieceColor.Yellow: return GetSprite("gem_yellow_2x1");
+                        case PieceColor.Yellow: return GetNewBlockSprite("block_yellow_2x1") ?? GetSprite("gem_yellow_2x1");
                         case PieceColor.Red: return GetSprite("gem_red_2x1");
-                        case PieceColor.Green: return GetSprite("gem_green_2x1");
+                        case PieceColor.Green: return GetNewBlockSprite("block_green_2x1") ?? GetSprite("gem_green_2x1");
                         case PieceColor.Orange: return GetSprite("gem_orange_2x1");
-                        case PieceColor.Purple: return GetSprite("gem_purple_2x1");
+                        case PieceColor.Purple: return GetNewBlockSprite("block_purple_2x1") ?? GetSprite("gem_purple_2x1");
                         default: return GetSprite("gem_blue_2x1");
                     }
 
                 case PieceShape.ShapeL_TopRight:
-                    return GetNewBlockSprite("Group 356 (2)") ?? GetSprite("Vector 114") ?? GetSprite("gem_green_L");
+                    return GetNewBlockSprite("block_green_L_topright") ?? GetNewBlockSprite("Group 356 (2)") ?? GetSprite("Vector 114") ?? GetSprite("gem_green_L");
+
+                case PieceShape.ShapeL_TopLeft:
+                    return GetNewBlockSprite("block_green_L_topleft") ?? GetNewBlockSprite("Group 356 (2)") ?? GetSprite("gem_green_L");
 
                 case PieceShape.ShapeL_BottomLeft:
+                    if (color == PieceColor.Green)
+                        return GetNewBlockSprite("Group 356 (2)") ?? GetSprite("gem_green_L");
                     return GetNewBlockSprite("Group 358") ?? GetSprite("Vector 115") ?? GetSprite("gem_orange_L");
+
+                case PieceShape.Square_2x2:
+                    switch (color)
+                    {
+                        case PieceColor.Green: return GetNewBlockSprite("Group 346") ?? GetSprite("Vector 109") ?? GetSprite("gem_green");
+                        case PieceColor.Pink: return GetNewBlockSprite("Group 344") ?? GetSprite("Vector 112") ?? GetSprite("gem_magenta");
+                        case PieceColor.Red: return GetNewBlockSprite("Group 345") ?? GetSprite("Vector 113") ?? GetSprite("gem_red");
+                        case PieceColor.Yellow: return GetNewBlockSprite("Group 347") ?? GetSprite("gem_yellow");
+                        case PieceColor.Purple: return GetNewBlockSprite("Group 343") ?? GetSprite("gem_purple");
+                        case PieceColor.Orange: return GetNewBlockSprite("Group 348") ?? GetSprite("gem_orange_1x1");
+                        case PieceColor.Blue: return GetNewBlockSprite("Group 669") ?? GetSprite("gem_blue_1x1");
+                        default: return GetNewBlockSprite("Group 346") ?? GetSprite("Vector 109") ?? GetSprite("gem_green");
+                    }
+
+                case PieceShape.Cross_3x3:
+                    switch (color)
+                    {
+                        case PieceColor.Red: return GetNewBlockSprite("Group 478");
+                        case PieceColor.Green: return GetNewBlockSprite("Group 521");
+                        default: return GetNewBlockSprite("Group 478");
+                    }
 
                 default:
                     return GetNewBlockSprite("Group 346") ?? GetSprite("Vector 109") ?? GetSprite("gem_green");
