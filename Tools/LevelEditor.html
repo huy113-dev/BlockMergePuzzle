@@ -1,0 +1,2785 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Block Merge Puzzle — Level Studio & Playtest Tool</title>
+<style>
+  :root {
+    --bg: #0c0a1d;
+    --panel: #161332;
+    --panel-alt: #1e1a44;
+    --border: #322c6b;
+    --accent: #38e8ff;
+    --accent-2: #a855f7;
+    --text: #eef0ff;
+    --muted: #989cc8;
+    --danger: #ff4d6d;
+    --success: #3be87a;
+    --warn: #facc15;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: radial-gradient(circle at 20% 10%, #1c1545 0%, #0b091a 65%, #060511 100%);
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    user-select: none;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px;
+    background: rgba(18, 15, 42, 0.94);
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+  .brand {
+    font-weight: 800;
+    font-size: 15px;
+    letter-spacing: 0.4px;
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-right: 6px;
+  }
+  .meta-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--panel-alt);
+    padding: 4px 8px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    font-size: 12px;
+  }
+  .meta-group label { color: var(--muted); font-weight: 600; }
+  input[type="text"], input[type="number"], select {
+    background: #0f0d24;
+    color: var(--text);
+    border: 1px solid #393473;
+    border-radius: 5px;
+    padding: 3px 6px;
+    font-size: 12px;
+    outline: none;
+  }
+  input:focus, select:focus { border-color: var(--accent); }
+  button {
+    background: #272255;
+    color: var(--text);
+    border: 1px solid #413a86;
+    border-radius: 7px;
+    padding: 5px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform .08s, background .15s, border-color .15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+  button:hover { background: #332c6e; border-color: #655cc9; }
+  button:active { transform: scale(0.96); }
+  button.primary { background: linear-gradient(135deg, #0ea5e9, #2563eb); border-color: #38bdf8; }
+  button.play-btn { background: linear-gradient(135deg, #22c55e, #15803d); border-color: #4ade80; }
+  button.stop-btn { background: linear-gradient(135deg, #f43f5e, #be123c); border-color: #fb7185; }
+  button.warn-btn { background: linear-gradient(135deg, #f59e0b, #d97706); border-color: #fbbf24; color: #160f00; }
+  button.active { background: linear-gradient(135deg, #0891b2, #0284c7); border-color: var(--accent); box-shadow: 0 0 10px rgba(56,232,255,0.35); }
+  .spacer { flex: 1; }
+
+  .workspace {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 300px 1fr 340px;
+    min-height: 0;
+  }
+  .sidebar {
+    background: rgba(20, 17, 46, 0.92);
+    border-right: 1px solid var(--border);
+    padding: 10px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .sidebar.right {
+    border-right: none;
+    border-left: 1px solid var(--border);
+  }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .card h3 {
+    margin: 0;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
+    color: var(--accent);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .tool-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .color-row {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 5px;
+  }
+  .color-swatch {
+    height: 28px;
+    border-radius: 6px;
+    border: 2px solid rgba(255,255,255,0.2);
+    cursor: pointer;
+    position: relative;
+  }
+  .color-swatch.active {
+    border-color: #fff;
+    box-shadow: 0 0 10px rgba(255,255,255,0.7);
+    transform: scale(1.06);
+  }
+  .shape-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 5px;
+  }
+  .shape-btn {
+    padding: 5px 4px;
+    font-size: 11px;
+    justify-content: center;
+    text-align: center;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .row label { font-size: 12px; color: var(--muted); }
+
+  .stage-wrap {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+    overflow: hidden;
+  }
+  .playtest-hud {
+    position: absolute;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: none;
+    align-items: center;
+    gap: 14px;
+    background: rgba(16, 13, 40, 0.92);
+    border: 1px solid #4d459e;
+    border-radius: 999px;
+    padding: 6px 16px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+    z-index: 10;
+  }
+  .playtest-hud.visible { display: flex; }
+  .hud-pill { font-weight: 800; font-size: 14px; color: #fef08a; }
+  .hud-timer { font-family: ui-monospace, Consolas, monospace; font-size: 18px; font-weight: 800; color: #fde68a; }
+  .hud-timer.low { color: #ff4d6d; }
+  .hud-msg {
+    position: absolute;
+    bottom: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(25, 12, 34, 0.94);
+    border: 1px solid #f43f5e;
+    color: #ffd5dc;
+    padding: 7px 14px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 600;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+    z-index: 12;
+  }
+  .hud-msg.show { opacity: 1; }
+  .playtest-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(8, 6, 22, 0.80);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 20;
+  }
+  .playtest-overlay.visible { display: flex; }
+  .overlay-box {
+    background: linear-gradient(180deg, #271d5c, #161138);
+    border: 2px solid var(--accent);
+    border-radius: 18px;
+    padding: 24px 32px;
+    text-align: center;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.65);
+    max-width: 340px;
+  }
+  .overlay-box h2 { margin: 0 0 8px; font-size: 24px; color: #fde047; }
+  .overlay-box p { margin: 0 0 18px; font-size: 13px; color: var(--muted); }
+
+  canvas {
+    border-radius: 14px;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.6);
+    cursor: crosshair;
+    max-width: 100%;
+    max-height: 100%;
+  }
+
+  .val-list {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    max-height: 165px;
+    overflow-y: auto;
+    font-size: 12px;
+  }
+  .val-item {
+    padding: 6px 8px;
+    border-radius: 6px;
+    line-height: 1.35;
+  }
+  .val-ok { background: rgba(59, 232, 122, 0.14); border: 1px solid rgba(59, 232, 122, 0.45); color: #86efac; }
+  .val-err { background: rgba(255, 77, 109, 0.14); border: 1px solid rgba(255, 77, 109, 0.5); color: #fda4af; }
+  .val-warn { background: rgba(250, 204, 21, 0.12); border: 1px solid rgba(250, 204, 21, 0.45); color: #fef08a; }
+
+  textarea.json-box {
+    width: 100%;
+    flex: 1;
+    min-height: 220px;
+    background: #0a0818;
+    color: #9ef0ff;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px;
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: 11px;
+    line-height: 1.4;
+    resize: none;
+    user-select: text;
+  }
+  .toast {
+    position: fixed;
+    top: 56px;
+    right: 16px;
+    background: #143628;
+    border: 1px solid #3be87a;
+    color: #bbf7d0;
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    opacity: 0;
+    transform: translateY(-8px);
+    transition: all 0.2s;
+    pointer-events: none;
+    z-index: 100;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+  .hint { font-size: 11px; color: var(--muted); line-height: 1.4; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">💎 BlockMerge Level Studio</div>
+  <div class="meta-group">
+    <label>Lv#</label>
+    <input id="inpLevelNum" type="number" min="1" max="999" value="11" style="width:52px" />
+    <label>Tên</label>
+    <input id="inpName" type="text" value="Level 11" style="width:118px" />
+    <label>Độ khó</label>
+    <select id="selDifficulty">
+      <option value="Easy">Easy</option>
+      <option value="Hard">Hard</option>
+      <option value="SuperHard">SuperHard</option>
+    </select>
+    <label>Time(s)</label>
+    <input id="inpTime" type="number" min="10" max="3600" value="120" style="width:58px" />
+    <span id="lblTimeMMSS" style="color:#fde68a;font-weight:700">02:00</span>
+  </div>
+
+  <div class="meta-group">
+    <label>Grid</label>
+    <input id="inpCols" type="number" min="3" max="14" value="8" style="width:44px" />
+    <span>×</span>
+    <input id="inpRows" type="number" min="3" max="14" value="9" style="width:44px" />
+    <button id="btnResize">Resize</button>
+  </div>
+
+  <button id="btnUndo" title="Ctrl+Z">↩ Undo</button>
+  <button id="btnRedo" title="Ctrl+Y">↪ Redo</button>
+  <button id="btnPhoneToggle" class="active" title="Hiện khung màn hình điện thoại Unity 1440x3200">📱 Khung ĐT Unity</button>
+  <div class="spacer"></div>
+  <button id="btnCopyJson" class="primary">📋 Copy JSON (Paste vào Unity)</button>
+  <button id="btnPlayTest" class="play-btn">▶ Play Test</button>
+</header>
+
+<div class="workspace">
+  <!-- LEFT SIDEBAR: TOOLS & MECHANICS -->
+  <aside class="sidebar">
+    <div class="card">
+      <h3>Công cụ vẽ</h3>
+      <div class="tool-grid">
+        <button class="tool-btn" data-tool="floor">🟩 Sàn (1)</button>
+        <button class="tool-btn" data-tool="void">⬛ Lỗ/Viền (2)</button>
+        <button class="tool-btn" data-tool="gate">🚪 Cổng (3)</button>
+        <button class="tool-btn active" data-tool="block">💎 Block (4)</button>
+        <button class="tool-btn" data-tool="select">👆 Chọn/Sửa (5)</button>
+        <button class="tool-btn" data-tool="delete">🗑️ Xóa (6)</button>
+        <button class="tool-btn" data-tool="pan" style="grid-column:span 2">✋ Kéo Căn ĐT (7 / Alt+Kéo)</button>
+      </div>
+      <div class="row" style="margin-top:4px">
+        <label>Preset:</label>
+        <button onclick="applyPreset('cosmic')">✨ Cosmic (4 nhánh)</button>
+        <button onclick="applyPreset('rect')">Chữ nhật</button>
+        <button onclick="applyPreset('cross')">Chữ thập</button>
+        <button onclick="applyPreset('holes')">Có lỗ</button>
+        <button onclick="applyPreset('diamond')">Kim cương</button>
+      </div>
+    </div>
+
+    <div class="card" id="panelBlockBrush">
+      <h3>Thiết lập Block <button onclick="rotateBrushShape()" style="padding:2px 7px;font-size:11px">↻ Xoay [R]</button></h3>
+      <div class="color-row" id="blockColors"></div>
+      <div class="row">
+        <label>Số (Value):</label>
+        <button onclick="stepBrushVal(-1)">-</button>
+        <input id="inpBlockVal" type="number" min="1" max="99" value="1" style="width:48px;text-align:center;font-weight:700" />
+        <button onclick="stepBrushVal(1)">+</button>
+      </div>
+      <div class="shape-grid" id="shapeGrid"></div>
+      <div style="border-top:1px solid var(--border);padding-top:8px;display:flex;flex-direction:column;gap:6px">
+        <label style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer">
+          <input id="chkStone" type="checkbox" /> 🪨 Khối Đá Cố Định (Stone Block)
+        </label>
+        <div id="blockMechNormal" style="display:flex;flex-direction:column;gap:6px">
+          <div class="row">
+            <label>❄️ Băng (Ice):</label>
+            <input id="inpIce" type="number" min="0" max="30" value="0" style="width:52px" />
+            <button onclick="setBrushIce(0)">0</button>
+            <button onclick="setBrushIce(2)">2</button>
+            <button onclick="setBrushIce(3)">3</button>
+          </div>
+          <div class="row">
+            <label>↔ Khóa Trục:</label>
+            <select id="selAxis" style="flex:1">
+              <option value="None">Tự do (4 hướng)</option>
+              <option value="HorizontalOnly">Chỉ trượt Ngang ↔</option>
+              <option value="VerticalOnly">Chỉ trượt Dọc ↕</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="panelGateBrush" style="display:none">
+      <h3>Thiết lập Cổng Thoát</h3>
+      <div class="color-row" id="gateColors"></div>
+      <div class="row">
+        <label>Số yêu cầu:</label>
+        <button onclick="stepGateVal(-1)">-</button>
+        <input id="inpGateVal" type="number" min="1" max="99" value="2" style="width:48px;text-align:center;font-weight:700" />
+        <button onclick="stepGateVal(1)">+</button>
+      </div>
+      <div class="row">
+        <label>Độ rộng (Span):</label>
+        <button class="span-btn active" data-span="1">1</button>
+        <button class="span-btn" data-span="2">2</button>
+        <button class="span-btn" data-span="3">3</button>
+        <button class="span-btn" data-span="4">4</button>
+      </div>
+      <div class="row">
+        <label>Hướng:</label>
+        <select id="selGateSide" style="flex:1">
+          <option value="Auto">Auto (tự nhận cạnh sàn)</option>
+          <option value="Top">Top ↑</option>
+          <option value="Bottom">Bottom ↓</option>
+          <option value="Left">Left ←</option>
+          <option value="Right">Right →</option>
+        </select>
+      </div>
+      <div class="hint">Click vào ô viền tối ngay sát sàn chơi để đặt cổng thoát.</div>
+    </div>
+
+    <div class="card" id="panelSelection" style="display:none">
+      <h3>Đang chọn</h3>
+      <div id="selectionBody" style="display:flex;flex-direction:column;gap:7px"></div>
+    </div>
+
+    <div class="card">
+      <h3>Mẫu Level Sẵn</h3>
+      <div class="row">
+        <button onclick="loadSample(11)">❄️ Mẫu Lv11 (Ice+Holes)</button>
+        <button onclick="loadSample(12)">🔀 Mẫu Lv12 (T+Axis+Stone)</button>
+        <button onclick="clearEntities()">🧹 Xóa Block/Cổng</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- CENTER INTERACTIVE CANVAS -->
+  <main class="stage-wrap">
+    <div class="playtest-hud" id="playtestHud">
+      <span class="hud-pill" id="hudLevelLabel">LEVEL 11</span>
+      <span class="hud-timer" id="hudTimer">02:00</span>
+      <button onclick="resetPlayTest()">🔄 Chơi lại</button>
+      <button class="stop-btn" onclick="stopPlayTest()">⏹ Quay lại Edit</button>
+    </div>
+
+    <canvas id="boardCanvas" width="760" height="820"></canvas>
+    <div class="hud-msg" id="hudFeedback"></div>
+
+    <div class="playtest-overlay" id="playtestOverlay">
+      <div class="overlay-box">
+        <h2 id="overlayTitle">WELL DONE!</h2>
+        <p id="overlayDesc">Hoàn thành level thành công!</p>
+        <div class="row" style="justify-content:center">
+          <button class="play-btn" onclick="resetPlayTest()">🔄 Chơi lại</button>
+          <button onclick="stopPlayTest()">✏️ Quay lại Edit</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- RIGHT SIDEBAR: PHONE ALIGNMENT, VALIDATOR & JSON -->
+  <aside class="sidebar right">
+    <div class="card">
+      <h3>📱 Căn Màn Hình ĐT (1440×3200) <button onclick="resetPhoneView()" style="padding:2px 7px;font-size:11px">↺ Auto Fit</button></h3>
+      <div class="row">
+        <label style="width:54px">Zoom:</label>
+        <input id="rngBoardScale" type="range" min="0.50" max="1.60" step="0.01" value="1.00" style="flex:1" />
+        <span id="lblBoardScale" style="width:44px;text-align:right;font-weight:700;color:#9ef0ff">100%</span>
+      </div>
+      <div class="row">
+        <label style="width:54px">Ngang X:</label>
+        <input id="rngBoardOffX" type="range" min="-2.50" max="2.50" step="0.05" value="0" style="flex:1" />
+        <span id="lblBoardOffX" style="width:44px;text-align:right;font-family:monospace">0.00</span>
+      </div>
+      <div class="row">
+        <label style="width:54px">Dọc Y:</label>
+        <input id="rngBoardOffY" type="range" min="-3.50" max="3.50" step="0.05" value="0" style="flex:1" />
+        <span id="lblBoardOffY" style="width:44px;text-align:right;font-family:monospace">0.00</span>
+      </div>
+      <div class="row" style="justify-content:center">
+        <button onclick="nudgeBoard(-0.15, 0)">←</button>
+        <button onclick="nudgeBoard(0, 0.15)">↑</button>
+        <button onclick="nudgeBoard(0, -0.15)">↓</button>
+        <button onclick="nudgeBoard(0.15, 0)">→</button>
+        <span class="hint" style="margin-left:4px">Alt+Kéo / ✋ để kéo trực tiếp</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Kiểm Tra Level (Validator)</h3>
+      <div class="val-list" id="validatorList"></div>
+    </div>
+
+    <div class="card" style="flex:1;min-height:0">
+      <h3>JSON Data (Paste vào Unity)</h3>
+      <div class="row">
+        <button onclick="copyJson()" class="primary">📋 Copy JSON</button>
+        <button onclick="pasteLoadJson()">📥 Paste / Load</button>
+        <button onclick="downloadJson()">💾 Tải .json</button>
+        <button onclick="document.getElementById('fileInput').click()">📂 Mở</button>
+        <input id="fileInput" type="file" accept=".json" style="display:none" />
+      </div>
+      <textarea id="jsonOutput" class="json-box" spellcheck="false"></textarea>
+      <div class="hint">
+        Trong Unity mở <b>Tools &gt; Block Merge Puzzle &gt; Level Editor &amp; Importer</b> → Tab <b>Paste JSON</b> → bấm <b>Paste from Clipboard</b> → <b>Add Level to Game</b>!
+      </div>
+    </div>
+  </aside>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const COLORS = {
+  Red:    { hex: '#EB2E34', light: '#FF7579', dark: '#8A1216', name: 'Đỏ' },
+  Orange: { hex: '#FA7108', light: '#FFB057', dark: '#943B00', name: 'Cam' },
+  Yellow: { hex: '#FABB39', light: '#FFE47A', dark: '#A67206', name: 'Vàng' },
+  Green:  { hex: '#4EB12D', light: '#87E85E', dark: '#246610', name: 'Xanh lá' },
+  Blue:   { hex: '#058FEF', light: '#66C7FF', dark: '#044C8A', name: 'Xanh dương' },
+  Purple: { hex: '#8937FA', light: '#C38FFF', dark: '#4B169C', name: 'Tím' },
+  Pink:   { hex: '#DB3192', light: '#FF7EC7', dark: '#7D104E', name: 'Hồng' }
+};
+const COLOR_KEYS = Object.keys(COLORS);
+
+const SHAPES = {
+  Single_1x1:         { label: '1x1',   offsets: [[0,0]] },
+  Vertical_1x2:       { label: '1x2 ▮', offsets: [[0,0],[0,1]] },
+  Horizontal_2x1:     { label: '2x1 ▬', offsets: [[0,0],[1,0]] },
+  Square_2x2:         { label: '2x2 ■', offsets: [[0,0],[1,0],[0,1],[1,1]] },
+  Vertical_1x3:       { label: '1x3 ┃', offsets: [[0,0],[0,1],[0,2]] },
+  Horizontal_3x1:     { label: '3x1 ━', offsets: [[0,0],[1,0],[2,0]] },
+  ShapeL_TopRight:    { label: 'L ┐',   offsets: [[0,0],[1,0],[1,1]] },
+  ShapeL_BottomRight: { label: 'L ┘',   offsets: [[1,0],[0,1],[1,1]] },
+  ShapeL_BottomLeft:  { label: 'L └',   offsets: [[0,0],[0,1],[1,1]] },
+  ShapeL_TopLeft:     { label: 'L ┌',   offsets: [[0,0],[1,0],[0,1]] },
+  ShapeT_Up:          { label: 'T ┴',   offsets: [[1,0],[0,1],[1,1],[2,1]] },
+  ShapeT_Right:       { label: 'T ├',   offsets: [[0,0],[0,1],[1,1],[0,2]] },
+  ShapeT_Down:        { label: 'T ┬',   offsets: [[0,0],[1,0],[2,0],[1,1]] },
+  ShapeT_Left:        { label: 'T ┤',   offsets: [[1,0],[0,1],[1,1],[1,2]] },
+  Cross_3x3:          { label: '+ 3x3', offsets: [[1,0],[0,1],[1,1],[2,1],[1,2]] }
+};
+
+const ROTATE_MAP = {
+  Vertical_1x2: 'Horizontal_2x1', Horizontal_2x1: 'Vertical_1x2',
+  Vertical_1x3: 'Horizontal_3x1', Horizontal_3x1: 'Vertical_1x3',
+  ShapeL_TopRight: 'ShapeL_BottomRight', ShapeL_BottomRight: 'ShapeL_BottomLeft',
+  ShapeL_BottomLeft: 'ShapeL_TopLeft', ShapeL_TopLeft: 'ShapeL_TopRight',
+  ShapeT_Up: 'ShapeT_Right', ShapeT_Right: 'ShapeT_Down',
+  ShapeT_Down: 'ShapeT_Left', ShapeT_Left: 'ShapeT_Up'
+};
+
+function getShapeBounds(shape) {
+  const offs = SHAPES[shape]?.offsets || [[0,0]];
+  let mx = 0, my = 0;
+  for (const [x,y] of offs) { if (x > mx) mx = x; if (y > my) my = y; }
+  return [mx + 1, my + 1];
+}
+
+function getGateCoords(g) {
+  const span = Math.max(1, g.span || 1);
+  const horiz = (g.side === 'Top' || g.side === 'Bottom');
+  const res = [];
+  for (let i = 0; i < span; i++) {
+    res.push(horiz ? [g.startCell.x + i, g.startCell.y] : [g.startCell.x, g.startCell.y + i]);
+  }
+  return res;
+}
+
+function getGateTriggerDir(side) {
+  if (side === 'Top') return [0, -1];
+  if (side === 'Bottom') return [0, 1];
+  if (side === 'Left') return [-1, 0];
+  return [1, 0];
+}
+
+function getGateApproachCoords(g) {
+  const [dx, dy] = getGateTriggerDir(g.side);
+  return getGateCoords(g).map(([x, y]) => [x - dx, y - dy]);
+}
+
+// ==================== SAMPLES ====================
+const SAMPLE_11 = {
+  schemaVersion: 1, levelNumber: 11, name: "Cosmic Ice Vault", difficulty: "Easy", timeSeconds: 120,
+  columns: 8, rows: 9,
+  cells: ["00000000","01111110","01111110","01100110","01111110","01111110","01111110","01111110","00000000"],
+  gates: [
+    { color:"Green", requiredValue:2, side:"Top", startCell:{x:3,y:0}, span:2 },
+    { color:"Yellow", requiredValue:2, side:"Left", startCell:{x:0,y:4}, span:1 },
+    { color:"Red", requiredValue:2, side:"Right", startCell:{x:7,y:4}, span:1 },
+    { color:"Pink", requiredValue:2, side:"Bottom", startCell:{x:3,y:8}, span:2 }
+  ],
+  pieces: [
+    { color:"Green", shape:"Square_2x2", value:2, origin:{x:3,y:1}, iceCount:2, moveAxis:"None", isStone:false },
+    { color:"Yellow", shape:"Single_1x1", value:1, origin:{x:1,y:2}, iceCount:0, moveAxis:"None", isStone:false },
+    { color:"Yellow", shape:"Single_1x1", value:1, origin:{x:2,y:4}, iceCount:0, moveAxis:"None", isStone:false },
+    { color:"Red", shape:"Single_1x1", value:1, origin:{x:5,y:2}, iceCount:0, moveAxis:"None", isStone:false },
+    { color:"Red", shape:"Single_1x1", value:1, origin:{x:6,y:4}, iceCount:0, moveAxis:"None", isStone:false },
+    { color:"Pink", shape:"ShapeL_BottomLeft", value:1, origin:{x:1,y:5}, iceCount:0, moveAxis:"None", isStone:false },
+    { color:"Pink", shape:"ShapeL_BottomLeft", value:1, origin:{x:5,y:6}, iceCount:0, moveAxis:"None", isStone:false }
+  ]
+};
+
+const SAMPLE_12 = {
+  schemaVersion: 1, levelNumber: 12, name: "Axis & T-Matrix", difficulty: "Hard", timeSeconds: 150,
+  columns: 8, rows: 9,
+  cells: ["00000000","01111110","01111110","01111110","01111110","01111110","01111110","01111110","00000000"],
+  gates: [
+    { color:"Blue", requiredValue:2, side:"Top", startCell:{x:2,y:0}, span:3 },
+    { color:"Purple", requiredValue:2, side:"Right", startCell:{x:7,y:1}, span:3 },
+    { color:"Orange", requiredValue:2, side:"Left", startCell:{x:0,y:5}, span:1 }
+  ],
+  pieces: [
+    { color:"Red", shape:"Single_1x1", value:1, origin:{x:1,y:4}, iceCount:0, moveAxis:"None", isStone:true },
+    { color:"Blue", shape:"ShapeT_Up", value:1, origin:{x:2,y:2}, iceCount:0, moveAxis:"None", isStone:false },
+    { color:"Blue", shape:"ShapeT_Up", value:1, origin:{x:2,y:5}, iceCount:0, moveAxis:"None", isStone:false },
+    { color:"Purple", shape:"Vertical_1x3", value:1, origin:{x:6,y:1}, iceCount:0, moveAxis:"None", isStone:false },
+    { color:"Purple", shape:"Vertical_1x3", value:1, origin:{x:6,y:5}, iceCount:1, moveAxis:"VerticalOnly", isStone:false },
+    { color:"Orange", shape:"Single_1x1", value:1, origin:{x:2,y:5}, iceCount:0, moveAxis:"HorizontalOnly", isStone:false },
+    { color:"Orange", shape:"Single_1x1", value:1, origin:{x:4,y:5}, iceCount:0, moveAxis:"HorizontalOnly", isStone:false }
+  ]
+};
+
+// ==================== EDITOR STATE ====================
+let levelData = structuredClone(SAMPLE_11);
+let undoStack = [];
+let redoStack = [];
+
+let activeTool = 'block';
+let brush = { color: 'Red', shape: 'Single_1x1', value: 1, iceCount: 0, moveAxis: 'None', isStone: false };
+let gateBrush = { color: 'Red', requiredValue: 2, span: 1, side: 'Auto' };
+let selectedPieceIdx = -1;
+let selectedGateIdx = -1;
+let hoverCell = null;
+let isPaintingFloor = false;
+let phoneFrameMode = true;
+let isPanningBoard = false;
+let panLastPos = null;
+
+// ==================== PLAYTEST STATE ====================
+let playMode = false;
+let ptPieces = [];
+let ptGates = [];
+let ptTimeLeft = 120;
+let ptTimerId = null;
+let ptTimerStarted = false;
+let ptFinished = false;
+let ptDrag = null;
+let ptSelectedId = null;
+let ptParticles = [];
+let ptFlashes = [];
+
+// Stars for backdrop
+const STARS = Array.from({length: 48}, (_, i) => ({
+  x: ((i * 197 + 31) % 1000) / 1000,
+  y: ((i * 353 + 73) % 1000) / 1000,
+  r: (i % 3) * 0.6 + 0.8,
+  phase: i * 0.7
+}));
+
+const canvas = document.getElementById('boardCanvas');
+const ctx = canvas.getContext('2d');
+
+// ==================== INIT UI ====================
+function initUI() {
+  try {
+    const saved = localStorage.getItem('BMP_LevelStudio_Draft');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed && Array.isArray(parsed.cells)) levelData = normalizeData(parsed);
+    }
+  } catch {}
+
+  buildColorSwatches('blockColors', () => brush.color, c => { brush.color = c; refreshSwatches(); });
+  buildColorSwatches('gateColors', () => gateBrush.color, c => { gateBrush.color = c; refreshSwatches(); });
+
+  const sg = document.getElementById('shapeGrid');
+  Object.keys(SHAPES).forEach(k => {
+    const btn = document.createElement('button');
+    btn.className = 'shape-btn';
+    btn.dataset.shape = k;
+    btn.innerText = SHAPES[k].label;
+    btn.onclick = () => { brush.shape = k; refreshShapeBtns(); };
+    sg.appendChild(btn);
+  });
+
+  document.querySelectorAll('.tool-btn').forEach(b => {
+    b.onclick = () => setTool(b.dataset.tool);
+  });
+  document.querySelectorAll('.span-btn').forEach(b => {
+    b.onclick = () => {
+      gateBrush.span = parseInt(b.dataset.span, 10);
+      document.querySelectorAll('.span-btn').forEach(x => x.classList.toggle('active', x === b));
+    };
+  });
+
+  document.getElementById('inpLevelNum').onchange = e => { recordUndo(); levelData.levelNumber = Math.max(1, parseInt(e.target.value,10)||11); syncAll(); };
+  document.getElementById('inpName').oninput = e => { levelData.name = e.target.value; syncJsonAndValidate(); };
+  document.getElementById('selDifficulty').onchange = e => { recordUndo(); levelData.difficulty = e.target.value; syncJsonAndValidate(); };
+  document.getElementById('inpTime').onchange = e => {
+    recordUndo();
+    levelData.timeSeconds = Math.max(10, Math.min(3600, parseInt(e.target.value,10)||120));
+    syncMetaInputs();
+    syncJsonAndValidate();
+  };
+  document.getElementById('btnResize').onclick = () => {
+    recordUndo();
+    const nc = Math.max(3, Math.min(14, parseInt(document.getElementById('inpCols').value,10)||6));
+    const nr = Math.max(3, Math.min(14, parseInt(document.getElementById('inpRows').value,10)||8));
+    resizeGrid(nc, nr);
+    syncAll();
+  };
+
+  document.getElementById('inpBlockVal').onchange = e => brush.value = Math.max(1, Math.min(99, parseInt(e.target.value,10)||1));
+  document.getElementById('inpIce').onchange = e => brush.iceCount = Math.max(0, Math.min(30, parseInt(e.target.value,10)||0));
+  document.getElementById('selAxis').onchange = e => brush.moveAxis = e.target.value;
+  document.getElementById('chkStone').onchange = e => {
+    brush.isStone = e.target.checked;
+    document.getElementById('blockMechNormal').style.display = brush.isStone ? 'none' : 'flex';
+  };
+  document.getElementById('inpGateVal').onchange = e => gateBrush.requiredValue = Math.max(1, Math.min(99, parseInt(e.target.value,10)||2));
+  document.getElementById('selGateSide').onchange = e => gateBrush.side = e.target.value;
+
+  document.getElementById('btnUndo').onclick = performUndo;
+  document.getElementById('btnRedo').onclick = performRedo;
+  document.getElementById('btnPhoneToggle').onclick = () => {
+    phoneFrameMode = !phoneFrameMode;
+    document.getElementById('btnPhoneToggle').classList.toggle('active', phoneFrameMode);
+    canvas.style.cursor = (activeTool === 'pan' && !playMode) ? 'grab' : 'crosshair';
+  };
+  document.getElementById('rngBoardScale').oninput = e => {
+    levelData.boardScale = parseFloat(e.target.value) || 1.0;
+    syncMetaInputs();
+    syncJsonAndValidate();
+  };
+  document.getElementById('rngBoardOffX').oninput = e => {
+    levelData.boardOffsetX = parseFloat(e.target.value) || 0;
+    syncMetaInputs();
+    syncJsonAndValidate();
+  };
+  document.getElementById('rngBoardOffY').oninput = e => {
+    levelData.boardOffsetY = parseFloat(e.target.value) || 0;
+    syncMetaInputs();
+    syncJsonAndValidate();
+  };
+  document.getElementById('btnCopyJson').onclick = copyJson;
+  document.getElementById('btnPlayTest').onclick = () => playMode ? stopPlayTest() : startPlayTest();
+  document.getElementById('fileInput').onchange = handleFileImport;
+
+  window.addEventListener('keydown', handleKeyDown);
+  canvas.addEventListener('contextmenu', e => e.preventDefault());
+  canvas.addEventListener('wheel', onCanvasWheel, { passive: false });
+  canvas.addEventListener('pointerdown', onCanvasPointerDown);
+  window.addEventListener('pointermove', onCanvasPointerMove);
+  window.addEventListener('pointerup', onCanvasPointerUp);
+
+  syncAll();
+  refreshSwatches();
+  refreshShapeBtns();
+  requestAnimationFrame(renderLoop);
+}
+
+function buildColorSwatches(containerId, getter, setter) {
+  const wrap = document.getElementById(containerId);
+  wrap.innerHTML = '';
+  COLOR_KEYS.forEach(c => {
+    const sw = document.createElement('div');
+    sw.className = 'color-swatch';
+    sw.style.background = `linear-gradient(145deg, ${COLORS[c].light}, ${COLORS[c].hex} 55%, ${COLORS[c].dark})`;
+    sw.title = COLORS[c].name + ' (' + c + ')';
+    sw.dataset.color = c;
+    sw.onclick = () => setter(c);
+    wrap.appendChild(sw);
+  });
+}
+
+function refreshSwatches() {
+  document.querySelectorAll('#blockColors .color-swatch').forEach(s => s.classList.toggle('active', s.dataset.color === brush.color));
+  document.querySelectorAll('#gateColors .color-swatch').forEach(s => s.classList.toggle('active', s.dataset.color === gateBrush.color));
+}
+
+function refreshShapeBtns() {
+  document.querySelectorAll('#shapeGrid .shape-btn').forEach(b => b.classList.toggle('active', b.dataset.shape === brush.shape));
+}
+
+function setTool(t) {
+  activeTool = t;
+  document.querySelectorAll('.tool-btn').forEach(b => b.classList.toggle('active', b.dataset.tool === t));
+  document.getElementById('panelBlockBrush').style.display = t === 'block' ? 'flex' : 'none';
+  document.getElementById('panelGateBrush').style.display = t === 'gate' ? 'flex' : 'none';
+  document.getElementById('panelSelection').style.display = t === 'select' ? 'flex' : 'none';
+  canvas.style.cursor = (t === 'pan' && !playMode) ? 'grab' : 'crosshair';
+  if (t === 'select') refreshSelectionPanel();
+}
+
+function rotateBrushShape() {
+  if (ROTATE_MAP[brush.shape]) {
+    brush.shape = ROTATE_MAP[brush.shape];
+    refreshShapeBtns();
+  }
+}
+
+function stepBrushVal(d) {
+  brush.value = Math.max(1, Math.min(99, brush.value + d));
+  document.getElementById('inpBlockVal').value = brush.value;
+}
+function setBrushIce(n) {
+  brush.iceCount = n;
+  document.getElementById('inpIce').value = n;
+}
+function stepGateVal(d) {
+  gateBrush.requiredValue = Math.max(1, Math.min(99, gateBrush.requiredValue + d));
+  document.getElementById('inpGateVal').value = gateBrush.requiredValue;
+}
+
+function clampFloat(val, minV, maxV, fallback) {
+  const n = Number(val);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(minV, Math.min(maxV, n));
+}
+
+function normalizeData(d) {
+  d.schemaVersion = 1;
+  d.levelNumber = Math.max(1, parseInt(d.levelNumber,10)||11);
+  d.name = d.name || `Level ${d.levelNumber}`;
+  d.difficulty = ['Easy','Hard','SuperHard'].includes(d.difficulty) ? d.difficulty : 'Easy';
+  d.timeSeconds = Math.max(5, Math.min(3600, parseInt(d.timeSeconds,10)||120));
+  d.columns = Math.max(3, Math.min(14, parseInt(d.columns,10)||6));
+  d.rows = Math.max(3, Math.min(14, parseInt(d.rows,10)||8));
+  d.boardScale = Math.round(clampFloat(d.boardScale ?? 1.0, 0.45, 1.80, 1.0) * 100) / 100;
+  d.boardOffsetX = Math.round(clampFloat(d.boardOffsetX ?? 0, -3.5, 3.5, 0) * 100) / 100;
+  d.boardOffsetY = Math.round(clampFloat(d.boardOffsetY ?? 0, -4.5, 4.5, 0) * 100) / 100;
+  d.cells = Array.isArray(d.cells) ? d.cells.slice(0, d.rows) : [];
+  while (d.cells.length < d.rows) d.cells.push('0'.repeat(d.columns));
+  d.cells = d.cells.map(row => {
+    const s = String(row || '');
+    return s.padEnd(d.columns, '0').slice(0, d.columns).replace(/[^01]/g, '0');
+  });
+  d.gates = Array.isArray(d.gates) ? d.gates : [];
+  d.pieces = Array.isArray(d.pieces) ? d.pieces : [];
+  return d;
+}
+
+function nudgeBoard(dx, dy) {
+  recordUndo();
+  levelData.boardOffsetX = Math.round(clampFloat((levelData.boardOffsetX || 0) + dx, -3.5, 3.5, 0) * 100) / 100;
+  levelData.boardOffsetY = Math.round(clampFloat((levelData.boardOffsetY || 0) + dy, -4.5, 4.5, 0) * 100) / 100;
+  syncAll();
+}
+
+function resetPhoneView() {
+  recordUndo();
+  levelData.boardScale = 1.0;
+  levelData.boardOffsetX = 0;
+  levelData.boardOffsetY = 0;
+  syncAll();
+  showToast('Đã đặt lại khung nhìn Auto Fit (100%)!');
+}
+
+function resizeGrid(nc, nr) {
+  const next = [];
+  for (let r = 0; r < nr; r++) {
+    let line = '';
+    for (let c = 0; c < nc; c++) {
+      line += (r < levelData.rows && c < levelData.columns) ? levelData.cells[r][c] : '0';
+    }
+    next.push(line);
+  }
+  levelData.columns = nc;
+  levelData.rows = nr;
+  levelData.cells = next;
+}
+
+function isPlayable(c, r, data = levelData) {
+  return r >= 0 && r < data.rows && c >= 0 && c < data.columns && data.cells[r][c] === '1';
+}
+
+function setPlayable(c, r, val) {
+  if (r < 0 || r >= levelData.rows || c < 0 || c >= levelData.columns) return;
+  const arr = levelData.cells[r].split('');
+  arr[c] = val ? '1' : '0';
+  levelData.cells[r] = arr.join('');
+}
+
+function isGateCell(c, r, data = levelData) {
+  return data.gates.some(g => getGateCoords(g).some(([gx, gy]) => gx === c && gy === r));
+}
+
+function recordUndo() {
+  undoStack.push(JSON.stringify(levelData));
+  if (undoStack.length > 50) undoStack.shift();
+  redoStack = [];
+}
+
+function performUndo() {
+  if (!undoStack.length || playMode) return;
+  redoStack.push(JSON.stringify(levelData));
+  levelData = normalizeData(JSON.parse(undoStack.pop()));
+  selectedPieceIdx = -1; selectedGateIdx = -1;
+  syncAll();
+}
+
+function performRedo() {
+  if (!redoStack.length || playMode) return;
+  undoStack.push(JSON.stringify(levelData));
+  levelData = normalizeData(JSON.parse(redoStack.pop()));
+  selectedPieceIdx = -1; selectedGateIdx = -1;
+  syncAll();
+}
+
+function syncMetaInputs() {
+  document.getElementById('inpLevelNum').value = levelData.levelNumber;
+  document.getElementById('inpName').value = levelData.name;
+  document.getElementById('selDifficulty').value = levelData.difficulty;
+  document.getElementById('inpTime').value = levelData.timeSeconds;
+  document.getElementById('lblTimeMMSS').textContent = formatMMSS(levelData.timeSeconds);
+  document.getElementById('inpCols').value = levelData.columns;
+  document.getElementById('inpRows').value = levelData.rows;
+
+  const bs = clampFloat(levelData.boardScale ?? 1.0, 0.45, 1.80, 1.0);
+  const bx = clampFloat(levelData.boardOffsetX ?? 0, -3.5, 3.5, 0);
+  const by = clampFloat(levelData.boardOffsetY ?? 0, -4.5, 4.5, 0);
+  document.getElementById('rngBoardScale').value = Math.max(0.50, Math.min(1.60, bs)).toFixed(2);
+  document.getElementById('lblBoardScale').textContent = Math.round(bs * 100) + '%';
+  document.getElementById('rngBoardOffX').value = bx.toFixed(2);
+  document.getElementById('lblBoardOffX').textContent = bx.toFixed(2);
+  document.getElementById('rngBoardOffY').value = by.toFixed(2);
+  document.getElementById('lblBoardOffY').textContent = by.toFixed(2);
+}
+
+function syncAll() {
+  normalizeData(levelData);
+  syncMetaInputs();
+  syncJsonAndValidate();
+  if (activeTool === 'select') refreshSelectionPanel();
+}
+
+function syncJsonAndValidate() {
+  const json = JSON.stringify(levelData, null, 2);
+  document.getElementById('jsonOutput').value = json;
+  try { localStorage.setItem('BMP_LevelStudio_Draft', json); } catch {}
+  renderValidation();
+}
+
+function validateLevel(d) {
+  const errors = [];
+  const warnings = [];
+  let playableCount = 0;
+  for (let r = 0; r < d.rows; r++)
+    for (let c = 0; c < d.columns; c++)
+      if (isPlayable(c, r, d)) playableCount++;
+  if (!playableCount) errors.push('Map chưa có ô sàn chơi nào.');
+  if (!d.gates.length) errors.push('Cần ít nhất 1 cổng thoát.');
+  const nonStoneCount = d.pieces.filter(p => !p.isStone).length;
+  if (!nonStoneCount) errors.push('Cần ít nhất 1 block di chuyển được.');
+
+  const gateMap = new Map();
+  d.gates.forEach((g, idx) => {
+    const coords = getGateCoords(g);
+    const appr = getGateApproachCoords(g);
+    coords.forEach(([gx, gy], k) => {
+      if (gx < 0 || gx >= d.columns || gy < 0 || gy >= d.rows)
+        errors.push(`Cổng #${idx+1} (${g.color}) nằm ngoài lưới (${gx},${gy}).`);
+      if (isPlayable(gx, gy, d))
+        errors.push(`Cổng #${idx+1} đè lên sàn chơi tại (${gx},${gy}).`);
+      const key = gx + ',' + gy;
+      if (gateMap.has(key)) errors.push(`Cổng #${idx+1} trùng lên cổng khác tại (${gx},${gy}).`);
+      else gateMap.set(key, idx);
+      const [ax, ay] = appr[k];
+      if (!isPlayable(ax, ay, d))
+        errors.push(`Cổng #${idx+1} (${g.side}) tại (${gx},${gy}) không giáp sàn chơi ở (${ax},${ay}).`);
+    });
+  });
+
+  const pieceMap = new Map();
+  d.pieces.forEach((p, idx) => {
+    const offs = SHAPES[p.shape]?.offsets || [[0,0]];
+    for (const [ox, oy] of offs) {
+      const cx = p.origin.x + ox, cy = p.origin.y + oy;
+      if (!isPlayable(cx, cy, d))
+        errors.push(`Block #${idx+1} (${p.color} ${p.shape}) nằm ngoài sàn chơi tại (${cx},${cy}).`);
+      const key = cx + ',' + cy;
+      if (pieceMap.has(key)) errors.push(`Block #${idx+1} chồng lên Block #${pieceMap.get(key)+1} tại (${cx},${cy}).`);
+      else pieceMap.set(key, idx);
+    }
+    if (!p.isStone && p.iceCount > 0 && p.iceCount >= nonStoneCount) {
+      errors.push(`Block #${idx+1} đóng băng (${p.iceCount}) >= số block khác (${Math.max(0, nonStoneCount-1)}).`);
+    }
+  });
+
+  // Group check
+  const groups = new Map();
+  d.pieces.filter(p => !p.isStone).forEach(p => {
+    const k = p.color + '|' + p.shape;
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(p);
+  });
+
+  d.gates.forEach((g, idx) => {
+    if (!d.pieces.some(p => !p.isStone && p.color === g.color))
+      warnings.push(`Cổng #${idx+1} (${g.color} [${g.requiredValue}]) chưa có block màu ${g.color}.`);
+  });
+
+  groups.forEach((list, k) => {
+    const [col, sh] = k.split('|');
+    const matchGates = d.gates.filter(g => g.color === col);
+    if (!matchGates.length) {
+      errors.push(`Có block màu ${col} (${sh}) nhưng chưa có cổng màu ${col}.`);
+      return;
+    }
+    const [bw, bh] = getShapeBounds(sh);
+    const wideEnough = matchGates.some(g => g.span >= ((g.side === 'Top' || g.side === 'Bottom') ? bw : bh));
+    if (!wideEnough) errors.push(`Block ${col} ${sh} lớn hơn span của mọi cổng màu ${col}.`);
+    const minReq = Math.min(...matchGates.map(g => g.requiredValue));
+    const power = list.reduce((s, p) => s + Math.pow(2, Math.max(0, p.value - 1)), 0);
+    if (power < Math.pow(2, Math.max(0, minReq - 1))) {
+      warnings.push(`Nhóm ${col} ${sh} tổng lực gộp chưa đủ đạt số cổng (${minReq}).`);
+    }
+  });
+
+  return { errors, warnings };
+}
+
+function renderValidation() {
+  const { errors, warnings } = validateLevel(levelData);
+  const el = document.getElementById('validatorList');
+  el.innerHTML = '';
+  if (!errors.length && !warnings.length) {
+    el.innerHTML = '<div class="val-item val-ok">✓ Level hợp lệ! Sẵn sàng copy paste vào Unity hoặc Play Test.</div>';
+    return;
+  }
+  errors.forEach(m => {
+    const div = document.createElement('div');
+    div.className = 'val-item val-err';
+    div.textContent = '✖ ' + m;
+    el.appendChild(div);
+  });
+  warnings.forEach(m => {
+    const div = document.createElement('div');
+    div.className = 'val-item val-warn';
+    div.textContent = '⚠ ' + m;
+    el.appendChild(div);
+  });
+}
+
+// ==================== EDITING ACTIONS ====================
+function findPieceIdxAt(c, r, data = levelData) {
+  for (let i = 0; i < data.pieces.length; i++) {
+    const p = data.pieces[i];
+    const offs = SHAPES[p.shape]?.offsets || [[0,0]];
+    if (offs.some(([ox, oy]) => p.origin.x + ox === c && p.origin.y + oy === r)) return i;
+  }
+  return -1;
+}
+
+function findGateIdxAt(c, r, data = levelData) {
+  for (let i = 0; i < data.gates.length; i++) {
+    if (getGateCoords(data.gates[i]).some(([gx, gy]) => gx === c && gy === r)) return i;
+  }
+  return -1;
+}
+
+function resolveGateSide(c, r) {
+  if (gateBrush.side !== 'Auto') return gateBrush.side;
+  if (isPlayable(c, r + 1)) return 'Top';
+  if (isPlayable(c, r - 1)) return 'Bottom';
+  if (isPlayable(c + 1, r)) return 'Left';
+  if (isPlayable(c - 1, r)) return 'Right';
+  return 'Top';
+}
+
+function canPlaceBlock(shape, ox, oy) {
+  const offs = SHAPES[shape]?.offsets || [[0,0]];
+  return offs.every(([dx, dy]) => isPlayable(ox + dx, oy + dy) && findPieceIdxAt(ox + dx, oy + dy) < 0);
+}
+
+function refreshSelectionPanel() {
+  const box = document.getElementById('selectionBody');
+  if (selectedPieceIdx >= 0 && selectedPieceIdx < levelData.pieces.length) {
+    const p = levelData.pieces[selectedPieceIdx];
+    box.innerHTML = `
+      <div class="row"><label>Block #${selectedPieceIdx+1}</label></div>
+      <div class="row"><label>Màu:</label><select id="selEditColor">${COLOR_KEYS.map(c=>`<option value="${c}" ${p.color===c?'selected':''}>${c}</option>`).join('')}</select></div>
+      <div class="row"><label>Số:</label><input id="selEditVal" type="number" min="1" max="99" value="${p.value}" style="width:60px"/></div>
+      <div class="row"><label>Hình:</label><select id="selEditShape">${Object.keys(SHAPES).map(s=>`<option value="${s}" ${p.shape===s?'selected':''}>${SHAPES[s].label}</option>`).join('')}</select></div>
+      <label style="font-size:12px"><input id="selEditStone" type="checkbox" ${p.isStone?'checked':''}/> Đá cố định</label>
+      <div class="row"><label>❄️ Ice:</label><input id="selEditIce" type="number" min="0" max="30" value="${p.iceCount||0}" style="width:60px"/></div>
+      <div class="row"><label>↔ Trục:</label><select id="selEditAxis">
+        <option value="None" ${p.moveAxis==='None'?'selected':''}>None</option>
+        <option value="HorizontalOnly" ${p.moveAxis==='HorizontalOnly'?'selected':''}>HorizontalOnly</option>
+        <option value="VerticalOnly" ${p.moveAxis==='VerticalOnly'?'selected':''}>VerticalOnly</option>
+      </select></div>
+      <button class="stop-btn" onclick="deleteSelected()">🗑️ Xóa Block</button>
+    `;
+    box.querySelector('#selEditColor').onchange = e => { recordUndo(); p.color = e.target.value; syncJsonAndValidate(); };
+    box.querySelector('#selEditVal').onchange = e => { recordUndo(); p.value = Math.max(1,parseInt(e.target.value,10)||1); syncJsonAndValidate(); };
+    box.querySelector('#selEditShape').onchange = e => { recordUndo(); p.shape = e.target.value; syncJsonAndValidate(); };
+    box.querySelector('#selEditStone').onchange = e => { recordUndo(); p.isStone = e.target.checked; if(p.isStone){p.iceCount=0;p.moveAxis='None';} syncJsonAndValidate(); refreshSelectionPanel(); };
+    box.querySelector('#selEditIce').onchange = e => { recordUndo(); p.iceCount = Math.max(0,parseInt(e.target.value,10)||0); syncJsonAndValidate(); };
+    box.querySelector('#selEditAxis').onchange = e => { recordUndo(); p.moveAxis = e.target.value; syncJsonAndValidate(); };
+  } else if (selectedGateIdx >= 0 && selectedGateIdx < levelData.gates.length) {
+    const g = levelData.gates[selectedGateIdx];
+    box.innerHTML = `
+      <div class="row"><label>Cổng #${selectedGateIdx+1}</label></div>
+      <div class="row"><label>Màu:</label><select id="selGateColor">${COLOR_KEYS.map(c=>`<option value="${c}" ${g.color===c?'selected':''}>${c}</option>`).join('')}</select></div>
+      <div class="row"><label>Số YC:</label><input id="selGateVal" type="number" min="1" max="99" value="${g.requiredValue}" style="width:60px"/></div>
+      <div class="row"><label>Span:</label><input id="selGateSpan" type="number" min="1" max="4" value="${g.span}" style="width:60px"/></div>
+      <div class="row"><label>Hướng:</label><select id="selGateDir">${['Top','Bottom','Left','Right'].map(s=>`<option value="${s}" ${g.side===s?'selected':''}>${s}</option>`).join('')}</select></div>
+      <button class="stop-btn" onclick="deleteSelected()">🗑️ Xóa Cổng</button>
+    `;
+    box.querySelector('#selGateColor').onchange = e => { recordUndo(); g.color = e.target.value; syncJsonAndValidate(); };
+    box.querySelector('#selGateVal').onchange = e => { recordUndo(); g.requiredValue = Math.max(1,parseInt(e.target.value,10)||1); syncJsonAndValidate(); };
+    box.querySelector('#selGateSpan').onchange = e => { recordUndo(); g.span = Math.max(1,Math.min(4,parseInt(e.target.value,10)||1)); syncJsonAndValidate(); };
+    box.querySelector('#selGateDir').onchange = e => { recordUndo(); g.side = e.target.value; syncJsonAndValidate(); };
+  } else {
+    box.innerHTML = '<div class="hint">Click vào một Block hoặc Cổng trên bản đồ để chỉnh sửa thông số.</div>';
+  }
+}
+
+function deleteSelected() {
+  recordUndo();
+  if (selectedPieceIdx >= 0) { levelData.pieces.splice(selectedPieceIdx, 1); selectedPieceIdx = -1; }
+  else if (selectedGateIdx >= 0) { levelData.gates.splice(selectedGateIdx, 1); selectedGateIdx = -1; }
+  refreshSelectionPanel();
+  syncJsonAndValidate();
+}
+
+function applyPreset(type) {
+  recordUndo();
+  if (type === 'cosmic') {
+    levelData.columns = 8;
+    levelData.rows = 10;
+    document.getElementById('inpCols').value = 8;
+    document.getElementById('inpRows').value = 10;
+    levelData.cells = [
+      '00000000',
+      '00011000',
+      '00111100',
+      '01111110',
+      '00111100',
+      '00111100',
+      '01111110',
+      '00111100',
+      '00011000',
+      '00000000'
+    ];
+    levelData.gates = [
+      { color: 'Green', requiredValue: 2, side: 'Top', startCell: { x: 3, y: 0 }, span: 2 },
+      { color: 'Pink', requiredValue: 2, side: 'Left', startCell: { x: 0, y: 3 }, span: 1 },
+      { color: 'Purple', requiredValue: 2, side: 'Right', startCell: { x: 7, y: 6 }, span: 1 },
+      { color: 'Orange', requiredValue: 2, side: 'Bottom', startCell: { x: 3, y: 9 }, span: 2 }
+    ];
+    levelData.pieces = [];
+    selectedPieceIdx = -1;
+    selectedGateIdx = -1;
+    syncAll();
+    showToast('Đã tạo khung map Cosmic 4 nhánh (8×10)!');
+    return;
+  }
+
+  const cols = levelData.columns, rows = levelData.rows;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const inner = c > 0 && c < cols - 1 && r > 0 && r < rows - 1;
+      if (type === 'rect') setPlayable(c, r, inner);
+      else if (type === 'cross') setPlayable(c, r, inner && (Math.abs(c - (cols-1)/2) <= 1.2 || Math.abs(r - (rows-1)/2) <= 1.2));
+      else if (type === 'diamond') {
+        const cx = (cols-1)/2, cy = (rows-1)/2;
+        setPlayable(c, r, inner && (Math.abs(c-cx)/Math.max(1,cx) + Math.abs(r-cy)/Math.max(1,cy) <= 1.15));
+      } else {
+        const hole = (c === Math.floor(cols/2) && r === Math.floor(rows/2)) || (c === Math.floor((cols-1)/2) && r === Math.floor((rows-1)/2)-1);
+        setPlayable(c, r, inner && !hole);
+      }
+    }
+  }
+  syncAll();
+}
+
+function loadSample(num) {
+  recordUndo();
+  levelData = structuredClone(num === 12 ? SAMPLE_12 : SAMPLE_11);
+  selectedPieceIdx = -1; selectedGateIdx = -1;
+  syncAll();
+  showToast(`Đã nạp mẫu Level ${num}!`);
+}
+
+function clearEntities() {
+  recordUndo();
+  levelData.pieces = [];
+  levelData.gates = [];
+  selectedPieceIdx = -1; selectedGateIdx = -1;
+  syncAll();
+}
+
+// ==================== COPY / PASTE / EXPORT ====================
+function copyJson() {
+  const txt = document.getElementById('jsonOutput').value;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(txt).then(() => showToast('Đã copy JSON! Paste vào Unity ngay.')).catch(() => fallbackCopy(txt));
+  } else {
+    fallbackCopy(txt);
+  }
+}
+
+function fallbackCopy(txt) {
+  const ta = document.getElementById('jsonOutput');
+  ta.select();
+  document.execCommand('copy');
+  showToast('Đã copy JSON vào Clipboard!');
+}
+
+function pasteLoadJson() {
+  const txt = document.getElementById('jsonOutput').value;
+  try {
+    const parsed = JSON.parse(txt);
+    if (!parsed || !Array.isArray(parsed.cells)) throw new Error('Thiếu trường cells');
+    recordUndo();
+    levelData = normalizeData(parsed);
+    selectedPieceIdx = -1; selectedGateIdx = -1;
+    syncAll();
+    showToast(`Đã load JSON Level ${levelData.levelNumber}!`);
+  } catch (err) {
+    alert('JSON không hợp lệ: ' + err.message);
+  }
+}
+
+function downloadJson() {
+  const txt = document.getElementById('jsonOutput').value;
+  const blob = new Blob([txt], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `level_${levelData.levelNumber}.json`;
+  a.click();
+}
+
+function handleFileImport(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    document.getElementById('jsonOutput').value = ev.target.result;
+    pasteLoadJson();
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+}
+
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+// ==================== PLAYTEST ENGINE ====================
+function startPlayTest() {
+  const { errors } = validateLevel(levelData);
+  if (errors.length) {
+    if (!confirm('Level còn lỗi sau:\n• ' + errors.join('\n• ') + '\n\nVẫn muốn Play Test?')) return;
+  }
+  playMode = true;
+  document.getElementById('btnPlayTest').textContent = '⏹ Thoát Play Test';
+  document.getElementById('btnPlayTest').className = 'stop-btn';
+  document.getElementById('playtestHud').classList.add('visible');
+  resetPlayTest();
+}
+
+function stopPlayTest() {
+  playMode = false;
+  if (ptTimerId) { clearInterval(ptTimerId); ptTimerId = null; }
+  ptDrag = null;
+  document.getElementById('btnPlayTest').textContent = '▶ Play Test';
+  document.getElementById('btnPlayTest').className = 'play-btn';
+  document.getElementById('playtestHud').classList.remove('visible');
+  document.getElementById('playtestOverlay').classList.remove('visible');
+}
+
+function resetPlayTest() {
+  if (ptTimerId) clearInterval(ptTimerId);
+  ptFinished = false;
+  ptTimerStarted = false;
+  ptDrag = null;
+  ptSelectedId = null;
+  ptParticles = [];
+  ptFlashes = [];
+  ptTimeLeft = levelData.timeSeconds;
+  ptGates = levelData.gates.map(g => ({ ...structuredClone(g), pulse: 0 }));
+  ptPieces = levelData.pieces.map((p, idx) => ({
+    ...structuredClone(p),
+    id: idx + 1,
+    renderX: p.origin.x,
+    renderY: p.origin.y
+  }));
+  document.getElementById('hudLevelLabel').textContent = 'LEVEL ' + levelData.levelNumber;
+  document.getElementById('playtestOverlay').classList.remove('visible');
+  updateHudTimer();
+  ptTimerId = setInterval(() => {
+    if (!playMode || ptFinished || !ptTimerStarted) return;
+    ptTimeLeft = Math.max(0, ptTimeLeft - 1);
+    updateHudTimer();
+    if (ptTimeLeft <= 0) {
+      ptFinished = true;
+      showPlaytestOverlay('TIME OUT!', 'Hết giờ rồi! Thử lại hoặc chỉnh thêm thời gian.');
+    }
+  }, 1000);
+}
+
+function updateHudTimer() {
+  const el = document.getElementById('hudTimer');
+  el.textContent = formatMMSS(ptTimeLeft);
+  el.classList.toggle('low', ptTimeLeft > 0 && ptTimeLeft < 20);
+}
+
+function showPtFeedback(msg) {
+  const el = document.getElementById('hudFeedback');
+  el.textContent = '⚠️ ' + msg;
+  el.classList.add('show');
+  clearTimeout(el._tid);
+  el._tid = setTimeout(() => el.classList.remove('show'), 2000);
+}
+
+function showPlaytestOverlay(title, desc) {
+  document.getElementById('overlayTitle').textContent = title;
+  document.getElementById('overlayDesc').textContent = desc;
+  document.getElementById('playtestOverlay').classList.add('visible');
+}
+
+function getPieceCells(piece, ox = piece.origin.x, oy = piece.origin.y) {
+  const offs = SHAPES[piece.shape]?.offsets || [[0,0]];
+  return offs.map(([dx, dy]) => [ox + dx, oy + dy]);
+}
+
+function getPtOccupant(c, r, ignorePiece = null) {
+  for (const p of ptPieces) {
+    if (p === ignorePiece) continue;
+    if (getPieceCells(p).some(([px, py]) => px === c && py === r)) return p;
+  }
+  return null;
+}
+
+function getPtGateAt(c, r) {
+  for (const g of ptGates) {
+    if (getGateCoords(g).some(([gx, gy]) => gx === c && gy === r)) return g;
+  }
+  return null;
+}
+
+function canPtPieceFitAt(piece, ox, oy) {
+  for (const [cx, cy] of getPieceCells(piece, ox, oy)) {
+    if (!isPlayable(cx, cy)) return false;
+    if (getPtOccupant(cx, cy, piece)) return false;
+  }
+  return true;
+}
+
+function canMoveAxis(piece, dx, dy) {
+  if (piece.isStone) return false;
+  if (piece.moveAxis === 'HorizontalOnly' && dy !== 0) return false;
+  if (piece.moveAxis === 'VerticalOnly' && dx !== 0) return false;
+  return true;
+}
+
+function checkPtMerge(piece, ox, oy, dx, dy) {
+  if (!piece || piece.iceCount > 0 || piece.isStone || !canMoveAxis(piece, dx, dy)) return null;
+  const cells = getPieceCells(piece, ox + dx, oy + dy);
+  for (const [cx, cy] of cells) {
+    if (!isPlayable(cx, cy) && !isGateCell(cx, cy)) return null;
+  }
+  let hit = null, multi = false;
+  for (const [cx, cy] of cells) {
+    const occ = getPtOccupant(cx, cy, piece);
+    if (occ) {
+      if (!hit) hit = occ;
+      else if (hit !== occ) multi = true;
+    }
+  }
+  if (!hit || multi || hit.iceCount > 0 || hit.isStone) return null;
+  const aligned = (dx !== 0 && oy === hit.origin.y) || (dy !== 0 && ox === hit.origin.x);
+  if (hit.shape === piece.shape && hit.color === piece.color && hit.value === piece.value && aligned) return hit;
+  return null;
+}
+
+function checkPtEscape(piece, ox, oy, dx, dy) {
+  if (!piece || piece.iceCount > 0 || piece.isStone || !canMoveAxis(piece, dx, dy)) return null;
+  const cells = getPieceCells(piece, ox + dx, oy + dy);
+  let gate = null;
+  for (const [cx, cy] of cells) {
+    const g = getPtGateAt(cx, cy);
+    if (g) { gate = g; break; }
+  }
+  if (!gate) return null;
+  for (const [cx, cy] of cells) {
+    if (!isPlayable(cx, cy) && !isGateCell(cx, cy)) return null;
+    if (getPtOccupant(cx, cy, piece)) return null;
+  }
+  const gCoords = getGateCoords(gate);
+  const spanAligned = cells.every(([cx, cy]) => gCoords.some(([gx, gy]) => (dy !== 0 ? gx === cx : gy === cy)));
+  if (!spanAligned) return null;
+  const [tdx, tdy] = getGateTriggerDir(gate.side);
+  if (tdx === dx && tdy === dy && piece.color === gate.color && piece.value === gate.requiredValue) {
+    return gate;
+  }
+  return null;
+}
+
+function explainPtBlock(piece, ox, oy, dx, dy) {
+  if (!canMoveAxis(piece, dx, dy)) {
+    return piece.moveAxis === 'HorizontalOnly' ? 'Khối chỉ trượt theo chiều ngang!' : 'Khối chỉ trượt theo chiều dọc!';
+  }
+  const cells = getPieceCells(piece, ox + dx, oy + dy);
+  for (const [cx, cy] of cells) {
+    const g = getPtGateAt(cx, cy);
+    if (g) {
+      if (g.color !== piece.color) return `Sai màu cổng! Cổng màu ${COLORS[g.color].name}, khối màu ${COLORS[piece.color].name}.`;
+      if (g.requiredValue !== piece.value) return `Cổng cần số ${g.requiredValue}, khối đang có số ${piece.value}.`;
+    }
+    const occ = getPtOccupant(cx, cy, piece);
+    if (occ && !occ.isStone) {
+      if (occ.iceCount > 0) return 'Khối mục tiêu đang bị đóng băng!';
+      if (occ.color !== piece.color) return `Khác màu! Không thể gộp ${COLORS[piece.color].name} với ${COLORS[occ.color].name}.`;
+      if (occ.value !== piece.value) return `Khác số! (${piece.value} != ${occ.value})`;
+      if (occ.shape !== piece.shape) return 'Khác hình dáng!';
+      return 'Khối bị lệch hàng/cột, không thể gộp!';
+    }
+  }
+  return '';
+}
+
+function executePtMerge(moving, target) {
+  const idx = ptPieces.indexOf(target);
+  if (idx >= 0) ptPieces.splice(idx, 1);
+  moving.origin = { ...target.origin };
+  moving.renderX = target.origin.x;
+  moving.renderY = target.origin.y;
+  moving.value += 1;
+  ptFlashes.push({ x: target.origin.x, y: target.origin.y, t: 1, color: '#ffffff' });
+}
+
+function executePtEscape(piece, gate) {
+  const idx = ptPieces.indexOf(piece);
+  if (idx >= 0) ptPieces.splice(idx, 1);
+  const gCoords = getGateCoords(gate);
+  const cx = gCoords.reduce((s, [x]) => s + x, 0) / gCoords.length;
+  const cy = gCoords.reduce((s, [,y]) => s + y, 0) / gCoords.length;
+  for (let i = 0; i < 20; i++) {
+    const ang = Math.random() * Math.PI * 2;
+    const spd = 1.5 + Math.random() * 3.5;
+    ptParticles.push({
+      x: cx + 0.5, y: cy + 0.5,
+      vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd,
+      t: 1, color: COLORS[piece.color].light
+    });
+  }
+  // Decrement ice counters
+  ptPieces.forEach(other => {
+    if (other.iceCount > 0) other.iceCount = Math.max(0, other.iceCount - 1);
+  });
+  if (ptPieces.filter(p => !p.isStone).length === 0) {
+    ptFinished = true;
+    setTimeout(() => showPlaytestOverlay('WELL DONE! 🎉', 'Bạn đã hoàn thành level! Bạn có thể Copy JSON và paste vào Unity.'), 280);
+  }
+}
+
+// ==================== CANVAS INPUT ====================
+const PHONE_ASPECT = 1440 / 3200;
+
+function getPhoneRectOnCanvas() {
+  const maxH = canvas.height - 28;
+  const maxW = canvas.width - 36;
+  let ph = maxH;
+  let pw = ph * PHONE_ASPECT;
+  if (pw > maxW) { pw = maxW; ph = pw / PHONE_ASPECT; }
+  return {
+    x: (canvas.width - pw) / 2,
+    y: (canvas.height - ph) / 2,
+    w: pw,
+    h: ph
+  };
+}
+
+function getBoardLayout() {
+  const gates = playMode ? ptGates : levelData.gates;
+  if (!phoneFrameMode) {
+    const pad = 28;
+    const cellPx = Math.floor(Math.min((canvas.width - pad * 2) / levelData.columns, (canvas.height - pad * 2) / levelData.rows));
+    const bw = cellPx * levelData.columns;
+    const bh = cellPx * levelData.rows;
+    return {
+      isPhone: false,
+      phoneRect: null,
+      pxPerUnit: cellPx,
+      cellPx,
+      startX: (canvas.width - bw) / 2,
+      startY: (canvas.height - bh) / 2
+    };
+  }
+
+  const pr = getPhoneRectOnCanvas();
+  const bounds = getActiveBoundsJs(gates);
+  const activeCols = Math.max(1, bounds.maxC - bounds.minC + 1);
+  const activeRows = Math.max(1, bounds.maxR - bounds.minR + 1);
+  const worldCell = Math.max(0.72, Math.min(1.30, Math.min(6.8 / activeCols, 8.4 / activeRows)));
+  const frameW = (activeCols + 1.0) * worldCell;
+  const frameH = (activeRows + 1.0) * worldCell;
+  const sizeByW = (frameW * 0.5 + 0.42) / PHONE_ASPECT;
+  const sizeByH = (frameH * 0.5) / 0.56;
+  const baseOrtho = Math.max(8.70, Math.max(sizeByW, sizeByH));
+  const safeScale = clampFloat(levelData.boardScale ?? 1.0, 0.45, 1.80, 1.0);
+  const orthoSize = baseOrtho / safeScale;
+  const viewH = orthoSize * 2;
+  const viewW = viewH * PHONE_ASPECT;
+  const pxPerUnit = pr.w / viewW;
+  const cellPx = worldCell * pxPerUnit;
+
+  const midCol = (bounds.minC + bounds.maxC) * 0.5;
+  const midRow = (bounds.minR + bounds.maxR) * 0.5;
+  const wx0 = 0.015 + (-0.5 - midCol) * worldCell;
+  const wy0 = 0.073 - (-0.5 - midRow) * worldCell;
+  const camX = -(levelData.boardOffsetX || 0);
+  const camY = -(levelData.boardOffsetY || 0);
+  const startX = pr.x + ((wx0 - camX) / viewW + 0.5) * pr.w;
+  const startY = pr.y + (0.5 - (wy0 - camY) / viewH) * pr.h;
+
+  return { isPhone: true, phoneRect: pr, pxPerUnit, cellPx, startX, startY };
+}
+
+function pointerToGrid(e) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const px = (e.clientX - rect.left) * scaleX;
+  const py = (e.clientY - rect.top) * scaleY;
+  const layout = getBoardLayout();
+  return {
+    px, py, layout,
+    gx: (px - layout.startX) / layout.cellPx,
+    gy: (py - layout.startY) / layout.cellPx,
+    col: Math.floor((px - layout.startX) / layout.cellPx),
+    row: Math.floor((py - layout.startY) / layout.cellPx)
+  };
+}
+
+function onCanvasWheel(e) {
+  if (!phoneFrameMode || playMode) return;
+  e.preventDefault();
+  const nextScale = clampFloat((levelData.boardScale ?? 1.0) - e.deltaY * 0.0005, 0.45, 1.80, 1.0);
+  levelData.boardScale = Math.round(nextScale * 100) / 100;
+  syncMetaInputs();
+  syncJsonAndValidate();
+}
+
+function onCanvasPointerDown(e) {
+  const pt = pointerToGrid(e);
+  if (playMode) {
+    if (ptFinished) return;
+    const hit = getPtOccupant(pt.col, pt.row);
+    if (!hit) { ptSelectedId = null; return; }
+    if (hit.isStone) { showPtFeedback('Khối đá cố định không thể di chuyển!'); return; }
+    if (hit.iceCount > 0) { showPtFeedback(`Khối đang bị đóng băng! Cần ${hit.iceCount} khối khác thoát cổng để phá băng.`); return; }
+    ptTimerStarted = true;
+    ptSelectedId = hit.id;
+    ptDrag = {
+      piece: hit,
+      curOrigin: { ...hit.origin },
+      grabOffsetGx: pt.gx - hit.origin.x,
+      grabOffsetGy: pt.gy - hit.origin.y
+    };
+    return;
+  }
+
+  if (e.button === 1 || (e.button === 0 && (activeTool === 'pan' || e.altKey))) {
+    if (!phoneFrameMode) { showToast('Hãy bật "📱 Khung ĐT Unity" để căn vị trí!'); return; }
+    isPanningBoard = true;
+    panLastPos = { x: pt.px, y: pt.py };
+    recordUndo();
+    canvas.style.cursor = 'grabbing';
+    return;
+  }
+
+  if (pt.layout.isPhone) {
+    const pr = pt.layout.phoneRect;
+    if (pt.px < pr.x || pt.px > pr.x + pr.w || pt.py < pr.y || pt.py > pr.y + pr.h) return;
+  }
+
+  if (pt.col < 0 || pt.col >= levelData.columns || pt.row < 0 || pt.row >= levelData.rows) return;
+  if (e.button === 2) {
+    const pIdx = findPieceIdxAt(pt.col, pt.row);
+    if (pIdx >= 0) { recordUndo(); levelData.pieces.splice(pIdx,1); selectedPieceIdx=-1; syncAll(); return; }
+    const gIdx = findGateIdxAt(pt.col, pt.row);
+    if (gIdx >= 0) { recordUndo(); levelData.gates.splice(gIdx,1); selectedGateIdx=-1; syncAll(); return; }
+    if (isPlayable(pt.col, pt.row)) { recordUndo(); setPlayable(pt.col, pt.row, false); syncAll(); }
+    return;
+  }
+
+  if (activeTool === 'floor' || activeTool === 'void') {
+    isPaintingFloor = true;
+    recordUndo();
+    setPlayable(pt.col, pt.row, activeTool === 'floor');
+    syncAll();
+  } else if (activeTool === 'block') {
+    if (!canPlaceBlock(brush.shape, pt.col, pt.row)) { showToast('Vị trí đặt block không hợp lệ!'); return; }
+    recordUndo();
+    levelData.pieces.push({
+      color: brush.color,
+      shape: brush.shape,
+      value: brush.value,
+      origin: { x: pt.col, y: pt.row },
+      iceCount: brush.isStone ? 0 : brush.iceCount,
+      moveAxis: brush.isStone ? 'None' : brush.moveAxis,
+      isStone: brush.isStone
+    });
+    selectedPieceIdx = levelData.pieces.length - 1;
+    selectedGateIdx = -1;
+    syncAll();
+  } else if (activeTool === 'gate') {
+    const side = resolveGateSide(pt.col, pt.row);
+    const cand = { color: gateBrush.color, requiredValue: gateBrush.requiredValue, side, startCell: { x: pt.col, y: pt.row }, span: gateBrush.span };
+    const coords = getGateCoords(cand);
+    if (coords.some(([gx, gy]) => gx < 0 || gx >= levelData.columns || gy < 0 || gy >= levelData.rows || isPlayable(gx, gy))) {
+      showToast('Cổng phải nằm trên ô viền (không đè lên sàn chơi)!');
+      return;
+    }
+    recordUndo();
+    levelData.gates = levelData.gates.filter(eg => !getGateCoords(eg).some(([ex, ey]) => coords.some(([cx, cy]) => cx === ex && cy === ey)));
+    levelData.gates.push(cand);
+    selectedGateIdx = levelData.gates.length - 1;
+    selectedPieceIdx = -1;
+    syncAll();
+  } else if (activeTool === 'select') {
+    selectedPieceIdx = findPieceIdxAt(pt.col, pt.row);
+    selectedGateIdx = selectedPieceIdx >= 0 ? -1 : findGateIdxAt(pt.col, pt.row);
+    refreshSelectionPanel();
+  } else if (activeTool === 'delete') {
+    const pIdx = findPieceIdxAt(pt.col, pt.row);
+    if (pIdx >= 0) { recordUndo(); levelData.pieces.splice(pIdx,1); syncAll(); return; }
+    const gIdx = findGateIdxAt(pt.col, pt.row);
+    if (gIdx >= 0) { recordUndo(); levelData.gates.splice(gIdx,1); syncAll(); }
+  }
+}
+
+function onCanvasPointerMove(e) {
+  const pt = pointerToGrid(e);
+  if (!playMode && isPanningBoard && panLastPos) {
+    const dx = pt.px - panLastPos.x;
+    const dy = pt.py - panLastPos.y;
+    panLastPos = { x: pt.px, y: pt.py };
+    const scaleMove = Math.max(10, pt.layout.pxPerUnit || 40);
+    levelData.boardOffsetX = Math.round(clampFloat((levelData.boardOffsetX || 0) + dx / scaleMove, -3.5, 3.5, 0) * 100) / 100;
+    levelData.boardOffsetY = Math.round(clampFloat((levelData.boardOffsetY || 0) - dy / scaleMove, -4.5, 4.5, 0) * 100) / 100;
+    syncMetaInputs();
+    syncJsonAndValidate();
+    return;
+  }
+
+  if (playMode) {
+    if (!ptDrag) return;
+    const piece = ptDrag.piece;
+    const allowX = piece.moveAxis !== 'VerticalOnly';
+    const allowY = piece.moveAxis !== 'HorizontalOnly';
+    const targetOx = pt.gx - ptDrag.grabOffsetGx;
+    const targetOy = pt.gy - ptDrag.grabOffsetGy;
+
+    let guard = 6;
+    while (guard-- > 0) {
+      const dx = targetOx - ptDrag.curOrigin.x;
+      const dy = targetOy - ptDrag.curOrigin.y;
+      let moved = false;
+      if (Math.abs(dx) >= Math.abs(dy)) {
+        const sx = dx > 0 ? 1 : -1;
+        if (allowX && Math.abs(dx) >= 0.5 && canPtPieceFitAt(piece, ptDrag.curOrigin.x + sx, ptDrag.curOrigin.y)) {
+          ptDrag.curOrigin.x += sx; moved = true; continue;
+        }
+        const sy = dy > 0 ? 1 : -1;
+        if (allowY && Math.abs(dy) >= 0.5 && canPtPieceFitAt(piece, ptDrag.curOrigin.x, ptDrag.curOrigin.y + sy)) {
+          ptDrag.curOrigin.y += sy; moved = true; continue;
+        }
+      } else {
+        const sy = dy > 0 ? 1 : -1;
+        if (allowY && Math.abs(dy) >= 0.5 && canPtPieceFitAt(piece, ptDrag.curOrigin.x, ptDrag.curOrigin.y + sy)) {
+          ptDrag.curOrigin.y += sy; moved = true; continue;
+        }
+        const sx = dx > 0 ? 1 : -1;
+        if (allowX && Math.abs(dx) >= 0.5 && canPtPieceFitAt(piece, ptDrag.curOrigin.x + sx, ptDrag.curOrigin.y)) {
+          ptDrag.curOrigin.x += sx; moved = true; continue;
+        }
+      }
+      if (!moved) break;
+    }
+
+    const rdx = targetOx - ptDrag.curOrigin.x;
+    const rdy = targetOy - ptDrag.curOrigin.y;
+    const dirX = rdx >= 0 ? 1 : -1;
+    const dirY = rdy >= 0 ? 1 : -1;
+
+    let offX = 0;
+    if (allowX) {
+      if (canPtPieceFitAt(piece, ptDrag.curOrigin.x + dirX, ptDrag.curOrigin.y)) offX = Math.max(-0.9, Math.min(0.9, rdx));
+      else if (checkPtMerge(piece, ptDrag.curOrigin.x, ptDrag.curOrigin.y, dirX, 0) || checkPtEscape(piece, ptDrag.curOrigin.x, ptDrag.curOrigin.y, dirX, 0))
+        offX = Math.max(-0.85, Math.min(0.85, rdx));
+      else offX = Math.max(-0.1, Math.min(0.1, rdx * 0.15));
+    }
+
+    let offY = 0;
+    if (allowY) {
+      if (canPtPieceFitAt(piece, ptDrag.curOrigin.x, ptDrag.curOrigin.y + dirY)) offY = Math.max(-0.9, Math.min(0.9, rdy));
+      else if (checkPtMerge(piece, ptDrag.curOrigin.x, ptDrag.curOrigin.y, 0, dirY) || checkPtEscape(piece, ptDrag.curOrigin.x, ptDrag.curOrigin.y, 0, dirY))
+        offY = Math.max(-0.85, Math.min(0.85, rdy));
+      else offY = Math.max(-0.1, Math.min(0.1, rdy * 0.15));
+    }
+
+    piece.renderX = ptDrag.curOrigin.x + offX;
+    piece.renderY = ptDrag.curOrigin.y + offY;
+    return;
+  }
+
+  let insidePhone = true;
+  if (pt.layout.isPhone) {
+    const pr = pt.layout.phoneRect;
+    insidePhone = pt.px >= pr.x && pt.px <= pr.x + pr.w && pt.py >= pr.y && pt.py <= pr.y + pr.h;
+  }
+  hoverCell = (insidePhone && pt.col >= 0 && pt.col < levelData.columns && pt.row >= 0 && pt.row < levelData.rows) ? [pt.col, pt.row] : null;
+  if (isPaintingFloor && hoverCell) {
+    const val = activeTool === 'floor';
+    if (isPlayable(hoverCell[0], hoverCell[1]) !== val) {
+      setPlayable(hoverCell[0], hoverCell[1], val);
+      syncAll();
+    }
+  }
+}
+
+function onCanvasPointerUp() {
+  isPaintingFloor = false;
+  if (isPanningBoard) {
+    isPanningBoard = false;
+    panLastPos = null;
+    canvas.style.cursor = (activeTool === 'pan' && !playMode) ? 'grab' : 'crosshair';
+  }
+  if (!playMode || !ptDrag) return;
+  const piece = ptDrag.piece;
+  const ox = ptDrag.curOrigin.x, oy = ptDrag.curOrigin.y;
+  const offX = piece.renderX - ox, offY = piece.renderY - oy;
+  const allowX = piece.moveAxis !== 'VerticalOnly';
+  const allowY = piece.moveAxis !== 'HorizontalOnly';
+  let acted = false;
+
+  if (allowX && Math.abs(offX) >= 0.35) {
+    const dx = offX > 0 ? 1 : -1;
+    const mt = checkPtMerge(piece, ox, oy, dx, 0);
+    if (mt) { executePtMerge(piece, mt); acted = true; }
+    else {
+      const eg = checkPtEscape(piece, ox, oy, dx, 0);
+      if (eg) { executePtEscape(piece, eg); acted = true; }
+      else {
+        const msg = explainPtBlock(piece, ox, oy, dx, 0);
+        if (msg) showPtFeedback(msg);
+      }
+    }
+  }
+  if (!acted && allowY && Math.abs(offY) >= 0.35) {
+    const dy = offY > 0 ? 1 : -1;
+    const mt = checkPtMerge(piece, ox, oy, 0, dy);
+    if (mt) { executePtMerge(piece, mt); acted = true; }
+    else {
+      const eg = checkPtEscape(piece, ox, oy, 0, dy);
+      if (eg) { executePtEscape(piece, eg); acted = true; }
+      else {
+        const msg = explainPtBlock(piece, ox, oy, 0, dy);
+        if (msg) showPtFeedback(msg);
+      }
+    }
+  }
+  if (!acted) {
+    piece.origin = { x: ox, y: oy };
+    piece.renderX = ox;
+    piece.renderY = oy;
+  }
+  ptDrag = null;
+}
+
+function handleKeyDown(e) {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); performUndo(); return; }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') { e.preventDefault(); performRedo(); return; }
+
+  if (playMode) {
+    if (ptFinished || !ptSelectedId) return;
+    const piece = ptPieces.find(p => p.id === ptSelectedId);
+    if (!piece) return;
+    let dx = 0, dy = 0;
+    const k = e.key.toLowerCase();
+    if (k === 'arrowup' || k === 'w') dy = -1;
+    else if (k === 'arrowdown' || k === 's') dy = 1;
+    else if (k === 'arrowleft' || k === 'a') dx = -1;
+    else if (k === 'arrowright' || k === 'd') dx = 1;
+    if (!dx && !dy) return;
+    e.preventDefault();
+    if (!canMoveAxis(piece, dx, dy)) { showPtFeedback(explainPtBlock(piece, piece.origin.x, piece.origin.y, dx, dy)); return; }
+    const mt = checkPtMerge(piece, piece.origin.x, piece.origin.y, dx, dy);
+    if (mt) { executePtMerge(piece, mt); return; }
+    const eg = checkPtEscape(piece, piece.origin.x, piece.origin.y, dx, dy);
+    if (eg) { executePtEscape(piece, eg); return; }
+    if (canPtPieceFitAt(piece, piece.origin.x + dx, piece.origin.y + dy)) {
+      piece.origin.x += dx; piece.origin.y += dy;
+      piece.renderX = piece.origin.x; piece.renderY = piece.origin.y;
+    } else {
+      const msg = explainPtBlock(piece, piece.origin.x, piece.origin.y, dx, dy);
+      if (msg) showPtFeedback(msg);
+    }
+    return;
+  }
+
+  const key = e.key.toLowerCase();
+  if (key === 'r' && activeTool === 'block') rotateBrushShape();
+  else if (key === '1') setTool('floor');
+  else if (key === '2') setTool('void');
+  else if (key === '3') setTool('gate');
+  else if (key === '4') setTool('block');
+  else if (key === '5') setTool('select');
+  else if (key === '6') setTool('delete');
+  else if (key === '7') setTool('pan');
+}
+
+// ==================== RENDERING (SCULPTED COSMIC STONE DUNGEON STYLE) ====================
+const BOARD_WALL_MARGIN = 0.50;
+const BOARD_WALL_THICK = 0.355;
+const BOARD_FILLET_R = 0.22;
+
+let boardCacheCanvas = null;
+let boardCacheKey = '';
+let boardCacheMeta = null;
+
+function clamp01(v) { return v < 0 ? 0 : (v > 1 ? 1 : v); }
+function lerpNum(a, b, t) { return a + (b - a) * t; }
+function smoothStep(e0, e1, x) {
+  const t = clamp01((x - e0) / (e1 - e0));
+  return t * t * (3 - 2 * t);
+}
+function parseHexRgb(hex) {
+  const h = hex.replace('#', '');
+  return [
+    parseInt(h.slice(0, 2), 16),
+    parseInt(h.slice(2, 4), 16),
+    parseInt(h.slice(4, 6), 16)
+  ];
+}
+function lerpRgb(c1, c2, t) {
+  const k = clamp01(t);
+  return [
+    Math.round(c1[0] + (c2[0] - c1[0]) * k),
+    Math.round(c1[1] + (c2[1] - c1[1]) * k),
+    Math.round(c1[2] + (c2[2] - c1[2]) * k)
+  ];
+}
+function boostNeonRgb(rgb) {
+  let r = rgb[0] / 255, g = rgb[1] / 255, b = rgb[2] / 255;
+  const maxC = Math.max(r, g, b), minC = Math.min(r, g, b);
+  const mean = (r + g + b) / 3;
+  r = clamp01(mean + (r - mean) * 1.18);
+  g = clamp01(mean + (g - mean) * 1.18);
+  b = clamp01(mean + (b - mean) * 1.18);
+  const scale = maxC > 0.05 ? Math.max(1.0, 0.94 / Math.max(r, g, b)) : 1.0;
+  return [
+    Math.min(255, Math.round(r * scale * 255)),
+    Math.min(255, Math.round(g * scale * 255)),
+    Math.min(255, Math.round(b * scale * 255))
+  ];
+}
+
+function hash2DJs(ix, iy) {
+  let h = (Math.imul(ix, 374761393) + Math.imul(iy, 668265263)) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177) | 0;
+  h = h ^ (h >>> 16);
+  return (h & 0xFFFF) / 65535;
+}
+function valueNoiseJs(x, y) {
+  const ix = Math.floor(x), iy = Math.floor(y);
+  const fx = x - ix, fy = y - iy;
+  const ux = fx * fx * (3 - 2 * fx), uy = fy * fy * (3 - 2 * fy);
+  const v00 = hash2DJs(ix, iy), v10 = hash2DJs(ix + 1, iy);
+  const v01 = hash2DJs(ix, iy + 1), v11 = hash2DJs(ix + 1, iy + 1);
+  return lerpNum(lerpNum(v00, v10, ux), lerpNum(v01, v11, ux), uy);
+}
+function fbm2Js(x, y) {
+  return valueNoiseJs(x, y) * 0.65 + valueNoiseJs(x * 2.13 + 5.7, y * 2.13 - 3.1) * 0.35;
+}
+function voronoiStoneJs(x, y) {
+  const ix = Math.floor(x), iy = Math.floor(y);
+  const fx = x - ix, fy = y - iy;
+  let d1 = 99, d2 = 99, bestHash = 0.5;
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      const cx = ix + dx, cy = iy + dy;
+      const jx = 0.14 + 0.72 * hash2DJs(cx * 3 + 17, cy * 5 + 31);
+      const jy = 0.14 + 0.72 * hash2DJs(cx * 7 + 53, cy * 11 + 19);
+      const px = dx + jx - fx, py = dy + jy - fy;
+      const dist = Math.hypot(px, py);
+      if (dist < d1) {
+        d2 = d1; d1 = dist;
+        bestHash = hash2DJs(cx + 97, cy + 131);
+      } else if (dist < d2) {
+        d2 = dist;
+      }
+    }
+  }
+  return [d2 - d1, bestHash];
+}
+function evalCornerFilletJs(u, v, c) {
+  if (u <= c && v <= c) {
+    const du = c - u, dv = c - v;
+    return c - Math.hypot(du, dv);
+  }
+  return 99;
+}
+function evalWallSdfJs(gx, gy, activeMask, maskW, maskH) {
+  const ic = Math.floor(gx), ir = Math.floor(gy);
+  const mx = ic + 1, my = ir + 1;
+  let minDistSq = 99;
+  for (let dr = -1; dr <= 1; dr++) {
+    const nmy = my + dr;
+    if (nmy < 0 || nmy >= maskH) continue;
+    const nr = ir + dr;
+    const clampY = Math.max(nr, Math.min(nr + 1, gy));
+    const dy = gy - clampY;
+    for (let dc = -1; dc <= 1; dc++) {
+      const nmx = mx + dc;
+      if (nmx < 0 || nmx >= maskW || !activeMask[nmy * maskW + nmx]) continue;
+      const nc = ic + dc;
+      const clampX = Math.max(nc, Math.min(nc + 1, gx));
+      const dx = gx - clampX;
+      const d2 = dx * dx + dy * dy;
+      if (d2 < minDistSq) minDistSq = d2;
+    }
+  }
+  const dEuclid = Math.sqrt(minDistSq);
+  if (dEuclid <= 0.045 || dEuclid > BOARD_WALL_MARGIN + 0.10) return dEuclid;
+
+  if (mx >= 1 && mx < maskW - 1 && my >= 1 && my < maskH - 1) {
+    const aL = activeMask[my * maskW + (mx - 1)];
+    const aR = activeMask[my * maskW + (mx + 1)];
+    const aT = activeMask[(my - 1) * maskW + mx];
+    const aB = activeMask[(my + 1) * maskW + mx];
+    if ((aL || aR) && (aT || aB)) {
+      const fx = gx - ic, fy = gy - ir;
+      const fc = BOARD_WALL_THICK + BOARD_FILLET_R;
+      let bestFillet = dEuclid;
+      if (aL && aT) bestFillet = Math.min(bestFillet, evalCornerFilletJs(fx, fy, fc));
+      if (aR && aT) bestFillet = Math.min(bestFillet, evalCornerFilletJs(1 - fx, fy, fc));
+      if (aL && aB) bestFillet = Math.min(bestFillet, evalCornerFilletJs(fx, 1 - fy, fc));
+      if (aR && aB) bestFillet = Math.min(bestFillet, evalCornerFilletJs(1 - fx, 1 - fy, fc));
+      if (bestFillet < dEuclid) {
+        const blend = smoothStep(0.05, 0.20, dEuclid);
+        return lerpNum(dEuclid, Math.max(0.05, bestFillet), blend);
+      }
+    }
+  }
+  return dEuclid;
+}
+
+function getActiveBoundsJs(gatesList) {
+  let minC = levelData.columns, maxC = -1, minR = levelData.rows, maxR = -1;
+  let any = false;
+  for (let r = 0; r < levelData.rows; r++) {
+    for (let c = 0; c < levelData.columns; c++) {
+      if (isPlayable(c, r)) {
+        any = true;
+        if (c < minC) minC = c; if (c > maxC) maxC = c;
+        if (r < minR) minR = r; if (r > maxR) maxR = r;
+      }
+    }
+  }
+  for (const g of gatesList) {
+    for (const [gx, gy] of getGateCoords(g)) {
+      if (gx >= 0 && gx < levelData.columns && gy >= 0 && gy < levelData.rows) {
+        any = true;
+        if (gx < minC) minC = gx; if (gx > maxC) maxC = gx;
+        if (gy < minR) minR = gy; if (gy > maxR) maxR = gy;
+      }
+    }
+  }
+  if (!any) return { hasActive: false, minC: 0, maxC: levelData.columns - 1, minR: 0, maxR: levelData.rows - 1 };
+  return { hasActive: true, minC, maxC, minR, maxR };
+}
+
+function rebuildBoardCacheIfNeeded(gates, displayCellPx) {
+  const bounds = getActiveBoundsJs(gates);
+  if (!bounds.hasActive) { boardCacheMeta = null; return null; }
+
+  const activeCols = Math.max(1, bounds.maxC - bounds.minC + 1);
+  const activeRows = Math.max(1, bounds.maxR - bounds.minR + 1);
+  const renderPx = Math.min(72, Math.max(40, Math.round(displayCellPx)));
+  const gateSig = gates.map(g => `${g.color}:${g.side}:${g.startCell.x},${g.startCell.y}:${g.span}`).join('|');
+  const key = `${levelData.levelNumber}|${renderPx}|${levelData.columns}x${levelData.rows}|${levelData.cells.join('/')}|${gateSig}`;
+  if (key === boardCacheKey && boardCacheCanvas) return boardCacheMeta;
+
+  boardCacheKey = key;
+  const totalW = activeCols + BOARD_WALL_MARGIN * 2;
+  const totalH = activeRows + BOARD_WALL_MARGIN * 2;
+  const texW = Math.round(totalW * renderPx);
+  const texH = Math.round(totalH * renderPx);
+
+  if (!boardCacheCanvas) boardCacheCanvas = document.createElement('canvas');
+  boardCacheCanvas.width = texW;
+  boardCacheCanvas.height = texH;
+  const bctx = boardCacheCanvas.getContext('2d');
+  const imgData = bctx.createImageData(texW, texH);
+  const d = imgData.data;
+
+  const maskW = activeCols + 2, maskH = activeRows + 2;
+  const activeMask = new Uint8Array(maskW * maskH);
+  const playableMask = new Uint8Array(maskW * maskH);
+
+  const gateLookup = new Set();
+  for (const g of gates) {
+    for (const [gx, gy] of getGateCoords(g)) gateLookup.add(`${gx},${gy}`);
+  }
+  for (let r = bounds.minR; r <= bounds.maxR; r++) {
+    for (let c = bounds.minC; c <= bounds.maxC; c++) {
+      const mx = (c - bounds.minC) + 1;
+      const my = (r - bounds.minR) + 1;
+      const play = isPlayable(c, r);
+      const valid = play || gateLookup.has(`${c},${r}`);
+      playableMask[my * maskW + mx] = play ? 1 : 0;
+      activeMask[my * maskW + mx] = valid ? 1 : 0;
+    }
+  }
+
+  const gateBoxes = [];
+  for (const g of gates) {
+    const coords = getGateCoords(g);
+    if (!coords.length) continue;
+    const gMinC = Math.min(...coords.map(p => p[0])), gMaxC = Math.max(...coords.map(p => p[0]));
+    const gMinR = Math.min(...coords.map(p => p[1])), gMaxR = Math.max(...coords.map(p => p[1]));
+    const base = boostNeonRgb(parseHexRgb((COLORS[g.color] || COLORS.Red).hex));
+    gateBoxes.push({
+      MinX: (gMinC - bounds.minC) + 0.055,
+      MaxX: (gMaxC - bounds.minC + 1) - 0.055,
+      MinY: (gMinR - bounds.minR) + 0.055,
+      MaxY: (gMaxR - bounds.minR + 1) - 0.055,
+      Base: base,
+      Hi: lerpRgb(base, [255, 255, 255], 0.44),
+      MidLit: lerpRgb(base, [255, 255, 255], 0.16),
+      Sh: lerpRgb(base, [15, 10, 46], 0.42),
+      Rim: lerpRgb(base, [255, 255, 255], 0.58)
+    });
+  }
+
+  const invPx = 1 / renderPx;
+  const aaStep = 1.35 * invPx;
+  const colPitDeep = [14, 13, 50], colPitShadow = [8, 7, 30];
+  const colTileTop = [58, 59, 136], colTileMid = [45, 46, 112], colTileBot = [36, 37, 94];
+  const colTileRimL = [102, 106, 194], colTileSpec = [126, 132, 218], colTileRimD = [22, 22, 64];
+  const colInnerLip = [16, 13, 52], colStoneSh = [66, 68, 134], colStoneMid = [118, 124, 198];
+  const colStoneLit = [178, 189, 244], colStoneSpec = [236, 242, 255];
+  const colCrackD = [34, 30, 82], colCrackL = [238, 245, 255], colOuterInk = [32, 28, 78];
+
+  const lLen = Math.hypot(-0.56, -0.72, 0.41);
+  const lx = -0.56 / lLen, ly = -0.72 / lLen, lz = 0.41 / lLen;
+  const seedOff = (levelData.levelNumber * 1.37) % 17.0;
+
+  for (let py = 0; py < texH; py++) {
+    const gy = (py + 0.5) * invPx - BOARD_WALL_MARGIN;
+    const ir = Math.floor(gy), my = ir + 1, fy = gy - ir;
+
+    for (let px = 0; px < texW; px++) {
+      const gx = (px + 0.5) * invPx - BOARD_WALL_MARGIN;
+      const ic = Math.floor(gx), mx = ic + 1, fx = gx - ic;
+      const idx = (py * texW + px) * 4;
+
+      const inMask = mx >= 0 && mx < maskW && my >= 0 && my < maskH;
+      const isInside = inMask && activeMask[my * maskW + mx] === 1;
+
+      if (isInside) {
+        const hasT = activeMask[(my - 1) * maskW + mx] === 0;
+        const hasL = activeMask[my * maskW + (mx - 1)] === 0;
+        const hasR = activeMask[my * maskW + (mx + 1)] === 0;
+        const hasB = activeMask[(my + 1) * maskW + mx] === 0;
+        const hasTL = activeMask[(my - 1) * maskW + (mx - 1)] === 0;
+
+        let ao = 0;
+        if (hasT && fy < 0.24) ao = Math.max(ao, (1 - fy / 0.24) * 0.62);
+        if (hasL && fx < 0.20) ao = Math.max(ao, (1 - fx / 0.20) * 0.50);
+        if (hasR && fx > 0.86) ao = Math.max(ao, ((fx - 0.86) / 0.14) * 0.28);
+        if (hasB && fy > 0.88) ao = Math.max(ao, ((fy - 0.88) / 0.12) * 0.28);
+        if (hasTL && fx < 0.20 && fy < 0.20) {
+          const dc = Math.hypot(fx, fy);
+          if (dc < 0.22) ao = Math.max(ao, (1 - dc / 0.22) * 0.45);
+        }
+
+        let outRgb;
+        if (playableMask[my * maskW + mx] === 1) {
+          const halfT = 0.448, tileR = 0.132;
+          const dx = Math.abs(fx - 0.5), dy = Math.abs(fy - 0.5);
+          const sdx = Math.max(0, dx - (halfT - tileR)), sdy = Math.max(0, dy - (halfT - tileR));
+          const tileDist = Math.hypot(sdx, sdy) - tileR;
+
+          const sdxSh = Math.max(0, Math.abs((fx - 0.022) - 0.5) - (halfT - tileR));
+          const sdySh = Math.max(0, Math.abs((fy - 0.032) - 0.5) - (halfT - tileR));
+          const tileSh = Math.hypot(sdxSh, sdySh) - tileR;
+
+          if (tileDist > aaStep) {
+            outRgb = tileSh < 0.02 ? colPitShadow : colPitDeep;
+          } else {
+            let body = fy < 0.46
+              ? lerpRgb(colTileTop, colTileMid, fy / 0.46)
+              : lerpRgb(colTileMid, colTileBot, (fy - 0.46) / 0.54);
+            const dome = clamp01(1 - ((fx - 0.46) * (fx - 0.46) + (fy - 0.40) * (fy - 0.40)) * 2.4);
+            if (dome > 0) body = lerpRgb(body, colTileRimL, dome * 0.08);
+
+            const depth = Math.max(0, -tileDist);
+            if (depth < 0.105) {
+              const bT = 1 - depth / 0.105;
+              const ux = fx - 0.5, uy = fy - 0.5;
+              const bias = (-ux * 0.58 - uy * 0.82) * 2.2;
+              if (bias >= 0) {
+                const targetHi = (depth > 0.008 && depth < 0.038 && uy < -0.15) ? colTileSpec : colTileRimL;
+                body = lerpRgb(body, targetHi, clamp01(bias) * bT * 0.62);
+              } else {
+                body = lerpRgb(body, colTileRimD, clamp01(-bias) * bT * 0.72);
+              }
+            }
+            if (tileDist > -aaStep) {
+              const tE = clamp01((tileDist + aaStep) / (2 * aaStep));
+              outRgb = lerpRgb(body, tileSh < 0.02 ? colPitShadow : colPitDeep, tE);
+            } else {
+              outRgb = body;
+            }
+          }
+        } else {
+          outRgb = colPitDeep;
+          for (const gb of gateBoxes) {
+            if (gx >= gb.MinX - 0.04 && gx <= gb.MaxX + 0.04 && gy >= gb.MinY - 0.04 && gy <= gb.MaxY + 0.04) {
+              const halfW = (gb.MaxX - gb.MinX) * 0.5, halfH = (gb.MaxY - gb.MinY) * 0.5;
+              const cxB = (gb.MinX + gb.MaxX) * 0.5, cyB = (gb.MinY + gb.MaxY) * 0.5;
+              const padR = Math.min(0.135, Math.min(halfW, halfH) * 0.48);
+              const bdx = Math.max(0, Math.abs(gx - cxB) - (halfW - padR));
+              const bdy = Math.max(0, Math.abs(gy - cyB) - (halfH - padR));
+              const bDist = Math.hypot(bdx, bdy) - padR;
+              if (bDist <= aaStep) {
+                const lY = clamp01((gy - gb.MinY) / Math.max(0.01, gb.MaxY - gb.MinY));
+                let gc;
+                if (bDist > -0.045) gc = lerpRgb(gb.Sh, colPitShadow, lY * 0.45);
+                else if (lY < 0.24) gc = lerpRgb(gb.Hi, gb.MidLit, lY / 0.24);
+                else if (lY > 0.78) gc = lerpRgb(gb.Base, gb.Sh, (lY - 0.78) / 0.22);
+                else gc = lerpRgb(gb.MidLit, gb.Base, (lY - 0.24) / 0.54);
+
+                const pDepth = Math.max(0, -bDist);
+                if (pDepth > 0.012 && pDepth < 0.048 && lY < 0.35) gc = lerpRgb(gc, gb.Rim, 0.55);
+                outRgb = bDist > -aaStep ? lerpRgb(gc, colPitDeep, clamp01((bDist + aaStep) / (2 * aaStep))) : gc;
+                break;
+              }
+            }
+          }
+        }
+
+        if (ao > 0) outRgb = lerpRgb(outRgb, colPitShadow, ao);
+        d[idx] = outRgb[0]; d[idx + 1] = outRgb[1]; d[idx + 2] = outRgb[2]; d[idx + 3] = 255;
+        continue;
+      }
+
+      const dist = evalWallSdfJs(gx, gy, activeMask, maskW, maskH);
+      if (dist > BOARD_WALL_MARGIN) {
+        d[idx + 3] = 0; continue;
+      }
+
+      const nChip = fbm2Js(gx * 2.6 + seedOff, gy * 2.6 - seedOff);
+      const notchN = hash2DJs(Math.floor(gx * 1.4 + 13), Math.floor(gy * 1.4 + 29));
+      const chipAmt = clamp01(nChip - 0.55) * 0.032 + (notchN > 0.88 ? 0.014 : 0);
+      const effWall = BOARD_WALL_THICK - chipAmt;
+
+      const distSh = evalWallSdfJs(gx - 0.032, gy - 0.062, activeMask, maskW, maskH);
+      let bgR = 0, bgG = 0, bgB = 0, bgA = 0;
+      const shBeyond = distSh - effWall;
+      if (shBeyond > -0.02 && shBeyond < 0.145) {
+        const sA = Math.pow(clamp01(1 - Math.max(0, shBeyond) / 0.145), 2) * 0.58;
+        bgR = 10; bgG = 6; bgB = 36; bgA = sA;
+      }
+      const haloBeyond = dist - effWall;
+      if (haloBeyond > 0 && haloBeyond < 0.065) {
+        const hA = Math.pow(clamp01(1 - haloBeyond / 0.065), 2) * 0.24;
+        const outA = hA + bgA * (1 - hA);
+        if (outA > 1e-4) {
+          bgR = (142 * hA + bgR * bgA * (1 - hA)) / outA;
+          bgG = (160 * hA + bgG * bgA * (1 - hA)) / outA;
+          bgB = (255 * hA + bgB * bgA * (1 - hA)) / outA;
+          bgA = outA;
+        }
+      }
+
+      if (dist > effWall + aaStep) {
+        d[idx] = Math.round(bgR); d[idx + 1] = Math.round(bgG); d[idx + 2] = Math.round(bgB); d[idx + 3] = Math.round(bgA * 255);
+        continue;
+      }
+
+      const eps = 0.012;
+      let nx = evalWallSdfJs(gx + eps, gy, activeMask, maskW, maskH) - evalWallSdfJs(gx - eps, gy, activeMask, maskW, maskH);
+      let ny = evalWallSdfJs(gx, gy + eps, activeMask, maskW, maskH) - evalWallSdfJs(gx, gy - eps, activeMask, maskW, maskH);
+      const nLen = Math.hypot(nx, ny);
+      if (nLen > 1e-5) { nx /= nLen; ny /= nLen; } else { nx = 0; ny = -1; }
+
+      const uWall = clamp01(dist / effWall);
+      let radialTilt = 0;
+      if (uWall < 0.065) radialTilt = -0.35;
+      else if (uWall < 0.25) radialTilt = -lerpNum(0.88, 0.28, (uWall - 0.065) / 0.185);
+      else if (uWall < 0.72) radialTilt = 0;
+      else radialTilt = lerpNum(0.24, 0.92, clamp01((uWall - 0.72) / 0.24));
+
+      const warpX = gx + (fbm2Js(gx * 1.45 + seedOff, gy * 1.45) - 0.5) * 0.22;
+      const warpY = gy + (fbm2Js(gx * 1.45 + 7.1, gy * 1.45 + seedOff) - 0.5) * 0.22;
+      const [slabED, cellH] = voronoiStoneJs(warpX * 1.18, warpY * 1.18);
+
+      const fineWX = gx + (fbm2Js(gx * 2.8 + 3.2, gy * 2.8) - 0.5) * 0.14;
+      const fineWY = gy + (fbm2Js(gx * 2.8, gy * 2.8 + 9.4) - 0.5) * 0.14;
+      const [fineED, fineH] = voronoiStoneJs(fineWX * 2.35 + 4.3, fineWY * 2.35 - 2.1);
+
+      const hasSub = cellH > 0.42 && fineH > 0.35 && slabED > 0.04 && slabED < 0.36;
+      const combCD = hasSub ? Math.min(slabED, fineED * 0.92) : slabED;
+
+      const [slabShift] = voronoiStoneJs((warpX - 0.0195) * 1.18, (warpY - 0.024) * 1.18);
+      const [fineShift] = voronoiStoneJs((fineWX - 0.0195) * 2.35 + 4.3, (fineWY - 0.024) * 2.35 - 2.1);
+      const combShift = hasSub ? Math.min(slabShift, fineShift * 0.92) : slabShift;
+
+      const grain = (fbm2Js(gx * 4.2 + seedOff, gy * 4.2) - 0.5) * 0.22;
+      const fBias = (cellH - 0.5) * 0.26;
+      const snx = nx * radialTilt + grain * 0.4 + fBias * 0.5;
+      const sny = ny * radialTilt + grain * 0.4 - fBias * 0.4;
+      const snz = 1 - Math.abs(radialTilt) * 0.42;
+      const snL = Math.hypot(snx, sny, snz) || 1;
+      const ndl = clamp01(((snx * lx + sny * ly + snz * lz) / snL) * 0.72 + 0.38 + fBias * 0.22);
+
+      let sCol;
+      if (ndl < 0.42) sCol = lerpRgb(colStoneSh, colStoneMid, ndl / 0.42);
+      else if (ndl < 0.78) sCol = lerpRgb(colStoneMid, colStoneLit, (ndl - 0.42) / 0.36);
+      else sCol = lerpRgb(colStoneLit, colStoneSpec, (ndl - 0.78) / 0.22);
+
+      if (uWall >= 0.78 && uWall <= 0.94) {
+        const rimF = clamp01((-nx * 0.56 - ny * 0.72) * 0.85 + 0.25);
+        if (rimF > 0.35) sCol = lerpRgb(sCol, colStoneSpec, (rimF - 0.35) * 1.15);
+      } else if (uWall >= 0.08 && uWall <= 0.24) {
+        const inF = clamp01((nx * 0.56 + ny * 0.72) * 0.85 + 0.20);
+        if (inF > 0.32) sCol = lerpRgb(sCol, colStoneSpec, (inF - 0.32) * 0.95);
+      }
+
+      if (uWall < 0.075) sCol = lerpRgb(sCol, colInnerLip, (1 - uWall / 0.075) * 0.92);
+      else if (uWall > 0.935) sCol = lerpRgb(sCol, colOuterInk, ((uWall - 0.935) / 0.065) * 0.82);
+
+      if (uWall > 0.07 && uWall < 0.95) {
+        if (combCD < 0.030) sCol = lerpRgb(sCol, colCrackD, clamp01((1 - combCD / 0.030) * 1.15) * 0.88);
+        else if (combCD < 0.082 && combCD > combShift + 0.004) {
+          const lip = 1 - Math.abs(combCD - 0.048) / 0.034;
+          const dw = clamp01((combCD - combShift) * 32);
+          sCol = lerpRgb(sCol, colCrackL, clamp01(lip) * dw * 0.72);
+        }
+      }
+
+      if (dist > effWall - aaStep) {
+        const cov = clamp01(1 - (dist - (effWall - aaStep)) / (2 * aaStep));
+        const outA = cov + bgA * (1 - cov);
+        d[idx] = outA > 1e-4 ? Math.round((sCol[0] * cov + bgR * bgA * (1 - cov)) / outA) : 0;
+        d[idx + 1] = outA > 1e-4 ? Math.round((sCol[1] * cov + bgG * bgA * (1 - cov)) / outA) : 0;
+        d[idx + 2] = outA > 1e-4 ? Math.round((sCol[2] * cov + bgB * bgA * (1 - cov)) / outA) : 0;
+        d[idx + 3] = Math.round(outA * 255);
+      } else {
+        d[idx] = sCol[0]; d[idx + 1] = sCol[1]; d[idx + 2] = sCol[2]; d[idx + 3] = 255;
+      }
+    }
+  }
+
+  bctx.putImageData(imgData, 0, 0);
+  boardCacheMeta = { bounds, activeCols, activeRows };
+  return boardCacheMeta;
+}
+
+function roundRectPath(c, x, y, w, h, r) {
+  r = Math.min(r, w / 2, h / 2);
+  c.beginPath();
+  c.moveTo(x + r, y);
+  c.arcTo(x + w, y, x + w, y + h, r);
+  c.arcTo(x + w, y + h, x, y + h, r);
+  c.arcTo(x, y + h, x, y, r);
+  c.arcTo(x, y, x + w, y, r);
+  c.closePath();
+}
+
+function drawSpaceBackdrop(t) {
+  const bgGrad = ctx.createRadialGradient(canvas.width * 0.5, canvas.height * 0.45, 40, canvas.width * 0.5, canvas.height * 0.5, canvas.width * 0.78);
+  bgGrad.addColorStop(0, '#271e6e');
+  bgGrad.addColorStop(0.55, '#19134c');
+  bgGrad.addColorStop(1, '#100a2e');
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Subtle cosmic light beams
+  ctx.save();
+  ctx.globalCompositeOperation = 'screen';
+  for (let i = 0; i < 3; i++) {
+    const grad = ctx.createLinearGradient(0, canvas.height * (0.2 + i * 0.25), canvas.width, canvas.height * (0.4 + i * 0.2));
+    grad.addColorStop(0, 'rgba(99, 102, 241, 0)');
+    grad.addColorStop(0.5, 'rgba(129, 140, 248, 0.055)');
+    grad.addColorStop(1, 'rgba(99, 102, 241, 0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.moveTo(0, canvas.height * (0.08 + i * 0.26));
+    ctx.lineTo(canvas.width, canvas.height * (0.34 + i * 0.22));
+    ctx.lineTo(canvas.width, canvas.height * (0.48 + i * 0.22));
+    ctx.lineTo(0, canvas.height * (0.22 + i * 0.26));
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.restore();
+
+  // Ringed purple planet in upper-right corner
+  const px = canvas.width * 0.85, py = canvas.height * 0.18, pr = canvas.width * 0.068;
+  ctx.save();
+  const planetGlow = ctx.createRadialGradient(px, py, pr * 0.6, px, py, pr * 2.1);
+  planetGlow.addColorStop(0, 'rgba(139, 92, 246, 0.24)');
+  planetGlow.addColorStop(1, 'rgba(139, 92, 246, 0)');
+  ctx.fillStyle = planetGlow;
+  ctx.beginPath();
+  ctx.arc(px, py, pr * 2.1, 0, Math.PI * 2);
+  ctx.fill();
+
+  const pBody = ctx.createLinearGradient(px - pr, py - pr, px + pr, py + pr);
+  pBody.addColorStop(0, '#7c6cf0');
+  pBody.addColorStop(0.55, '#43389e');
+  pBody.addColorStop(1, '#1e1654');
+  ctx.fillStyle = pBody;
+  ctx.beginPath();
+  ctx.arc(px, py, pr, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.translate(px, py);
+  ctx.rotate(-0.34);
+  ctx.strokeStyle = 'rgba(167, 139, 250, 0.42)';
+  ctx.lineWidth = pr * 0.19;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, pr * 1.75, pr * 0.34, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+
+  // Twinkling stars
+  STARS.forEach(s => {
+    const a = 0.22 + 0.58 * (0.5 + 0.5 * Math.sin(t * 2.2 + s.phase));
+    ctx.fillStyle = `rgba(218, 228, 255, ${a})`;
+    ctx.beginPath();
+    ctx.arc(s.x * canvas.width, s.y * canvas.height, s.r, 0, Math.PI * 2);
+    ctx.fill();
+  });
+}
+
+function drawGateCornersAndRing(x, y, w, h, cx, cy, requiredValue, colorObj, t) {
+  const inset = Math.max(4, Math.min(w, h) * 0.13);
+  const arm = Math.max(6, Math.min(w, h) * 0.22);
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.62)';
+  ctx.lineWidth = Math.max(1.8, Math.min(w, h) * 0.045);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  // Top-left L
+  ctx.moveTo(x + inset, y + inset + arm); ctx.lineTo(x + inset, y + inset); ctx.lineTo(x + inset + arm, y + inset);
+  // Top-right L
+  ctx.moveTo(x + w - inset - arm, y + inset); ctx.lineTo(x + w - inset, y + inset); ctx.lineTo(x + w - inset, y + inset + arm);
+  // Bottom-left L
+  ctx.moveTo(x + inset, y + h - inset - arm); ctx.lineTo(x + inset, y + h - inset); ctx.lineTo(x + inset + arm, y + h - inset);
+  // Bottom-right L
+  ctx.moveTo(x + w - inset - arm, y + h - inset); ctx.lineTo(x + w - inset, y + h - inset); ctx.lineTo(x + w - inset, y + h - inset - arm);
+  ctx.stroke();
+
+  // Concentric runic emitter rings
+  const ringR = Math.min(w, h) * 0.33;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(t * 0.55);
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.72)';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([ringR * 0.42, ringR * 0.24]);
+  ctx.beginPath();
+  ctx.arc(0, 0, ringR, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(-t * 0.8);
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.42)';
+  ctx.lineWidth = 1.4;
+  ctx.setLineDash([ringR * 0.25, ringR * 0.18]);
+  ctx.beginPath();
+  ctx.arc(0, 0, ringR * 0.74, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+
+  // Crisp extruded required numeral
+  const fontPx = Math.round(Math.min(w, h) * 0.56);
+  ctx.font = `900 ${fontPx}px Segoe UI`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = 'rgba(8, 6, 30, 0.65)';
+  ctx.fillText(requiredValue, cx + 1.5, cy + 2.5);
+  ctx.strokeStyle = colorObj.dark;
+  ctx.lineWidth = 3.5;
+  ctx.strokeText(requiredValue, cx, cy + 0.5);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(requiredValue, cx, cy + 0.5);
+  ctx.restore();
+}
+
+function drawPhoneHudOverlay(pr, lvlNum, timeSec, isPlay) {
+  const s = pr.w / 966;
+  const cx = pr.x + pr.w * 0.5;
+  const hdrY = pr.y + 145 * s;
+
+  // Header Replay & Pause buttons (matching MainScene.unity)
+  function drawRoundBtn(bx, by, r, glyph, col1, col2) {
+    const bg = ctx.createRadialGradient(bx - r * 0.25, by - r * 0.25, 2, bx, by, r);
+    bg.addColorStop(0, col1); bg.addColorStop(1, col2);
+    ctx.fillStyle = bg;
+    ctx.beginPath(); ctx.arc(bx, by, r, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+    ctx.lineWidth = Math.max(1.2, 2.2 * s);
+    ctx.stroke();
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `bold ${Math.round(r * 1.05)}px Segoe UI`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(glyph, bx, by + 1);
+  }
+  drawRoundBtn(cx - 378 * s, hdrY - 5.5 * s, 54 * s, '↺', '#a855f7', '#581c87');
+  drawRoundBtn(cx + 374 * s, hdrY, 54 * s, '⚙', '#a855f7', '#581c87');
+
+  // LEVEL N banner
+  const lw = 276 * s, lh = 64 * s;
+  const lx = cx + 21 * s - lw * 0.5, ly = hdrY - 32 * s - lh * 0.5;
+  ctx.fillStyle = 'rgba(28, 36, 78, 0.94)';
+  roundRectPath(ctx, lx, ly, lw, lh, 14 * s); ctx.fill();
+  ctx.strokeStyle = 'rgba(130, 175, 255, 0.65)';
+  ctx.lineWidth = Math.max(1, 2 * s);
+  ctx.stroke();
+  ctx.fillStyle = '#fef08a';
+  ctx.font = `900 ${Math.round(30 * s)}px Segoe UI`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(`LEVEL ${lvlNum}`, lx + lw * 0.5, ly + lh * 0.5 + 1);
+
+  // Timer banner
+  const tw = 340 * s, th = 94 * s;
+  const tx = cx + 16 * s - tw * 0.5, ty = hdrY + 80 * s - th * 0.5;
+  const tGrad = ctx.createLinearGradient(tx, ty, tx, ty + th);
+  tGrad.addColorStop(0, '#3730a3'); tGrad.addColorStop(1, '#1e1b4b');
+  ctx.fillStyle = tGrad;
+  roundRectPath(ctx, tx, ty, tw, th, 22 * s); ctx.fill();
+  ctx.strokeStyle = '#6366f1';
+  ctx.lineWidth = Math.max(1.2, 2.5 * s);
+  ctx.stroke();
+  // Stopwatch coin icon
+  const iconR = 26 * s, iconX = tx + 44 * s, iconY = ty + th * 0.5;
+  ctx.fillStyle = '#facc15';
+  ctx.beginPath(); ctx.arc(iconX, iconY, iconR, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#1e1b4b';
+  ctx.font = `bold ${Math.round(24 * s)}px Segoe UI`;
+  ctx.fillText('⏱', iconX, iconY + 1);
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = `900 ${Math.round(44 * s)}px ui-monospace, Consolas, monospace`;
+  ctx.fillText(formatMMSS(timeSec), tx + tw * 0.62, ty + th * 0.5 + 1);
+
+  // Bottom BoosterBar (3 slots matching MainScene.unity)
+  const bBaseY = pr.y + pr.h - 165 * s;
+  const bSlots = [
+    { x: cx - 285 * s, r: 78 * s, unlocked: lvlNum >= 8, icon: '❄️' },
+    { x: cx,           r: 82 * s, unlocked: lvlNum >= 12, icon: '🧲' },
+    { x: cx + 285 * s, r: 78 * s, unlocked: lvlNum >= 16, icon: '🪄' }
+  ];
+  bSlots.forEach(bs => {
+    const bg = ctx.createLinearGradient(bs.x, bBaseY - bs.r, bs.x, bBaseY + bs.r);
+    if (bs.unlocked) { bg.addColorStop(0, '#38bdf8'); bg.addColorStop(1, '#1d4ed8'); }
+    else { bg.addColorStop(0, '#312e59'); bg.addColorStop(1, '#1a1736'); }
+    ctx.fillStyle = bg;
+    ctx.beginPath(); ctx.arc(bs.x, bBaseY, bs.r, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = bs.unlocked ? '#bae6fd' : 'rgba(165,180,252,0.32)';
+    ctx.lineWidth = Math.max(1.2, 2.5 * s);
+    ctx.stroke();
+    ctx.font = `${Math.round(bs.r * 0.92)}px Segoe UI`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = bs.unlocked ? '#ffffff' : '#fbbf24';
+    ctx.fillText(bs.unlocked ? bs.icon : '🔒', bs.x, bBaseY + 1);
+  });
+
+  if (!isPlay) {
+    // Safe-area margin guides between Header & BoosterBar
+    const topSafeY = pr.y + pr.h * 0.145;
+    const botSafeY = pr.y + pr.h * 0.79;
+    ctx.save();
+    ctx.setLineDash([6, 5]);
+    ctx.strokeStyle = 'rgba(56, 232, 255, 0.36)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(pr.x + 8, topSafeY); ctx.lineTo(pr.x + pr.w - 8, topSafeY);
+    ctx.moveTo(pr.x + 8, botSafeY); ctx.lineTo(pr.x + pr.w - 8, botSafeY);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+function renderLoop(now) {
+  const t = now * 0.001;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const layout = getBoardLayout();
+  const { cellPx, startX, startY, isPhone, phoneRect } = layout;
+
+  if (isPhone && phoneRect) {
+    // Dark desk surrounding the phone mockup
+    ctx.fillStyle = '#090714';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // Phone outer drop shadow & bezel
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,0.65)';
+    roundRectPath(ctx, phoneRect.x - 9, phoneRect.y - 6, phoneRect.w + 18, phoneRect.h + 18, 28);
+    ctx.fill();
+    ctx.fillStyle = '#141126';
+    roundRectPath(ctx, phoneRect.x - 7, phoneRect.y - 7, phoneRect.w + 14, phoneRect.h + 14, 26);
+    ctx.fill();
+    ctx.strokeStyle = '#3b347a';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Clip all gameplay rendering cleanly inside exact Unity phone screen
+    roundRectPath(ctx, phoneRect.x, phoneRect.y, phoneRect.w, phoneRect.h, 20);
+    ctx.clip();
+  }
+
+  drawSpaceBackdrop(t);
+
+  const gates = playMode ? ptGates : levelData.gates;
+
+  // 1. Blit sculpted cosmic stone frame + 3D indigo tiles + glossy gate pads
+  const meta = rebuildBoardCacheIfNeeded(gates, cellPx);
+  if (meta && boardCacheCanvas) {
+    const dx = startX + (meta.bounds.minC - BOARD_WALL_MARGIN) * cellPx;
+    const dy = startY + (meta.bounds.minR - BOARD_WALL_MARGIN) * cellPx;
+    const dw = (meta.activeCols + BOARD_WALL_MARGIN * 2) * cellPx;
+    const dh = (meta.activeRows + BOARD_WALL_MARGIN * 2) * cellPx;
+    ctx.drawImage(boardCacheCanvas, dx, dy, dw, dh);
+  }
+
+  // 2. Subtle clickable cell guide outlines outside stone frame in Edit Mode
+  if (!playMode) {
+    ctx.strokeStyle = 'rgba(170, 185, 255, 0.08)';
+    ctx.lineWidth = 1;
+    for (let r = 0; r < levelData.rows; r++) {
+      for (let c = 0; c < levelData.columns; c++) {
+        if (!isPlayable(c, r) && !isGateCell(c, r)) {
+          ctx.strokeRect(startX + c * cellPx + 1, startY + r * cellPx + 1, cellPx - 2, cellPx - 2);
+        }
+      }
+    }
+  }
+
+  // 3. Gates: glowing L-brackets + runic rings + digit over cached glossy gate pads
+  gates.forEach((g, idx) => {
+    const coords = getGateCoords(g);
+    if (!coords.length) return;
+    const minC = Math.min(...coords.map(p => p[0])), maxC = Math.max(...coords.map(p => p[0]));
+    const minR = Math.min(...coords.map(p => p[1])), maxR = Math.max(...coords.map(p => p[1]));
+    const x = startX + minC * cellPx + cellPx * 0.055;
+    const y = startY + minR * cellPx + cellPx * 0.055;
+    const w = (maxC - minC + 1) * cellPx - cellPx * 0.11;
+    const h = (maxR - minR + 1) * cellPx - cellPx * 0.11;
+    const col = COLORS[g.color] || COLORS.Red;
+    drawGateCornersAndRing(x, y, w, h, x + w / 2, y + h / 2, g.requiredValue, col, t);
+
+    if (!playMode && selectedGateIdx === idx) {
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2.5;
+      roundRectPath(ctx, x - 2, y - 2, w + 4, h + 4, cellPx * 0.15);
+      ctx.stroke();
+    }
+  });
+
+  // 4. Pieces
+  const pieces = playMode ? ptPieces : levelData.pieces;
+  pieces.forEach((p, idx) => {
+    const ox = playMode ? p.renderX : p.origin.x;
+    const oy = playMode ? p.renderY : p.origin.y;
+    drawPiece(p, ox, oy, cellPx, startX, startY, !playMode && selectedPieceIdx === idx, false, true);
+  });
+
+  // 5. Hover Ghost in Edit Mode
+  if (!playMode && hoverCell && activeTool !== 'pan') {
+    const [hc, hr] = hoverCell;
+    if (activeTool === 'block') {
+      const ok = canPlaceBlock(brush.shape, hc, hr);
+      drawPiece({ ...brush, origin: { x: hc, y: hr } }, hc, hr, cellPx, startX, startY, false, true, ok);
+    } else if (activeTool === 'gate') {
+      const side = resolveGateSide(hc, hr);
+      const coords = getGateCoords({ side, startCell: { x: hc, y: hr }, span: gateBrush.span });
+      ctx.fillStyle = 'rgba(255,255,255,0.28)';
+      coords.forEach(([gx, gy]) => {
+        if (gx >= 0 && gx < levelData.columns && gy >= 0 && gy < levelData.rows) {
+          roundRectPath(ctx, startX + gx * cellPx + 4, startY + gy * cellPx + 4, cellPx - 8, cellPx - 8, 8);
+          ctx.fill();
+        }
+      });
+    } else {
+      ctx.fillStyle = 'rgba(255,255,255,0.16)';
+      ctx.fillRect(startX + hc * cellPx + 2, startY + hr * cellPx + 2, cellPx - 4, cellPx - 4);
+    }
+  }
+
+  // 6. VFX Particles & Flashes
+  if (playMode) {
+    for (let i = ptFlashes.length - 1; i >= 0; i--) {
+      const f = ptFlashes[i];
+      f.t -= 0.06;
+      if (f.t <= 0) { ptFlashes.splice(i, 1); continue; }
+      const fx = startX + (f.x + 0.5) * cellPx, fy = startY + (f.y + 0.5) * cellPx;
+      ctx.fillStyle = `rgba(255,255,255,${f.t * 0.7})`;
+      ctx.beginPath();
+      ctx.arc(fx, fy, cellPx * (1.2 - f.t * 0.6), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    for (let i = ptParticles.length - 1; i >= 0; i--) {
+      const pt = ptParticles[i];
+      pt.x += pt.vx * 0.016; pt.y += pt.vy * 0.016;
+      pt.t -= 0.03;
+      if (pt.t <= 0) { ptParticles.splice(i, 1); continue; }
+      ctx.globalAlpha = pt.t;
+      ctx.fillStyle = pt.color;
+      ctx.fillRect(startX + pt.x * cellPx - 4, startY + pt.y * cellPx - 4, 8, 8);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  if (isPhone && phoneRect) {
+    drawPhoneHudOverlay(phoneRect, levelData.levelNumber, playMode ? ptTimeLeft : levelData.timeSeconds, playMode);
+    ctx.restore();
+    // Crisp resolution badge outside bezel bottom
+    ctx.fillStyle = 'rgba(180, 190, 235, 0.75)';
+    ctx.font = '600 11px Segoe UI';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.fillText(`📱 Unity Phone 1440×3200  |  Zoom ${Math.round((levelData.boardScale ?? 1) * 100)}%`, 14, 10);
+  }
+
+  requestAnimationFrame(renderLoop);
+}
+
+function drawPiece(p, ox, oy, cellPx, startX, startY, isSelected, isGhost, isValidGhost) {
+  const offs = SHAPES[p.shape]?.offsets || [[0, 0]];
+  const col = p.isStone ? { hex: '#4b5078', light: '#7b82b8', dark: '#1f223d' } : (COLORS[p.color] || COLORS.Red);
+  ctx.save();
+  if (isGhost) ctx.globalAlpha = 0.58;
+
+  const inset = cellPx * 0.055;
+  const r = cellPx * 0.17;
+
+  // Drop shadow beneath piece
+  ctx.fillStyle = 'rgba(6, 4, 24, 0.45)';
+  offs.forEach(([dx, dy]) => {
+    const x = startX + (ox + dx) * cellPx + inset;
+    const y = startY + (oy + dy) * cellPx + inset + cellPx * 0.045;
+    const s = cellPx - inset * 2;
+    roundRectPath(ctx, x, y, s, s, r);
+    ctx.fill();
+  });
+
+  // Joined jewel block base
+  offs.forEach(([dx, dy]) => {
+    const x = startX + (ox + dx) * cellPx + inset;
+    const y = startY + (oy + dy) * cellPx + inset;
+    const s = cellPx - inset * 2;
+    const g = ctx.createLinearGradient(x, y, x, y + s);
+    if (isGhost && !isValidGhost) {
+      g.addColorStop(0, '#ff4d6d'); g.addColorStop(1, '#9f1239');
+    } else {
+      g.addColorStop(0, col.light); g.addColorStop(0.24, col.hex); g.addColorStop(0.84, col.hex); g.addColorStop(1, col.dark);
+    }
+    ctx.fillStyle = g;
+    roundRectPath(ctx, x, y, s, s, r);
+    ctx.fill();
+
+    // Bridge gaps between adjacent cells of same piece
+    if (offs.some(([ax, ay]) => ax === dx + 1 && ay === dy)) {
+      ctx.fillStyle = col.hex;
+      ctx.fillRect(x + s - r, y, inset * 2 + r * 2, s);
+    }
+    if (offs.some(([ax, ay]) => ax === dx && ay === dy + 1)) {
+      ctx.fillStyle = col.hex;
+      ctx.fillRect(x, y + s - r, s, inset * 2 + r * 2);
+    }
+
+    // Crisp glossy top-edge specular sheen
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.34)';
+    ctx.lineWidth = Math.max(1.2, cellPx * 0.025);
+    roundRectPath(ctx, x + 1, y + 1, s - 2, s - 2, Math.max(4, r - 1));
+    ctx.stroke();
+  });
+
+  // Compute digit anchor
+  const [bw, bh] = getShapeBounds(p.shape);
+  let anchorX = ox + (bw - 1) / 2, anchorY = oy + (bh - 1) / 2;
+  if (p.shape === 'ShapeL_TopRight') { anchorX = ox + 0.92; anchorY = oy + 0.06; }
+  else if (p.shape === 'ShapeL_TopLeft') { anchorX = ox + 0.08; anchorY = oy + 0.06; }
+  else if (p.shape === 'ShapeL_BottomLeft') { anchorX = ox + 0.08; anchorY = oy + 0.94; }
+  else if (p.shape === 'ShapeL_BottomRight') { anchorX = ox + 0.92; anchorY = oy + 0.94; }
+  else if (p.shape === 'ShapeT_Up') { anchorX = ox + 1.0; anchorY = oy + 0.95; }
+  else if (p.shape === 'ShapeT_Down') { anchorX = ox + 1.0; anchorY = oy + 0.05; }
+  else if (p.shape === 'ShapeT_Left') { anchorX = ox + 0.95; anchorY = oy + 1.0; }
+  else if (p.shape === 'ShapeT_Right') { anchorX = ox + 0.05; anchorY = oy + 1.0; }
+
+  const cx = startX + (anchorX + 0.5) * cellPx;
+  const cy = startY + (anchorY + 0.5) * cellPx;
+
+  if (p.isStone) {
+    ctx.font = `bold ${Math.round(cellPx * 0.42)}px Segoe UI`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#c7d2fe';
+    ctx.fillText('🪨', cx, cy);
+  } else if (p.iceCount > 0) {
+    offs.forEach(([dx, dy]) => {
+      const x = startX + (ox + dx) * cellPx + inset;
+      const y = startY + (oy + dy) * cellPx + inset;
+      const s = cellPx - inset * 2;
+      const ig = ctx.createLinearGradient(x, y, x + s, y + s);
+      ig.addColorStop(0, 'rgba(186, 230, 253, 0.88)');
+      ig.addColorStop(1, 'rgba(56, 189, 248, 0.85)');
+      ctx.fillStyle = ig;
+      roundRectPath(ctx, x, y, s, s, r);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(224, 242, 254, 0.95)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    });
+    ctx.font = `900 ${Math.round(cellPx * 0.46)}px Segoe UI`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 5;
+    ctx.strokeText(p.iceCount, cx, cy + 1);
+    ctx.fillStyle = '#0358fa';
+    ctx.fillText(p.iceCount, cx, cy + 1);
+  } else {
+    ctx.font = `900 ${Math.round(cellPx * 0.46)}px Segoe UI`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.72)';
+    ctx.lineWidth = 3.2;
+    ctx.strokeText(p.value, cx, cy + 1);
+    ctx.fillStyle = col.dark;
+    ctx.fillText(p.value, cx, cy + 1);
+
+    if (p.moveAxis === 'HorizontalOnly' || p.moveAxis === 'VerticalOnly') {
+      const arrow = p.moveAxis === 'HorizontalOnly' ? '↔' : '↕';
+      ctx.font = `bold ${Math.round(cellPx * 0.30)}px Segoe UI`;
+      ctx.fillStyle = '#e0f2fe';
+      ctx.strokeStyle = '#0c4a6e';
+      ctx.lineWidth = 3;
+      const ax = p.moveAxis === 'HorizontalOnly' ? cx : cx + cellPx * 0.28;
+      const ay = p.moveAxis === 'HorizontalOnly' ? cy + cellPx * 0.29 : cy;
+      ctx.strokeText(arrow, ax, ay);
+      ctx.fillText(arrow, ax, ay);
+    }
+  }
+
+  if (isSelected) {
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2.5;
+    offs.forEach(([dx, dy]) => {
+      roundRectPath(ctx, startX + (ox + dx) * cellPx + inset - 1, startY + (oy + dy) * cellPx + inset - 1, cellPx - inset * 2 + 2, cellPx - inset * 2 + 2, r);
+      ctx.stroke();
+    });
+  }
+  ctx.restore();
+}
+
+function formatMMSS(sec) {
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+}
+
+initUI();
+</script>
+</body>
+</html>

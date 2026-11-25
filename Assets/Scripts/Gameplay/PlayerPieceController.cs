@@ -26,6 +26,18 @@ namespace BlockMergePuzzle.Gameplay
             _selectedPiece = null;
         }
 
+        public void CancelActiveDragIfNeeded()
+        {
+            if (_isDragging && _selectedPiece != null)
+            {
+                CancelDrag();
+            }
+            else
+            {
+                ResetSelection();
+            }
+        }
+
         private void Awake()
         {
             if (Instance != null)
@@ -46,9 +58,9 @@ namespace BlockMergePuzzle.Gameplay
 
         private void Update()
         {
-            if (GameUI.Instance != null && GameUI.Instance.IsVictoryShowing)
+            if (GameUI.Instance != null && (GameUI.Instance.IsVictoryShowing || GameUI.Instance.IsTimeOutShowing || GameUI.Instance.IsBoosterTutorialShowing))
             {
-                if (_isDragging || _selectedPiece != null) ResetSelection();
+                if (_isDragging || _selectedPiece != null) CancelActiveDragIfNeeded();
                 return;
             }
 
@@ -57,6 +69,32 @@ namespace BlockMergePuzzle.Gameplay
 
             Vector3 mouseWorld = _mainCamera.ScreenToWorldPoint(Input.mousePosition);
             mouseWorld.z = 0f;
+
+            if (GameUI.Instance != null && GameUI.Instance.IsMagnetBusy)
+            {
+                if (_isDragging || _selectedPiece != null) CancelActiveDragIfNeeded();
+                if (GameUI.Instance.IsMagnetTargeting && Input.GetMouseButtonDown(0))
+                {
+                    if (EventSystem.current == null || !EventSystem.current.IsPointerOverGameObject())
+                    {
+                        GameUI.Instance.HandleMagnetWorldTap(mouseWorld);
+                    }
+                }
+                return;
+            }
+
+            if (GameUI.Instance != null && GameUI.Instance.IsWandBusy)
+            {
+                if (_isDragging || _selectedPiece != null) CancelActiveDragIfNeeded();
+                if (GameUI.Instance.IsWandTargeting && Input.GetMouseButtonDown(0))
+                {
+                    if (EventSystem.current == null || !EventSystem.current.IsPointerOverGameObject())
+                    {
+                        GameUI.Instance.HandleWandWorldTap(mouseWorld);
+                    }
+                }
+                return;
+            }
 
             HandleMouseOrTouchInput(mouseWorld);
             HandleKeyboardInput();
@@ -74,6 +112,14 @@ namespace BlockMergePuzzle.Gameplay
                     PuzzlePiece piece = hit.GetComponentInParent<PuzzlePiece>();
                     if (piece != null && !piece.IsSliding && !piece.IsEscaping)
                     {
+                        if (piece.IsStone)
+                        {
+                            piece.PlayFrozenShake();
+                            Audio.SoundManager.Instance?.PlayError();
+                            GameUI.Instance?.ShowFeedbackError("Khối đá cố định không thể di chuyển!");
+                            _selectedPiece = null;
+                            return;
+                        }
                         if (piece.IsFrozen)
                         {
                             piece.PlayFrozenShake();
@@ -92,6 +138,7 @@ namespace BlockMergePuzzle.Gameplay
                         // Game feel: Lift block on touch
                         _selectedPiece.SetLifted(true);
                         Audio.SoundManager.Instance?.PlayPickup();
+                        GameUI.Instance?.BeginTimerOnFirstInteraction();
 
                         // Temporarily clear from grid so piece can move through its own start cells
                         LevelManager.Instance.ClearPieceFromGrid(_selectedPiece);
@@ -113,6 +160,8 @@ namespace BlockMergePuzzle.Gameplay
                 Vector3 targetWorld = mouseWorld + _grabOffset;
                 float cw = LevelManager.Instance != null ? LevelManager.Instance.CurrentCellWidth : GameConfig.CellWidth;
                 float ch = LevelManager.Instance != null ? LevelManager.Instance.CurrentCellHeight : GameConfig.CellHeight;
+                bool allowX = _selectedPiece.MoveAxis != MoveAxisConstraint.VerticalOnly;
+                bool allowY = _selectedPiece.MoveAxis != MoveAxisConstraint.HorizontalOnly;
 
                 // Advance current origin along open cells as finger moves
                 bool advanced = true;
@@ -129,14 +178,14 @@ namespace BlockMergePuzzle.Gameplay
                     if (Mathf.Abs(delta.x) > Mathf.Abs(delta.y))
                     {
                         Vector2Int dX = (delta.x > 0) ? new Vector2Int(1, 0) : new Vector2Int(-1, 0);
-                        if (Mathf.Abs(delta.x) >= 0.5f * cw && LevelManager.Instance.CanPieceFitAt(_selectedPiece, _currentOrigin + dX))
+                        if (allowX && Math.Abs(delta.x) >= 0.5f * cw && LevelManager.Instance.CanPieceFitAt(_selectedPiece, _currentOrigin + dX))
                         {
                             _currentOrigin += dX;
                             advanced = true;
                             continue;
                         }
                         Vector2Int dY = (delta.y > 0) ? new Vector2Int(0, -1) : new Vector2Int(0, 1);
-                        if (Mathf.Abs(delta.y) >= 0.5f * ch && LevelManager.Instance.CanPieceFitAt(_selectedPiece, _currentOrigin + dY))
+                        if (allowY && Mathf.Abs(delta.y) >= 0.5f * ch && LevelManager.Instance.CanPieceFitAt(_selectedPiece, _currentOrigin + dY))
                         {
                             _currentOrigin += dY;
                             advanced = true;
@@ -146,14 +195,14 @@ namespace BlockMergePuzzle.Gameplay
                     else
                     {
                         Vector2Int dY = (delta.y > 0) ? new Vector2Int(0, -1) : new Vector2Int(0, 1);
-                        if (Mathf.Abs(delta.y) >= 0.5f * ch && LevelManager.Instance.CanPieceFitAt(_selectedPiece, _currentOrigin + dY))
+                        if (allowY && Mathf.Abs(delta.y) >= 0.5f * ch && LevelManager.Instance.CanPieceFitAt(_selectedPiece, _currentOrigin + dY))
                         {
                             _currentOrigin += dY;
                             advanced = true;
                             continue;
                         }
                         Vector2Int dX = (delta.x > 0) ? new Vector2Int(1, 0) : new Vector2Int(-1, 0);
-                        if (Mathf.Abs(delta.x) >= 0.5f * cw && LevelManager.Instance.CanPieceFitAt(_selectedPiece, _currentOrigin + dX))
+                        if (allowX && Mathf.Abs(delta.x) >= 0.5f * cw && LevelManager.Instance.CanPieceFitAt(_selectedPiece, _currentOrigin + dX))
                         {
                             _currentOrigin += dX;
                             advanced = true;
@@ -167,23 +216,29 @@ namespace BlockMergePuzzle.Gameplay
                 delta = targetWorld - currentCellCenter;
 
                 Vector2Int dirX = (delta.x >= 0) ? new Vector2Int(1, 0) : new Vector2Int(-1, 0);
-                bool canMoveX = LevelManager.Instance.CanPieceFitAt(_selectedPiece, _currentOrigin + dirX);
-                bool canMergeX = LevelManager.Instance.CheckMergeOpportunity(_selectedPiece, _currentOrigin, dirX, out _);
-                bool canEscapeX = LevelManager.Instance.CheckEscapeOpportunity(_selectedPiece, _currentOrigin, dirX, out ExitGateView escapeGateX);
+                bool canMoveX = allowX && LevelManager.Instance.CanPieceFitAt(_selectedPiece, _currentOrigin + dirX);
+                bool canMergeX = allowX && LevelManager.Instance.CheckMergeOpportunity(_selectedPiece, _currentOrigin, dirX, out _);
+                ExitGateView escapeGateX = null;
+                bool canEscapeX = allowX && LevelManager.Instance.CheckEscapeOpportunity(_selectedPiece, _currentOrigin, dirX, out escapeGateX);
                 float maxEscapeX = (canEscapeX && escapeGateX != null)
                     ? Mathf.Clamp(Mathf.Abs(escapeGateX.transform.position.x - currentCellCenter.x), 0.55f * cw, 1.05f * cw)
                     : cw * 0.85f;
 
                 Vector2Int dirY = (delta.y >= 0) ? new Vector2Int(0, -1) : new Vector2Int(0, 1);
-                bool canMoveY = LevelManager.Instance.CanPieceFitAt(_selectedPiece, _currentOrigin + dirY);
-                bool canMergeY = LevelManager.Instance.CheckMergeOpportunity(_selectedPiece, _currentOrigin, dirY, out _);
-                bool canEscapeY = LevelManager.Instance.CheckEscapeOpportunity(_selectedPiece, _currentOrigin, dirY, out ExitGateView escapeGateY);
+                bool canMoveY = allowY && LevelManager.Instance.CanPieceFitAt(_selectedPiece, _currentOrigin + dirY);
+                bool canMergeY = allowY && LevelManager.Instance.CheckMergeOpportunity(_selectedPiece, _currentOrigin, dirY, out _);
+                ExitGateView escapeGateY = null;
+                bool canEscapeY = allowY && LevelManager.Instance.CheckEscapeOpportunity(_selectedPiece, _currentOrigin, dirY, out escapeGateY);
                 float maxEscapeY = (canEscapeY && escapeGateY != null)
                     ? Mathf.Clamp(Mathf.Abs(escapeGateY.transform.position.y - currentCellCenter.y), 0.55f * ch, 1.05f * ch)
                     : ch * 0.85f;
 
                 float moveX;
-                if (delta.x >= 0)
+                if (!allowX)
+                {
+                    moveX = Mathf.Clamp(delta.x * 0.08f, -0.04f, 0.04f);
+                }
+                else if (delta.x >= 0)
                 {
                     if (canMoveX) moveX = Mathf.Min(delta.x, cw);
                     else if (canEscapeX) moveX = Mathf.Min(delta.x, maxEscapeX);
@@ -199,7 +254,11 @@ namespace BlockMergePuzzle.Gameplay
                 }
 
                 float moveY;
-                if (delta.y >= 0)
+                if (!allowY)
+                {
+                    moveY = Mathf.Clamp(delta.y * 0.08f, -0.04f, 0.04f);
+                }
+                else if (delta.y >= 0)
                 {
                     if (canMoveY) moveY = Mathf.Min(delta.y, ch);
                     else if (canEscapeY) moveY = Mathf.Min(delta.y, maxEscapeY);
@@ -215,7 +274,7 @@ namespace BlockMergePuzzle.Gameplay
                 }
 
                 // Prevent cutting corners through diagonal obstacles
-                if (Mathf.Abs(moveX) > 0.05f && Mathf.Abs(moveY) > 0.05f)
+                if (allowX && allowY && Mathf.Abs(moveX) > 0.05f && Mathf.Abs(moveY) > 0.05f)
                 {
                     Vector2Int diagDir = dirX + dirY;
                     if (!LevelManager.Instance.CanPieceFitAt(_selectedPiece, _currentOrigin + diagDir))
@@ -239,11 +298,13 @@ namespace BlockMergePuzzle.Gameplay
                     Vector3 offset = _selectedPiece.transform.position - currentCellCenter;
                     float cw = LevelManager.Instance != null ? LevelManager.Instance.CurrentCellWidth : GameConfig.CellWidth;
                     float ch = LevelManager.Instance != null ? LevelManager.Instance.CurrentCellHeight : GameConfig.CellHeight;
+                    bool allowX = _selectedPiece.MoveAxis != MoveAxisConstraint.VerticalOnly;
+                    bool allowY = _selectedPiece.MoveAxis != MoveAxisConstraint.HorizontalOnly;
 
                     bool actionExecuted = false;
 
                     // Check Merge or Escape trigger along X
-                    if (Mathf.Abs(offset.x) >= 0.35f * cw)
+                    if (allowX && Mathf.Abs(offset.x) >= 0.35f * cw)
                     {
                         Vector2Int dirX = (offset.x > 0) ? new Vector2Int(1, 0) : new Vector2Int(-1, 0);
                         if (LevelManager.Instance.CheckMergeOpportunity(_selectedPiece, _currentOrigin, dirX, out PuzzlePiece mergeTarget))
@@ -259,7 +320,7 @@ namespace BlockMergePuzzle.Gameplay
                     }
 
                     // Check Merge or Escape trigger along Y
-                    if (!actionExecuted && Mathf.Abs(offset.y) >= 0.35f * ch)
+                    if (!actionExecuted && allowY && Mathf.Abs(offset.y) >= 0.35f * ch)
                     {
                         Vector2Int dirY = (offset.y > 0) ? new Vector2Int(0, -1) : new Vector2Int(0, 1);
                         if (LevelManager.Instance.CheckMergeOpportunity(_selectedPiece, _currentOrigin, dirY, out PuzzlePiece mergeTarget))
@@ -278,9 +339,9 @@ namespace BlockMergePuzzle.Gameplay
                     if (!actionExecuted)
                     {
                         Vector2Int attemptedDir = Vector2Int.zero;
-                        if (Mathf.Abs(offset.x) >= 0.35f * cw)
+                        if (allowX && Mathf.Abs(offset.x) >= 0.35f * cw)
                             attemptedDir = (offset.x > 0) ? new Vector2Int(1, 0) : new Vector2Int(-1, 0);
-                        else if (Mathf.Abs(offset.y) >= 0.35f * ch)
+                        else if (allowY && Mathf.Abs(offset.y) >= 0.35f * ch)
                             attemptedDir = (offset.y > 0) ? new Vector2Int(0, -1) : new Vector2Int(0, 1);
 
                         if (attemptedDir != Vector2Int.zero)
@@ -329,6 +390,7 @@ namespace BlockMergePuzzle.Gameplay
             if (keyDir != Vector2Int.zero)
             {
                 // Keyboard arrow moves 1 step at a time for fine control
+                GameUI.Instance?.BeginTimerOnFirstInteraction();
                 LevelManager.Instance.TrySlidePieceSteps(_selectedPiece, keyDir, 1);
             }
         }

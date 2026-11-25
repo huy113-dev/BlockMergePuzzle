@@ -1,0 +1,108 @@
+{
+  "schemaVersion": 1,
+  "levelNumber": 12,
+  "name": "Axis & T-Matrix",
+  "difficulty": "Hard",
+  "timeSeconds": 150,
+  "columns": 8,
+  "rows": 9,
+  "cells": [
+    "00000000",
+    "01111110",
+    "01111110",
+    "01111110",
+    "01111110",
+    "01111110",
+    "01111110",
+    "01111110",
+    "00000000"
+  ],
+  "gates": [
+    {
+      "color": "Blue",
+      "requiredValue": 2,
+      "side": "Top",
+      "startCell": { "x": 2, "y": 0 },
+      "span": 3
+    },
+    {
+      "color": "Purple",
+      "requiredValue": 2,
+      "side": "Right",
+      "startCell": { "x": 7, "y": 1 },
+      "span": 3
+    },
+    {
+      "color": "Orange",
+      "requiredValue": 2,
+      "side": "Left",
+      "startCell": { "x": 0, "y": 5 },
+      "span": 1
+    }
+  ],
+  "pieces": [
+    {
+      "color": "Red",
+      "shape": "Single_1x1",
+      "value": 1,
+      "origin": { "x": 1, "y": 4 },
+      "iceCount": 0,
+      "moveAxis": "None",
+      "isStone": true
+    },
+    {
+      "color": "Blue",
+      "shape": "ShapeT_Up",
+      "value": 1,
+      "origin": { "x": 2, "y": 2 },
+      "iceCount": 0,
+      "moveAxis": "None",
+      "isStone": false
+    },
+    {
+      "color": "Blue",
+      "shape": "ShapeT_Up",
+      "value": 1,
+      "origin": { "x": 2, "y": 5 },
+      "iceCount": 0,
+      "moveAxis": "None",
+      "isStone": false
+    },
+    {
+      "color": "Purple",
+      "shape": "Vertical_1x3",
+      "value": 1,
+      "origin": { "x": 6, "y": 1 },
+      "iceCount": 0,
+      "moveAxis": "None",
+      "isStone": false
+    },
+    {
+      "color": "Purple",
+      "shape": "Vertical_1x3",
+      "value": 1,
+      "origin": { "x": 6, "y": 5 },
+      "iceCount": 1,
+      "moveAxis": "VerticalOnly",
+      "isStone": false
+    },
+    {
+      "color": "Orange",
+      "shape": "Single_1x1",
+      "value": 1,
+      "origin": { "x": 2, "y": 5 },
+      "iceCount": 0,
+      "moveAxis": "HorizontalOnly",
+      "isStone": false
+    },
+    {
+      "color": "Orange",
+      "shape": "Single_1x1",
+      "value": 1,
+      "origin": { "x": 4, "y": 5 },
+      "iceCount": 0,
+      "moveAxis": "HorizontalOnly",
+      "isStone": false
+    }
+  ]
+}

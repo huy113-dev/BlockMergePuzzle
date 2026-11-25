@@ -20,6 +20,14 @@ namespace BlockMergePuzzle.Core
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void AutoBootstrapIfEmpty()
         {
+            string activeSceneName = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+            if (activeSceneName == "HomeScene"
+                || activeSceneName == "FreshStart"
+                || FindObj<HomeUI>() != null
+                || FindObj<FreshGameLauncher>() != null)
+            {
+                return;
+            }
             if (FindObj<GameBootstrapper>() == null && FindObj<LevelManager>() == null)
             {
                 GameObject bootstrapperObj = new GameObject("GameBootstrapper");

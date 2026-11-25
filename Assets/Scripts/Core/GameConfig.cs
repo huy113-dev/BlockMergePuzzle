@@ -25,7 +25,21 @@ namespace BlockMergePuzzle.Core
         ShapeL_BottomLeft,  // 1 cell top left, 2 cells bottom: [(0,0), (0,1), (1,1)]
         ShapeL_TopLeft,     // 2 cells top, 1 cell bottom left: [(0,0), (1,0), (0,1)]
         Square_2x2,         // 2x2 square block: [(0,0), (1,0), (0,1), (1,1)]
-        Cross_3x3           // 3x3 plus/cross block: [(1,0), (0,1), (1,1), (2,1), (1,2)]
+        Cross_3x3,          // 3x3 plus/cross block: [(1,0), (0,1), (1,1), (2,1), (1,2)]
+        ShapeL_BottomRight, // 1 cell top right, 2 cells bottom: [(1,0), (0,1), (1,1)]
+        Vertical_1x3,       // 1x3 vertical bar: [(0,0), (0,1), (0,2)]
+        Horizontal_3x1,     // 3x1 horizontal bar: [(0,0), (1,0), (2,0)]
+        ShapeT_Up,          // T pointing up: [(1,0), (0,1), (1,1), (2,1)]
+        ShapeT_Down,        // T pointing down: [(0,0), (1,0), (2,0), (1,1)]
+        ShapeT_Left,        // T pointing left: [(1,0), (0,1), (1,1), (1,2)]
+        ShapeT_Right        // T pointing right: [(0,0), (0,1), (1,1), (0,2)]
+    }
+
+    public enum MoveAxisConstraint
+    {
+        None = 0,
+        HorizontalOnly = 1,
+        VerticalOnly = 2
     }
 
     public enum GateSide
@@ -122,6 +136,49 @@ namespace BlockMergePuzzle.Core
                 case PieceColor.Blue: return new Color(0.18f, 0.55f, 0.98f);
                 default: return Color.white;
             }
+        }
+
+        private static readonly Dictionary<PieceShape, Vector2Int[]> ShapeOffsetsMap = new Dictionary<PieceShape, Vector2Int[]>
+        {
+            { PieceShape.Single_1x1,         new[] { new Vector2Int(0, 0) } },
+            { PieceShape.Vertical_1x2,       new[] { new Vector2Int(0, 0), new Vector2Int(0, 1) } },
+            { PieceShape.Horizontal_2x1,     new[] { new Vector2Int(0, 0), new Vector2Int(1, 0) } },
+            { PieceShape.ShapeL_TopRight,    new[] { new Vector2Int(0, 0), new Vector2Int(1, 0), new Vector2Int(1, 1) } },
+            { PieceShape.ShapeL_BottomLeft,  new[] { new Vector2Int(0, 0), new Vector2Int(0, 1), new Vector2Int(1, 1) } },
+            { PieceShape.ShapeL_TopLeft,     new[] { new Vector2Int(0, 0), new Vector2Int(1, 0), new Vector2Int(0, 1) } },
+            { PieceShape.Square_2x2,         new[] { new Vector2Int(0, 0), new Vector2Int(1, 0), new Vector2Int(0, 1), new Vector2Int(1, 1) } },
+            { PieceShape.Cross_3x3,          new[] { new Vector2Int(1, 0), new Vector2Int(0, 1), new Vector2Int(1, 1), new Vector2Int(2, 1), new Vector2Int(1, 2) } },
+            { PieceShape.ShapeL_BottomRight, new[] { new Vector2Int(1, 0), new Vector2Int(0, 1), new Vector2Int(1, 1) } },
+            { PieceShape.Vertical_1x3,       new[] { new Vector2Int(0, 0), new Vector2Int(0, 1), new Vector2Int(0, 2) } },
+            { PieceShape.Horizontal_3x1,     new[] { new Vector2Int(0, 0), new Vector2Int(1, 0), new Vector2Int(2, 0) } },
+            { PieceShape.ShapeT_Up,          new[] { new Vector2Int(1, 0), new Vector2Int(0, 1), new Vector2Int(1, 1), new Vector2Int(2, 1) } },
+            { PieceShape.ShapeT_Down,        new[] { new Vector2Int(0, 0), new Vector2Int(1, 0), new Vector2Int(2, 0), new Vector2Int(1, 1) } },
+            { PieceShape.ShapeT_Left,        new[] { new Vector2Int(1, 0), new Vector2Int(0, 1), new Vector2Int(1, 1), new Vector2Int(1, 2) } },
+            { PieceShape.ShapeT_Right,       new[] { new Vector2Int(0, 0), new Vector2Int(0, 1), new Vector2Int(1, 1), new Vector2Int(0, 2) } }
+        };
+
+        /// <summary>Returns the grid cell offsets (from top-left origin) for the given PieceShape.</summary>
+        public static Vector2Int[] GetShapeOffsets(PieceShape shape)
+        {
+            if (ShapeOffsetsMap.TryGetValue(shape, out Vector2Int[] offsets))
+            {
+                return offsets;
+            }
+            return ShapeOffsetsMap[PieceShape.Single_1x1];
+        }
+
+        /// <summary>Returns the bounding grid dimensions (width, height) in cells for the given PieceShape.</summary>
+        public static Vector2Int GetShapeBoundingSize(PieceShape shape)
+        {
+            Vector2Int[] offsets = GetShapeOffsets(shape);
+            int maxX = 0;
+            int maxY = 0;
+            for (int i = 0; i < offsets.Length; i++)
+            {
+                if (offsets[i].x > maxX) maxX = offsets[i].x;
+                if (offsets[i].y > maxY) maxY = offsets[i].y;
+            }
+            return new Vector2Int(maxX + 1, maxY + 1);
         }
     }
 }

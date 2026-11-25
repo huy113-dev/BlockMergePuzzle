@@ -1,0 +1,52 @@
+{
+    "schemaVersion": 1,
+    "levelNumber": 1,
+    "name": "Level 1",
+    "difficulty": "Easy",
+    "timeSeconds": 300,
+    "columns": 5,
+    "rows": 3,
+    "cells": [
+        "00000",
+        "00100",
+        "11111"
+    ],
+    "gates": [
+        {
+            "color": "Red",
+            "requiredValue": 2,
+            "side": "Top",
+            "startCell": {
+                "x": 2,
+                "y": 0
+            },
+            "span": 1
+        }
+    ],
+    "pieces": [
+        {
+            "color": "Red",
+            "shape": "Single_1x1",
+            "value": 1,
+            "origin": {
+                "x": 0,
+                "y": 2
+            },
+            "iceCount": 0,
+            "moveAxis": "None",
+            "isStone": false
+        },
+        {
+            "color": "Red",
+            "shape": "Single_1x1",
+            "value": 1,
+            "origin": {
+                "x": 4,
+                "y": 2
+            },
+            "iceCount": 0,
+            "moveAxis": "None",
+            "isStone": false
+        }
+    ]
+}

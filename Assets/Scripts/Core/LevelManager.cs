@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using BlockMergePuzzle.Audio;
 using BlockMergePuzzle.Gameplay;
 using BlockMergePuzzle.UI;
@@ -80,14 +81,29 @@ namespace BlockMergePuzzle.Core
             }
         }
 
-        public int CurrentColumns => GetLevelColumns(_currentLevel);
-        public int CurrentRows => GetLevelRows(_currentLevel);
+        [Header("Custom Level (JSON)")]
+        [Tooltip("Dữ liệu level dạng JSON (Resources/Levels). Tự động load khi mở scene hoặc Play Test.")]
+        [SerializeField] private TextAsset _customLevelJson;
 
-        public float CurrentCellWidth => GetLevelCellWidth(_currentLevel);
-        public float CurrentCellHeight => GetLevelCellHeight(_currentLevel);
+        public CustomLevelData ActiveCustomLevelData { get; private set; }
+        public bool HasActiveCustomLevel => ActiveCustomLevelData != null;
+        public int CurrentLevelNumber => ActiveCustomLevelData != null ? ActiveCustomLevelData.levelNumber : (int)_currentLevel;
 
-        public float CurrentFrameWidth => GetLevelFrameWidth(_currentLevel);
-        public float CurrentFrameHeight => GetLevelFrameHeight(_currentLevel);
+        public int CurrentColumns => ActiveCustomLevelData != null ? ActiveCustomLevelData.columns : GetLevelColumns(_currentLevel);
+        public int CurrentRows => ActiveCustomLevelData != null ? ActiveCustomLevelData.rows : GetLevelRows(_currentLevel);
+
+        public float CurrentCellWidth => ActiveCustomLevelData != null ? _customCellSize : GetLevelCellWidth(_currentLevel);
+        public float CurrentCellHeight => ActiveCustomLevelData != null ? _customCellSize : GetLevelCellHeight(_currentLevel);
+
+        public float CurrentFrameWidth => ActiveCustomLevelData != null ? _customFrameWidth : GetLevelFrameWidth(_currentLevel);
+        public float CurrentFrameHeight => ActiveCustomLevelData != null ? _customFrameHeight : GetLevelFrameHeight(_currentLevel);
+
+        private float _customCellSize = 1.0f;
+        private int _customMinCol, _customMaxCol, _customMinRow, _customMaxRow;
+        private float _customFrameWidth = 8.0f;
+        private float _customFrameHeight = 8.0f;
+        private Sprite _customPrebakedMapSprite;
+        private bool _forceDynamicCustomRebuild = false;
 
         private Vector3 _boardCenter = new Vector3(0.015f, 0.073f, 0f);
         private PuzzlePiece[,] _grid;
@@ -104,7 +120,18 @@ namespace BlockMergePuzzle.Core
         public LevelId InitialSceneLevel { get; private set; }
 
         public int Score { get; private set; }
-        public int RemainingBlocksCount => _activePieces.Count;
+        public int RemainingBlocksCount
+        {
+            get
+            {
+                int count = 0;
+                for (int i = 0; i < _activePieces.Count; i++)
+                {
+                    if (_activePieces[i] != null && !_activePieces[i].IsStone) count++;
+                }
+                return count;
+            }
+        }
         public IReadOnlyList<ExitGateView> Gates => _activeGates;
         public IReadOnlyList<PuzzlePiece> ActivePieces => _activePieces;
 
@@ -121,6 +148,7 @@ namespace BlockMergePuzzle.Core
             }
             Instance = this;
             InitialSceneLevel = _currentLevel;
+            ResolveInitialCustomLevel();
         }
 
         private void OnDestroy()
@@ -133,7 +161,87 @@ namespace BlockMergePuzzle.Core
 
         private void Start()
         {
-            InitializeLevel();
+            bool force = _forceDynamicCustomRebuild;
+            _forceDynamicCustomRebuild = false;
+            InitializeLevel(force);
+        }
+
+        private void ResolveInitialCustomLevel()
+        {
+            if (CustomLevelRepository.TryGetEditorPlayTestData(out CustomLevelData playTestData))
+            {
+                SetActiveCustomData(playTestData);
+                _forceDynamicCustomRebuild = true;
+                return;
+            }
+
+            if (CustomLevelRepository.PendingRuntimeLevelNumber > 0)
+            {
+                int pending = CustomLevelRepository.PendingRuntimeLevelNumber;
+                CustomLevelRepository.PendingRuntimeLevelNumber = 0;
+                if (CustomLevelRepository.TryGetLevel(pending, out CustomLevelData pendingData))
+                {
+                    SetActiveCustomData(pendingData);
+                    _forceDynamicCustomRebuild = true;
+                    return;
+                }
+            }
+
+            if (_customLevelJson != null)
+            {
+                CustomLevelData bakedData = CustomLevelData.FromJson(_customLevelJson.text);
+                if (bakedData != null)
+                {
+                    SetActiveCustomData(bakedData);
+                    return;
+                }
+            }
+
+            if (SceneManager.GetActiveScene().name == "MainScene")
+            {
+                int prefLevel = PlayerPrefs.GetInt("BMP_CurrentLevel", 1);
+                if (prefLevel > CustomLevelRepository.BuiltInLevelCount &&
+                    CustomLevelRepository.TryGetLevel(prefLevel, out CustomLevelData prefData))
+                {
+                    SetActiveCustomData(prefData);
+                    _forceDynamicCustomRebuild = true;
+                }
+            }
+        }
+
+        private void SetActiveCustomData(CustomLevelData data, Sprite prebakedMapSprite = null)
+        {
+            ActiveCustomLevelData = data;
+            _customPrebakedMapSprite = prebakedMapSprite;
+            if (data != null)
+            {
+                _currentLevel = (LevelId)data.levelNumber;
+                ConfigureCustomLayout(data);
+            }
+        }
+
+        private void ConfigureCustomLayout(CustomLevelData data)
+        {
+            if (data == null) return;
+            data.Normalize();
+            data.GetActiveBounds(out _customMinCol, out _customMaxCol, out _customMinRow, out _customMaxRow);
+            _customCellSize = data.ComputeWorldCellSize();
+            int activeCols = Mathf.Max(1, _customMaxCol - _customMinCol + 1);
+            int activeRows = Mathf.Max(1, _customMaxRow - _customMinRow + 1);
+            const float wallMargin = 0.50f;
+            _customFrameWidth = (activeCols + wallMargin * 2f) * _customCellSize;
+            _customFrameHeight = (activeRows + wallMargin * 2f) * _customCellSize;
+        }
+
+        public void LoadCustomLevel(CustomLevelData data, bool forceRebuild = true)
+        {
+            if (_initialPiecesTemplate != null)
+            {
+                Destroy(_initialPiecesTemplate);
+                _initialPiecesTemplate = null;
+            }
+            SetActiveCustomData(data != null ? data.Clone() : null);
+            InitializeLevel(forceRebuild);
         }
 
 #if UNITY_EDITOR
@@ -161,13 +269,24 @@ namespace BlockMergePuzzle.Core
             BuildBackground();
             BuildBoardFrame();
             BuildExitGates();
-            if (_currentLevel == LevelId.Level1 || _currentLevel == LevelId.Level2 || _currentLevel == LevelId.Level3 || _currentLevel == LevelId.Level4 || _currentLevel == LevelId.Level5 || _currentLevel == LevelId.Level6 || _currentLevel == LevelId.Level7 || _currentLevel == LevelId.Level8 || _currentLevel == LevelId.Level9 || _currentLevel == LevelId.Level10)
+            if (ActiveCustomLevelData != null ||
+                _currentLevel == LevelId.Level1 || _currentLevel == LevelId.Level2 || _currentLevel == LevelId.Level3 ||
+                _currentLevel == LevelId.Level4 || _currentLevel == LevelId.Level5 || _currentLevel == LevelId.Level6 ||
+                _currentLevel == LevelId.Level7 || _currentLevel == LevelId.Level8 || _currentLevel == LevelId.Level9 ||
+                _currentLevel == LevelId.Level10)
             {
                 SpawnPieces();
             }
             FitCameraToBoard();
             FitBackgroundToCamera();
             ApplyLevel25DTilt();
+        }
+
+        public void BakeCustomLevelInEditMode(CustomLevelData data, Sprite prebakedMapSprite = null, TextAsset jsonAsset = null)
+        {
+            _customLevelJson = jsonAsset;
+            SetActiveCustomData(data != null ? data.Clone() : null, prebakedMapSprite);
+            BakeEditModeLevel();
         }
 #endif
 
@@ -181,6 +300,12 @@ namespace BlockMergePuzzle.Core
             _frameRoot = transform.Find("Board_Frame");
             _gatesRoot = transform.Find("Exit_Gates");
             _piecesRoot = transform.Find("Active_Pieces");
+
+            if (forceRebuild && _snapshotLevel != _currentLevel && _initialPiecesTemplate != null)
+            {
+                Destroy(_initialPiecesTemplate);
+                _initialPiecesTemplate = null;
+            }
 
             if (forceRebuild && _initialPiecesTemplate != null && _snapshotLevel == _currentLevel && _frameRoot != null && _gatesRoot != null)
             {
@@ -288,6 +413,14 @@ namespace BlockMergePuzzle.Core
             if (cam == null) return;
             float screenRatio = cam.aspect > 0.05f ? cam.aspect : (1440f / 3200f);
             if (screenRatio > 0.75f) screenRatio = 1440f / 3200f; // Force target portrait ratio (0.45) in Edit Mode
+
+            if (ActiveCustomLevelData != null)
+            {
+                cam.orthographicSize = ActiveCustomLevelData.ComputeCameraOrthoSize(screenRatio);
+                cam.transform.position = new Vector3(-ActiveCustomLevelData.boardOffsetX, -ActiveCustomLevelData.boardOffsetY, -10f);
+                return;
+            }
+
             float paddingX = 0.12f;
             float paddingY = 0.40f;
             bool useFixedRef = _currentLevel == LevelId.Level8 || _currentLevel == LevelId.Level9 || _currentLevel == LevelId.Level10;
@@ -430,6 +563,25 @@ namespace BlockMergePuzzle.Core
             SpriteRenderer sr = frameObj.AddComponent<SpriteRenderer>();
             sr.sortingOrder = 2;
 
+            if (ActiveCustomLevelData != null)
+            {
+                Sprite customSprite = _customPrebakedMapSprite != null
+                    ? _customPrebakedMapSprite
+                    : ProceduralBoardRenderer.GenerateBoardSprite(ActiveCustomLevelData, out _, out _, 128);
+                sr.sprite = customSprite;
+                frameObj.transform.position = _boardCenter;
+                if (sr.sprite != null)
+                {
+                    float nativeW = sr.sprite.rect.width / sr.sprite.pixelsPerUnit;
+                    float nativeH = sr.sprite.rect.height / sr.sprite.pixelsPerUnit;
+                    frameObj.transform.localScale = new Vector3(
+                        CurrentFrameWidth / nativeW,
+                        CurrentFrameHeight / nativeH,
+                        1f);
+                }
+                return;
+            }
+
             int levelIndex = (int)_currentLevel;
             Sprite mapSprite = GemSpriteManager.GetMapSprite(levelIndex);
             sr.sprite = mapSprite;
@@ -450,7 +602,54 @@ namespace BlockMergePuzzle.Core
 
         private void BuildExitGates()
         {
+            if (ActiveCustomLevelData != null)
+            {
+                BuildCustomExitGates(ActiveCustomLevelData);
+                return;
+            }
             BuildLevelGates(_currentLevel);
+        }
+
+        private void BuildCustomExitGates(CustomLevelData data)
+        {
+            if (data == null || data.gates == null) return;
+            float cs = _customCellSize;
+            for (int i = 0; i < data.gates.Count; i++)
+            {
+                CustomGateData g = data.gates[i];
+                if (g == null) continue;
+                List<Vector2Int> gateCoords = g.GetGateCoords();
+                List<Vector2Int> triggerCoords = g.GetTriggerCoords();
+                if (gateCoords.Count == 0) continue;
+
+                Vector3 sum = Vector3.zero;
+                for (int k = 0; k < gateCoords.Count; k++)
+                {
+                    sum += GridToWorld(gateCoords[k].x, gateCoords[k].y);
+                }
+                Vector3 worldPos = sum / gateCoords.Count;
+
+                GateSide side = g.GetGateSide();
+                bool horizontal = (side == GateSide.Top || side == GateSide.Bottom);
+                Vector2 gateSize = horizontal
+                    ? new Vector2(cs * (gateCoords.Count - 0.12f), cs * 0.88f)
+                    : new Vector2(cs * 0.88f, cs * (gateCoords.Count - 0.12f));
+
+                ExitGateView gateView = ExitGateView.Create(
+                    g.GetPieceColor(),
+                    g.requiredValue,
+                    side,
+                    g.GetExitDirection(),
+                    worldPos,
+                    gateSize,
+                    _gatesRoot,
+                    triggerCoords.ToArray(),
+                    g.GetTriggerDirection(),
+                    true,
+                    gateCoords.ToArray());
+                gateView.ApplyResponsiveVisualScale(cs, gateSize);
+                _activeGates.Add(gateView);
+            }
         }
 
         private void BuildLevelGates(LevelId level)
@@ -841,7 +1040,48 @@ namespace BlockMergePuzzle.Core
 
         private void SpawnPieces()
         {
+            if (ActiveCustomLevelData != null)
+            {
+                SpawnCustomPieces(ActiveCustomLevelData);
+                return;
+            }
             SpawnLevelPieces(_currentLevel);
+        }
+
+        private void SpawnCustomPieces(CustomLevelData data)
+        {
+            if (data == null || data.pieces == null) return;
+            Vector2 cellSizeVec = new Vector2(_customCellSize * 0.97f, _customCellSize * 0.97f);
+            for (int i = 0; i < data.pieces.Count; i++)
+            {
+                CustomPieceData p = data.pieces[i];
+                if (p == null) continue;
+                PieceColor pColor = p.GetPieceColor();
+                PieceShape pShape = p.GetPieceShape();
+                Vector2Int origin = p.origin.ToVector2Int();
+                Vector3 worldPos = CalculatePieceWorldCenter(pShape, origin);
+
+                PuzzlePiece piece = PuzzlePiece.Create(pColor, pShape, p.value, origin, worldPos, _piecesRoot, cellSizeVec);
+                if (p.isStone)
+                {
+                    piece.SetStone(true);
+                }
+                else
+                {
+                    if (p.iceCount > 0) piece.SetIceCount(p.iceCount);
+                    MoveAxisConstraint axis = p.GetMoveAxis();
+                    if (axis != MoveAxisConstraint.None) piece.SetMoveAxis(axis);
+                }
+
+                foreach (var cell in piece.OccupiedCells)
+                {
+                    if (IsValidCoord(cell.x, cell.y))
+                    {
+                        _grid[cell.x, cell.y] = piece;
+                    }
+                }
+                _activePieces.Add(piece);
+            }
         }
 
         private void SpawnLevelPieces(LevelId level)
@@ -1108,6 +1348,7 @@ namespace BlockMergePuzzle.Core
                 case PieceShape.ShapeL_TopRight:
                 case PieceShape.ShapeL_TopLeft:
                 case PieceShape.ShapeL_BottomLeft:
+                case PieceShape.ShapeL_BottomRight:
                 case PieceShape.Square_2x2:
                     // 2x2 bounding box center
                     return (GridToWorld(origin.x, origin.y) + GridToWorld(origin.x + 1, origin.y + 1)) * 0.5f;
@@ -1116,7 +1357,10 @@ namespace BlockMergePuzzle.Core
                     return GridToWorld(origin.x + 1, origin.y + 1);
 
                 default:
-                    return GridToWorld(origin.x, origin.y);
+                {
+                    Vector2Int b = GameConfig.GetShapeBoundingSize(shape);
+                    return (GridToWorld(origin.x, origin.y) + GridToWorld(origin.x + b.x - 1, origin.y + b.y - 1)) * 0.5f;
+                }
             }
         }
 
@@ -1453,6 +1697,15 @@ namespace BlockMergePuzzle.Core
 
         public Vector3 GridToWorld(int col, int row)
         {
+            if (ActiveCustomLevelData != null)
+            {
+                float midCol = (_customMinCol + _customMaxCol) * 0.5f;
+                float midRow = (_customMinRow + _customMaxRow) * 0.5f;
+                float wx = _boardCenter.x + (col - midCol) * _customCellSize;
+                float wy = _boardCenter.y - (row - midRow) * _customCellSize;
+                return new Vector3(wx, wy, 0f);
+            }
+
             if (_currentLevel == LevelId.Level1)
             {
                 float[] colX = { -2.728f, -1.358f, -0.013f, 1.335f, 2.712f };
@@ -1584,6 +1837,10 @@ namespace BlockMergePuzzle.Core
 
         public bool IsValidCoord(int col, int row)
         {
+            if (ActiveCustomLevelData != null)
+            {
+                return ActiveCustomLevelData.IsValidCoord(col, row);
+            }
             return CheckLevelValidCoord(_currentLevel, col, row);
         }
 
@@ -1855,10 +2112,39 @@ namespace BlockMergePuzzle.Core
             return a == b;
         }
 
+        public static bool CanPiecesMagnetMerge(PuzzlePiece a, PuzzlePiece b)
+        {
+            return a != null && b != null && a != b
+                && !a.IsStone && !b.IsStone
+                && !a.IsFrozen && !b.IsFrozen
+                && !a.IsSliding && !b.IsSliding
+                && !a.IsEscaping && !b.IsEscaping
+                && AreShapesMergeable(a.Shape, b.Shape)
+                && a.PieceColor == b.PieceColor
+                && a.Value == b.Value;
+        }
+
+        public static bool CanPieceMagnetEscapeGate(PuzzlePiece piece, ExitGateView gate)
+        {
+            return piece != null && gate != null
+                && !piece.IsStone && !piece.IsFrozen
+                && !piece.IsSliding && !piece.IsEscaping
+                && piece.PieceColor == gate.GateColor
+                && piece.Value == gate.RequiredValue;
+        }
+
+        public static bool CanPieceMoveInDirection(PuzzlePiece piece, Vector2Int dir)
+        {
+            if (piece == null || piece.IsStone || dir == Vector2Int.zero) return false;
+            if (piece.MoveAxis == MoveAxisConstraint.HorizontalOnly && dir.y != 0) return false;
+            if (piece.MoveAxis == MoveAxisConstraint.VerticalOnly && dir.x != 0) return false;
+            return true;
+        }
+
         public bool CheckMergeOpportunity(PuzzlePiece piece, Vector2Int origin, Vector2Int direction, out PuzzlePiece targetPiece)
         {
             targetPiece = null;
-            if (piece == null || piece.IsFrozen || direction == Vector2Int.zero) return false;
+            if (piece == null || piece.IsFrozen || piece.IsStone || !CanPieceMoveInDirection(piece, direction)) return false;
 
             Vector2Int candidateOrigin = origin + direction;
             List<Vector2Int> candidateCells = piece.GetOccupiedCellsForOrigin(candidateOrigin);
@@ -1880,7 +2166,7 @@ namespace BlockMergePuzzle.Core
                 }
             }
 
-            if (hit != null && !multiple && !hit.IsFrozen)
+            if (hit != null && !multiple && !hit.IsFrozen && !hit.IsStone)
             {
                 bool sameShape = AreShapesMergeable(piece.Shape, hit.Shape);
                 bool sameColor = (piece.PieceColor == hit.PieceColor);
@@ -1921,7 +2207,7 @@ namespace BlockMergePuzzle.Core
         public bool CheckEscapeOpportunity(PuzzlePiece piece, Vector2Int origin, Vector2Int direction, out ExitGateView targetGate)
         {
             targetGate = null;
-            if (piece == null || piece.IsFrozen || direction == Vector2Int.zero) return false;
+            if (piece == null || piece.IsFrozen || piece.IsStone || !CanPieceMoveInDirection(piece, direction)) return false;
 
             Vector2Int candidateOrigin = origin + direction;
             List<Vector2Int> candidateCells = piece.GetOccupiedCellsForOrigin(candidateOrigin);
@@ -2000,13 +2286,28 @@ namespace BlockMergePuzzle.Core
                 FailReason = string.Empty
             };
 
+            if (piece != null && piece.IsStone)
+            {
+                result.FailReason = "Khối đá cố định không thể di chuyển!";
+                return result;
+            }
+
             if (piece != null && piece.IsFrozen)
             {
                 result.FailReason = $"Khối đang bị đóng băng! Hãy đưa {piece.IceCount} khối khác thoát cổng để phá băng.";
                 return result;
             }
 
-            int maxStepsPossible = Mathf.Clamp(maxStepsRequested, 1, 8);
+            if (piece != null && !CanPieceMoveInDirection(piece, direction))
+            {
+                result.FailReason = piece.MoveAxis == MoveAxisConstraint.HorizontalOnly
+                    ? "Khối này chỉ trượt theo chiều ngang!"
+                    : "Khối này chỉ trượt theo chiều dọc!";
+                return result;
+            }
+
+            int maxGridSteps = Mathf.Max(8, Mathf.Max(CurrentColumns, CurrentRows));
+            int maxStepsPossible = Mathf.Clamp(maxStepsRequested, 1, maxGridSteps);
             Vector2Int currentOrigin = piece.GridOrigin;
 
             for (int s = 1; s <= maxStepsPossible; s++)
@@ -2122,6 +2423,10 @@ namespace BlockMergePuzzle.Core
 
                 if (hitPiece != null)
                 {
+                    if (hitPiece.IsStone)
+                    {
+                        break;
+                    }
                     if (hitPiece.IsFrozen)
                     {
                         result.FailReason = "Khối mục tiêu đang bị đóng băng!";
@@ -2212,17 +2517,33 @@ namespace BlockMergePuzzle.Core
 
         public bool TrySlidePiece(PuzzlePiece piece, Vector2Int direction)
         {
-            return TrySlidePieceSteps(piece, direction, 8);
+            return TrySlidePieceSteps(piece, direction, Mathf.Max(8, Mathf.Max(CurrentColumns, CurrentRows)));
         }
 
         public bool TrySlidePieceSteps(PuzzlePiece piece, Vector2Int direction, int maxStepsRequested)
         {
             if (piece == null || piece.IsSliding || piece.IsEscaping) return false;
+            if (piece.IsStone)
+            {
+                piece.PlayFrozenShake();
+                SoundManager.Instance?.PlayError();
+                GameUI.Instance?.ShowFeedbackError("Khối đá cố định không thể di chuyển!");
+                return false;
+            }
             if (piece.IsFrozen)
             {
                 piece.PlayFrozenShake();
                 SoundManager.Instance?.PlayError();
                 GameUI.Instance?.ShowFeedbackError($"Khối đang bị đóng băng! Hãy đưa {piece.IceCount} khối khác thoát cổng để phá băng.");
+                return false;
+            }
+            if (!CanPieceMoveInDirection(piece, direction))
+            {
+                piece.Bump(new Vector2(direction.x, -direction.y));
+                SoundManager.Instance?.PlayError();
+                GameUI.Instance?.ShowFeedbackError(piece.MoveAxis == MoveAxisConstraint.HorizontalOnly
+                    ? "Khối này chỉ trượt theo chiều ngang!"
+                    : "Khối này chỉ trượt theo chiều dọc!");
                 return false;
             }
 
@@ -2325,7 +2646,6 @@ namespace BlockMergePuzzle.Core
 
                     SoundManager.Instance?.PlayMerge(piece.Value);
                     SpawnMergeFlash(targetWorldPos);
-                    GameUI.Instance?.ShowFloatingText($"+50 HỢP NHẤT [{piece.Value}]!", targetWorldPos, UnityEngine.Color.cyan);
                 },
                 onArrival: null,
                 approachDuration: actualDuration);
@@ -2439,13 +2759,166 @@ namespace BlockMergePuzzle.Core
                 });
 
                 SoundManager.Instance.PlayEscape();
-                GameUI.Instance.ShowFloatingText("+150 ÄÃƒ THOÃT Cá»”NG!", gatePos, UnityEngine.Color.yellow);
+            });
+        }
+
+        public void ExecuteMagnetJumpMerge(PuzzlePiece piece, PuzzlePiece target, Action onComplete = null)
+        {
+            if (piece == null || target == null)
+            {
+                onComplete?.Invoke();
+                return;
+            }
+
+            Vector3 targetWorldPos = target.transform.position;
+            Vector2Int targetOrigin = target.GridOrigin;
+
+            ClearPieceFromGrid(piece);
+            target.LockForMerge();
+            SoundManager.Instance?.PlayMagnetPull();
+
+            piece.JumpAndSlamMerge(targetWorldPos, targetOrigin, target,
+                onImpact: () =>
+                {
+                    if (target != null)
+                    {
+                        ClearPieceFromGrid(target);
+                        _activePieces.Remove(target);
+                        Destroy(target.gameObject);
+                    }
+
+                    piece.SetValue(piece.Value + 1);
+                    AssignPieceToGrid(piece, targetOrigin);
+
+                    Score += piece.Value * 50;
+                    OnScoreChanged?.Invoke(Score);
+                    OnRemainingBlocksChanged?.Invoke(RemainingBlocksCount);
+
+                    SoundManager.Instance?.PlayMerge(piece.Value);
+                    SpawnMergeFlash(targetWorldPos);
+                    KickCameraImpact(0.08f, 0.11f);
+                },
+                onArrival: onComplete);
+        }
+
+        public ExitGateView FindBestGateForColor(PieceColor color, Vector3 fromWorldPos)
+        {
+            ExitGateView bestMatch = null;
+            float bestDistSq = float.MaxValue;
+            if (_activeGates != null)
+            {
+                for (int i = 0; i < _activeGates.Count; i++)
+                {
+                    ExitGateView g = _activeGates[i];
+                    if (g == null || g.GateColor != color) continue;
+                    float dSq = (g.transform.position - fromWorldPos).sqrMagnitude;
+                    if (dSq < bestDistSq)
+                    {
+                        bestDistSq = dSq;
+                        bestMatch = g;
+                    }
+                }
+                if (bestMatch != null) return bestMatch;
+
+                for (int i = 0; i < _activeGates.Count; i++)
+                {
+                    ExitGateView g = _activeGates[i];
+                    if (g == null) continue;
+                    float dSq = (g.transform.position - fromWorldPos).sqrMagnitude;
+                    if (dSq < bestDistSq)
+                    {
+                        bestDistSq = dSq;
+                        bestMatch = g;
+                    }
+                }
+            }
+            return bestMatch;
+        }
+
+        public void ExecuteWandJumpEscape(PuzzlePiece piece, ExitGateView gate, Action onComplete = null, float jumpDuration = 0.30f)
+        {
+            if (piece == null)
+            {
+                onComplete?.Invoke();
+                return;
+            }
+
+            ClearPieceFromGrid(piece);
+            if (piece.IsFrozen)
+            {
+                piece.SetIceCount(0);
+            }
+
+            Vector3 targetPos = gate != null ? gate.transform.position : piece.transform.position + Vector3.up * 3.5f;
+            Vector2 exitDir = gate != null ? gate.ExitDirection : Vector2.up;
+
+            piece.JumpToGate(targetPos, () =>
+            {
+                for (int i = 0; i < _activePieces.Count; i++)
+                {
+                    PuzzlePiece other = _activePieces[i];
+                    if (other != null && other != piece && other.IsFrozen && !other.IsSliding && !other.IsEscaping)
+                    {
+                        other.DecrementIceCount();
+                    }
+                }
+
+                SoundManager.Instance?.PlayEscape();
+                KickCameraImpact(0.045f, 0.065f);
+
+                piece.PlayEscapeAnimation(exitDir, () =>
+                {
+                    _activePieces.Remove(piece);
+                    Score += piece.Value * 150;
+                    OnScoreChanged?.Invoke(Score);
+                    OnRemainingBlocksChanged?.Invoke(RemainingBlocksCount);
+                    CheckVictoryCondition();
+                    onComplete?.Invoke();
+                });
+            }, jumpDuration);
+        }
+
+        public void ExecuteMagnetJumpEscape(PuzzlePiece piece, ExitGateView gate, Action onComplete = null)
+        {
+            if (piece == null || gate == null)
+            {
+                onComplete?.Invoke();
+                return;
+            }
+
+            Vector3 gatePos = gate.transform.position;
+            ClearPieceFromGrid(piece);
+            SoundManager.Instance?.PlayMagnetPull();
+
+            piece.JumpToGate(gatePos, () =>
+            {
+                for (int i = 0; i < _activePieces.Count; i++)
+                {
+                    PuzzlePiece other = _activePieces[i];
+                    if (other != null && other != piece && other.IsFrozen)
+                    {
+                        other.DecrementIceCount();
+                    }
+                }
+
+                SoundManager.Instance?.PlayEscape();
+                KickCameraImpact(0.055f, 0.08f);
+
+                piece.PlayEscapeAnimation(gate.ExitDirection, () =>
+                {
+                    _activePieces.Remove(piece);
+                    Score += piece.Value * 150;
+                    OnScoreChanged?.Invoke(Score);
+                    OnRemainingBlocksChanged?.Invoke(RemainingBlocksCount);
+                    CheckVictoryCondition();
+                    onComplete?.Invoke();
+                });
             });
         }
 
         private void CheckVictoryCondition()
         {
-            if (_activePieces.Count == 0)
+            if (RemainingBlocksCount == 0)
             {
                 SoundManager.Instance?.PlayVictory();
                 GameUI.Instance?.ShowVictoryPopup();
@@ -2454,6 +2927,12 @@ namespace BlockMergePuzzle.Core
 
         public void SwitchLevel(LevelId level)
         {
+            if (CustomLevelRepository.TryGetLevel((int)level, out CustomLevelData customData))
+            {
+                LoadCustomLevel(customData, true);
+                return;
+            }
+            SetActiveCustomData(null);
             _currentLevel = level;
             if (_initialPiecesTemplate != null)
             {

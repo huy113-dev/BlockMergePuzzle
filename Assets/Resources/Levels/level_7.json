@@ -1,0 +1,109 @@
+{
+    "schemaVersion": 1,
+    "levelNumber": 7,
+    "name": "Level 7",
+    "difficulty": "Easy",
+    "timeSeconds": 105,
+    "columns": 8,
+    "rows": 4,
+    "cells": [
+        "00000000",
+        "00011000",
+        "00111100",
+        "01111110"
+    ],
+    "gates": [
+        {
+            "color": "Green",
+            "requiredValue": 2,
+            "side": "Top",
+            "startCell": {
+                "x": 3,
+                "y": 0
+            },
+            "span": 2
+        },
+        {
+            "color": "Yellow",
+            "requiredValue": 2,
+            "side": "Left",
+            "startCell": {
+                "x": 0,
+                "y": 3
+            },
+            "span": 1
+        },
+        {
+            "color": "Pink",
+            "requiredValue": 2,
+            "side": "Right",
+            "startCell": {
+                "x": 7,
+                "y": 3
+            },
+            "span": 1
+        }
+    ],
+    "pieces": [
+        {
+            "color": "Green",
+            "shape": "Square_2x2",
+            "value": 2,
+            "origin": {
+                "x": 3,
+                "y": 1
+            },
+            "iceCount": 2,
+            "moveAxis": "None",
+            "isStone": false
+        },
+        {
+            "color": "Pink",
+            "shape": "Single_1x1",
+            "value": 1,
+            "origin": {
+                "x": 2,
+                "y": 2
+            },
+            "iceCount": 0,
+            "moveAxis": "None",
+            "isStone": false
+        },
+        {
+            "color": "Pink",
+            "shape": "Single_1x1",
+            "value": 1,
+            "origin": {
+                "x": 5,
+                "y": 2
+            },
+            "iceCount": 0,
+            "moveAxis": "None",
+            "isStone": false
+        },
+        {
+            "color": "Yellow",
+            "shape": "Horizontal_2x1",
+            "value": 1,
+            "origin": {
+                "x": 1,
+                "y": 3
+            },
+            "iceCount": 0,
+            "moveAxis": "None",
+            "isStone": false
+        },
+        {
+            "color": "Yellow",
+            "shape": "Horizontal_2x1",
+            "value": 1,
+            "origin": {
+                "x": 5,
+                "y": 3
+            },
+            "iceCount": 0,
+            "moveAxis": "None",
+            "isStone": false
+        }
+    ]
+}

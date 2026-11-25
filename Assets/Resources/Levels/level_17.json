@@ -1,0 +1,308 @@
+{
+    "schemaVersion": 1,
+    "levelNumber": 17,
+    "name": "Cosmic Ice Vault",
+    "difficulty": "Easy",
+    "timeSeconds": 120,
+    "columns": 10,
+    "rows": 12,
+    "boardScale": 1.0700000524520875,
+    "boardOffsetX": 0.05000000074505806,
+    "boardOffsetY": -0.05000000074505806,
+    "cells": [
+        "0000000000",
+        "0111111100",
+        "0111000000",
+        "0111111100",
+        "0111111100",
+        "0111011100",
+        "0111011100",
+        "0000011100",
+        "0111111100",
+        "0000000000",
+        "0000000000",
+        "0000000000"
+    ],
+    "gates": [
+        {
+            "color": "Red",
+            "requiredValue": 3,
+            "side": "Left",
+            "startCell": {
+                "x": 0,
+                "y": 8
+            },
+            "span": 1
+        },
+        {
+            "color": "Blue",
+            "requiredValue": 2,
+            "side": "Top",
+            "startCell": {
+                "x": 5,
+                "y": 0
+            },
+            "span": 2
+        },
+        {
+            "color": "Orange",
+            "requiredValue": 3,
+            "side": "Right",
+            "startCell": {
+                "x": 8,
+                "y": 1
+            },
+            "span": 1
+        },
+        {
+            "color": "Purple",
+            "requiredValue": 4,
+            "side": "Top",
+            "startCell": {
+                "x": 1,
+                "y": 0
+            },
+            "span": 2
+        },
+        {
+            "color": "Yellow",
+            "requiredValue": 2,
+            "side": "Left",
+            "startCell": {
+                "x": 0,
+                "y": 3
+            },
+            "span": 2
+        }
+    ],
+    "pieces": [
+        {
+            "color": "Orange",
+            "shape": "Single_1x1",
+            "value": 1,
+            "origin": {
+                "x": 7,
+                "y": 1
+            },
+            "iceCount": 0,
+            "moveAxis": "None",
+            "isStone": false
+        },
+        {
+            "color": "Red",
+            "shape": "Single_1x1",
+            "value": 1,
+            "origin": {
+                "x": 7,
+                "y": 5
+            },
+            "iceCount": 0,
+            "moveAxis": "None",
+            "isStone": false
+        },
+        {
+            "color": "Red",
+            "shape": "Single_1x1",
+            "value": 1,
+            "origin": {
+                "x": 4,
+                "y": 8
+            },
+            "iceCount": 0,
+            "moveAxis": "None",
+            "isStone": false
+        },
+        {
+            "color": "Yellow",
+            "shape": "Square_2x2",
+            "value": 1,
+            "origin": {
+                "x": 1,
+                "y": 5
+            },
+            "iceCount": 0,
+            "moveAxis": "None",
+            "isStone": false
+        },
+        {
+            "color": "Blue",
+            "shape": "Horizontal_2x1",
+            "value": 1,
+            "origin": {
+                "x": 5,
+                "y": 1
+            },
+            "iceCount": 0,
+            "moveAxis": "None",
+            "isStone": false
+        },
+        {
+            "color": "Orange",
+            "shape": "Single_1x1",
+            "value": 1,
+            "origin": {
+                "x": 3,
+                "y": 6
+            },
+            "iceCount": 0,
+            "moveAxis": "None",
+            "isStone": false
+        },
+        {
+            "color": "Blue",
+            "shape": "Horizontal_2x1",
+            "value": 1,
+            "origin": {
+                "x": 1,
+                "y": 4
+            },
+            "iceCount": 0,
+            "moveAxis": "None",
+            "isStone": false
+        },
+        {
+            "color": "Purple",
+            "shape": "Vertical_1x2",
+            "value": 1,
+            "origin": {
+                "x": 3,
+                "y": 4
+            },
+            "iceCount": 0,
+            "moveAxis": "None",
+            "isStone": false
+        },
+        {
+            "color": "Purple",
+            "shape": "Vertical_1x2",
+            "value": 1,
+            "origin": {
+                "x": 5,
+                "y": 7
+            },
+            "iceCount": 0,
+            "moveAxis": "None",
+            "isStone": false
+        },
+        {
+            "color": "Red",
+            "shape": "Single_1x1",
+            "value": 2,
+            "origin": {
+                "x": 1,
+                "y": 8
+            },
+            "iceCount": 0,
+            "moveAxis": "None",
+            "isStone": false
+        },
+        {
+            "color": "Purple",
+            "shape": "Vertical_1x2",
+            "value": 2,
+            "origin": {
+                "x": 3,
+                "y": 2
+            },
+            "iceCount": 0,
+            "moveAxis": "None",
+            "isStone": false
+        },
+        {
+            "color": "Orange",
+            "shape": "Single_1x1",
+            "value": 2,
+            "origin": {
+                "x": 1,
+                "y": 2
+            },
+            "iceCount": 0,
+            "moveAxis": "None",
+            "isStone": false
+        },
+        {
+            "color": "Red",
+            "shape": "Horizontal_2x1",
+            "value": 2,
+            "origin": {
+                "x": 2,
+                "y": 8
+            },
+            "iceCount": 0,
+            "moveAxis": "None",
+            "isStone": false
+        },
+        {
+            "color": "Red",
+            "shape": "Horizontal_2x1",
+            "value": 2,
+            "origin": {
+                "x": 6,
+                "y": 3
+            },
+            "iceCount": 0,
+            "moveAxis": "None",
+            "isStone": false
+        },
+        {
+            "color": "Purple",
+            "shape": "Vertical_1x2",
+            "value": 3,
+            "origin": {
+                "x": 7,
+                "y": 7
+            },
+            "iceCount": 0,
+            "moveAxis": "None",
+            "isStone": false
+        },
+        {
+            "color": "Yellow",
+            "shape": "Square_2x2",
+            "value": 1,
+            "origin": {
+                "x": 4,
+                "y": 3
+            },
+            "iceCount": 3,
+            "moveAxis": "None",
+            "isStone": false
+        },
+        {
+            "color": "Yellow",
+            "shape": "Vertical_1x2",
+            "value": 2,
+            "origin": {
+                "x": 6,
+                "y": 7
+            },
+            "iceCount": 0,
+            "moveAxis": "None",
+            "isStone": false
+        },
+        {
+            "color": "Yellow",
+            "shape": "Single_1x1",
+            "value": 2,
+            "origin": {
+                "x": 7,
+                "y": 4
+            },
+            "iceCount": 0,
+            "moveAxis": "None",
+            "isStone": false
+        },
+        {
+            "color": "Orange",
+            "shape": "Horizontal_2x1",
+            "value": 3,
+            "origin": {
+                "x": 1,
+                "y": 3
+            },
+            "iceCount": 0,
+            "moveAxis": "None",
+            "isStone": false
+        }
+    ]
+}

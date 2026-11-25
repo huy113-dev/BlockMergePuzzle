@@ -1,0 +1,254 @@
+{
+    "schemaVersion": 1,
+    "levelNumber": 19,
+    "name": "Cosmic Ice Vault",
+    "difficulty": "Easy",
+    "timeSeconds": 120,
+    "columns": 10,
+    "rows": 12,
+    "boardScale": 1.0700000524520875,
+    "boardOffsetX": 0.05000000074505806,
+    "boardOffsetY": -0.05000000074505806,
+    "cells": [
+        "0000000000",
+        "0011111100",
+        "0011111100",
+        "0011101100",
+        "0011111100",
+        "0011111100",
+        "0011111100",
+        "0011111100",
+        "0001110000",
+        "0000000000",
+        "0000000000",
+        "0000000000"
+    ],
+    "gates": [
+        {
+            "color": "Green",
+            "requiredValue": 2,
+            "side": "Right",
+            "startCell": {
+                "x": 8,
+                "y": 2
+            },
+            "span": 2
+        },
+        {
+            "color": "Yellow",
+            "requiredValue": 3,
+            "side": "Left",
+            "startCell": {
+                "x": 1,
+                "y": 2
+            },
+            "span": 2
+        }
+    ],
+    "pieces": [
+        {
+            "color": "Green",
+            "shape": "ShapeL_TopRight",
+            "value": 1,
+            "origin": {
+                "x": 2,
+                "y": 7
+            },
+            "iceCount": 0,
+            "moveAxis": "None",
+            "isStone": false
+        },
+        {
+            "color": "Green",
+            "shape": "ShapeL_TopRight",
+            "value": 1,
+            "origin": {
+                "x": 6,
+                "y": 1
+            },
+            "iceCount": 0,
+            "moveAxis": "None",
+            "isStone": false
+        },
+        {
+            "color": "Green",
+            "shape": "Square_2x2",
+            "value": 1,
+            "origin": {
+                "x": 3,
+                "y": 1
+            },
+            "iceCount": 0,
+            "moveAxis": "None",
+            "isStone": false
+        },
+        {
+            "color": "Green",
+            "shape": "Square_2x2",
+            "value": 1,
+            "origin": {
+                "x": 5,
+                "y": 6
+            },
+            "iceCount": 0,
+            "moveAxis": "None",
+            "isStone": false
+        },
+        {
+            "color": "Green",
+            "shape": "Single_1x1",
+            "value": 1,
+            "origin": {
+                "x": 6,
+                "y": 2
+            },
+            "iceCount": 0,
+            "moveAxis": "None",
+            "isStone": false
+        },
+        {
+            "color": "Green",
+            "shape": "Single_1x1",
+            "value": 1,
+            "origin": {
+                "x": 4,
+                "y": 6
+            },
+            "iceCount": 0,
+            "moveAxis": "None",
+            "isStone": false
+        },
+        {
+            "color": "Yellow",
+            "shape": "Single_1x1",
+            "value": 1,
+            "origin": {
+                "x": 2,
+                "y": 1
+            },
+            "iceCount": 0,
+            "moveAxis": "None",
+            "isStone": false
+        },
+        {
+            "color": "Yellow",
+            "shape": "Single_1x1",
+            "value": 2,
+            "origin": {
+                "x": 4,
+                "y": 3
+            },
+            "iceCount": 0,
+            "moveAxis": "None",
+            "isStone": false
+        },
+        {
+            "color": "Green",
+            "shape": "Horizontal_2x1",
+            "value": 1,
+            "origin": {
+                "x": 2,
+                "y": 6
+            },
+            "iceCount": 0,
+            "moveAxis": "None",
+            "isStone": false
+        },
+        {
+            "color": "Green",
+            "shape": "Horizontal_2x1",
+            "value": 1,
+            "origin": {
+                "x": 6,
+                "y": 3
+            },
+            "iceCount": 0,
+            "moveAxis": "None",
+            "isStone": false
+        },
+        {
+            "color": "Yellow",
+            "shape": "Single_1x1",
+            "value": 1,
+            "origin": {
+                "x": 7,
+                "y": 4
+            },
+            "iceCount": 0,
+            "moveAxis": "None",
+            "isStone": false
+        },
+        {
+            "color": "Green",
+            "shape": "Horizontal_3x1",
+            "value": 2,
+            "origin": {
+                "x": 5,
+                "y": 5
+            },
+            "iceCount": 0,
+            "moveAxis": "None",
+            "isStone": false
+        },
+        {
+            "color": "Yellow",
+            "shape": "Horizontal_3x1",
+            "value": 3,
+            "origin": {
+                "x": 2,
+                "y": 5
+            },
+            "iceCount": 0,
+            "moveAxis": "None",
+            "isStone": false
+        },
+        {
+            "color": "Yellow",
+            "shape": "ShapeL_BottomLeft",
+            "value": 2,
+            "origin": {
+                "x": 2,
+                "y": 2
+            },
+            "iceCount": 0,
+            "moveAxis": "None",
+            "isStone": false
+        },
+        {
+            "color": "Yellow",
+            "shape": "ShapeL_BottomLeft",
+            "value": 2,
+            "origin": {
+                "x": 4,
+                "y": 7
+            },
+            "iceCount": 0,
+            "moveAxis": "None",
+            "isStone": false
+        },
+        {
+            "color": "Yellow",
+            "shape": "Vertical_1x2",
+            "value": 2,
+            "origin": {
+                "x": 7,
+                "y": 6
+            },
+            "iceCount": 0,
+            "moveAxis": "None",
+            "isStone": false
+        },
+        {
+            "color": "Yellow",
+            "shape": "Vertical_1x2",
+            "value": 2,
+            "origin": {
+                "x": 5,
+                "y": 1
+            },
+            "iceCount": 0,
+            "moveAxis": "None",
+            "isStone": false
+        }
+    ]
+}

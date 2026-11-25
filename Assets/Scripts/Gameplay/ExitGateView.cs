@@ -28,6 +28,7 @@ namespace BlockMergePuzzle.Gameplay
         private Transform _floatingDigitRoot;
         private float _pulseTimer;
         private bool _isHovered;
+        private float _baseInnerRingScale = 0.340f;
 
         public string ColorDisplayName => GameConfig.GetColorNameVietnamese(GateColor);
 
@@ -231,6 +232,7 @@ namespace BlockMergePuzzle.Gameplay
                 innerObj.transform.SetParent(_labelRoot, false);
                 innerObj.transform.localPosition = new Vector3(0f, 0f, -0.11f);
                 float iScale = isWideShortGate ? 0.275f : (isNarrowGate ? 0.260f : 0.340f);
+                _baseInnerRingScale = iScale;
                 innerObj.transform.localScale = new Vector3(iScale, iScale, 1f);
                 SpriteRenderer innerSr = innerObj.AddComponent<SpriteRenderer>();
                 innerSr.sprite = innerSprite;
@@ -376,6 +378,10 @@ namespace BlockMergePuzzle.Gameplay
                 _floatingDigitRoot = _labelRoot.Find("FloatingDigit");
                 _techRingTransform = _labelRoot.Find("GateTechRing");
                 _innerRingTransform = _labelRoot.Find("GateInnerRing");
+                if (_innerRingTransform != null && _innerRingTransform.localScale.x > 0.01f)
+                {
+                    _baseInnerRingScale = _innerRingTransform.localScale.x;
+                }
 
                 Transform tNum = _floatingDigitRoot != null ? _floatingDigitRoot.Find("GateNumber") : _labelRoot.Find("GateNumber");
                 if (tNum != null) _numberLabel = tNum.GetComponent<TextMesh>();
@@ -403,7 +409,7 @@ namespace BlockMergePuzzle.Gameplay
                 if (_innerRingTransform != null)
                 {
                     _innerRingTransform.Rotate(0f, 0f, 25f * Time.deltaTime);
-                    float ringPulse = 0.340f + Mathf.Sin(_pulseTimer * 1.8f) * 0.014f;
+                    float ringPulse = _baseInnerRingScale + Mathf.Sin(_pulseTimer * 1.8f) * (_baseInnerRingScale * 0.041f);
                     _innerRingTransform.localScale = new Vector3(ringPulse, ringPulse, 1f);
                 }
                 if (_floatingDigitRoot != null)
@@ -447,6 +453,39 @@ namespace BlockMergePuzzle.Gameplay
         public bool ContainsPoint(Vector2 point)
         {
             return DetectionBounds.Contains(point);
+        }
+
+        /// <summary>Scales holographic gate visuals proportionally to fit custom cell sizes and gate spans.</summary>
+        public void ApplyResponsiveVisualScale(float cellSize, Vector2 gateSize)
+        {
+            if (_labelRoot == null) _labelRoot = transform.Find("LabelRoot");
+            if (_labelRoot == null) return;
+
+            float minDim = Mathf.Min(gateSize.x, gateSize.y);
+            float rootScale = Mathf.Clamp(minDim / 0.88f, 0.48f, 1.05f);
+            _labelRoot.localScale = new Vector3(rootScale, rootScale, 1f);
+
+            Transform pad = _labelRoot.Find("GateHoloPad");
+            if (pad != null)
+            {
+                float padW = Mathf.Max(0.30f, gateSize.x * 0.88f);
+                float padH = Mathf.Max(0.30f, gateSize.y * 0.88f);
+                pad.localScale = new Vector3(padW / (2.40f * rootScale), padH / (2.40f * rootScale), 1f);
+            }
+
+            float ringScale = Mathf.Clamp(cellSize / 1.02f, 0.72f, 1.05f);
+            Transform outerRing = _labelRoot.Find("GateTechRing");
+            if (outerRing != null)
+            {
+                outerRing.localScale = new Vector3(0.345f * ringScale, 0.345f * ringScale, 1f);
+            }
+
+            Transform innerRing = _labelRoot.Find("GateInnerRing");
+            if (innerRing != null)
+            {
+                _baseInnerRingScale = 0.340f * ringScale;
+                innerRing.localScale = new Vector3(_baseInnerRingScale, _baseInnerRingScale, 1f);
+            }
         }
     }
 }

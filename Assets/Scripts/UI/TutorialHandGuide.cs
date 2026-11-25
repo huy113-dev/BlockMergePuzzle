@@ -85,9 +85,11 @@ namespace BlockMergePuzzle.UI
             }
             _bannerText = bannerText;
 
-            EnsureWorldHand();
             EvaluatePhase();
-            PositionBanner();
+            if (_currentPhase != TutorialPhase.Disabled && _currentPhase != TutorialPhase.Completed)
+            {
+                PositionBanner();
+            }
         }
 
         public void SetupExistingComponents(GameObject bannerObj, Text bannerText)
@@ -104,38 +106,43 @@ namespace BlockMergePuzzle.UI
             }
             _bannerText = bannerText;
 
-            EnsureWorldHand();
             EvaluatePhase();
         }
 
         private void EnsureWorldHand()
         {
-            if (_handRootObj == null)
+            var scene = gameObject.scene;
+            if (scene.isLoaded)
             {
-                var scene = gameObject.scene;
-                if (scene.isLoaded)
+                var roots = scene.GetRootGameObjects();
+                foreach (var go in roots)
                 {
-                    var roots = scene.GetRootGameObjects();
-                    foreach (var go in roots)
+                    if (go.name == "TutorialHand_World")
                     {
-                        if (go.name == "TutorialHand_World")
+                        if (_handRootObj == null || _handRootObj == go)
                         {
-                            if (_handRootObj == null)
-                            {
-                                _handRootObj = go;
-                                _handSr = _handRootObj.GetComponentInChildren<SpriteRenderer>(true);
-                            }
-                            else
-                            {
-                                if (Application.isPlaying) Destroy(go);
-                                else DestroyImmediate(go);
-                            }
+                            _handRootObj = go;
+                            _handSr = _handRootObj.GetComponentInChildren<SpriteRenderer>(true);
+                        }
+                        else
+                        {
+                            if (Application.isPlaying) Destroy(go);
+                            else DestroyImmediate(go);
                         }
                     }
                 }
             }
+            else if (_handRootObj == null)
+            {
+                GameObject existing = GameObject.Find("TutorialHand_World");
+                if (existing != null)
+                {
+                    _handRootObj = existing;
+                    _handSr = _handRootObj.GetComponentInChildren<SpriteRenderer>(true);
+                }
+            }
 
-            if (_handRootObj == null)
+            if (_handRootObj == null && scene.isLoaded)
             {
                 _handRootObj = new GameObject("TutorialHand_World");
                 GameObject spriteChild = new GameObject("HandSprite");
@@ -183,8 +190,6 @@ namespace BlockMergePuzzle.UI
                 }
             }
 
-            EnsureWorldHand();
-
             LevelManager lm = LevelManager.Instance;
 #if UNITY_EDITOR
             if (lm == null)
@@ -197,12 +202,14 @@ namespace BlockMergePuzzle.UI
             }
 #endif
 
-            if (lm == null || lm.CurrentLevel != LevelId.Level1)
+            if (lm == null || lm.CurrentLevelNumber != 1 || lm.HasActiveCustomLevel)
             {
                 SetVisible(false);
                 _currentPhase = TutorialPhase.Disabled;
                 return;
             }
+
+            EnsureWorldHand();
 
             if (!Application.isPlaying)
             {
@@ -253,11 +260,36 @@ namespace BlockMergePuzzle.UI
                 var b = GameObject.Find("InstructionBanner");
                 if (b != null) b.SetActive(visible);
             }
-            if (_handRootObj != null) _handRootObj.SetActive(visible);
+
+            if (visible)
+            {
+                if (_handRootObj != null) _handRootObj.SetActive(true);
+                else
+                {
+                    var h = GameObject.Find("TutorialHand_World");
+                    if (h != null) h.SetActive(true);
+                }
+                return;
+            }
+
+            if (_handRootObj != null) _handRootObj.SetActive(false);
+
+            var scene = gameObject.scene;
+            if (scene.isLoaded)
+            {
+                var roots = scene.GetRootGameObjects();
+                foreach (var go in roots)
+                {
+                    if (go != null && go.name == "TutorialHand_World")
+                    {
+                        go.SetActive(false);
+                    }
+                }
+            }
             else
             {
                 var h = GameObject.Find("TutorialHand_World");
-                if (h != null) h.SetActive(visible);
+                if (h != null) h.SetActive(false);
             }
         }
 

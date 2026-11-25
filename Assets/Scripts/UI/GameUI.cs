@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
@@ -42,6 +43,7 @@ namespace BlockMergePuzzle.UI
         private string _lastDisplayedTimeString = "";
         private float _timeRemaining = Level1Time;
         private bool _isTimerRunning = false;
+        private bool _hasTimerStartedByInput = false;
         private bool _isPaused = false;
 
         public static bool TryParseTimeText(string raw, out float totalSeconds)
@@ -113,6 +115,10 @@ namespace BlockMergePuzzle.UI
             {
                 return customParsed;
             }
+            if (LevelManager.Instance != null && LevelManager.Instance.ActiveCustomLevelData != null && LevelManager.Instance.ActiveCustomLevelData.timeSeconds > 0)
+            {
+                return LevelManager.Instance.ActiveCustomLevelData.timeSeconds;
+            }
             if (_initialInspectorTimeSeconds > 0f)
             {
                 return _initialInspectorTimeSeconds;
@@ -168,32 +174,161 @@ namespace BlockMergePuzzle.UI
 
         // Modals
         public const int MaxLevelNumber = 10;
+        public const int BaseWinRewardCoins = 40;
+        public const int AdsWinRewardCoins = 80;
+        public const string PrefCurrentLevelKey = "BMP_CurrentLevel";
+        public const string PrefJustWonLevelKey = "BMP_JustWonLevel";
+        private const string PrefCoinsKey = "BMP_TotalCoins";
+        private const string PrefLivesKey = "BMP_Lives";
+        private const int DefaultLives = 3;
+        private const int MaxLives = 5;
+        private const int DefaultStartingCoinsIfUnset = 2000;
         public bool IsVictoryShowing => _victoryPanel != null && _victoryPanel.activeSelf;
+        public bool IsTimeOutShowing => _timeOutPanel != null && _timeOutPanel.activeSelf;
+
+        [Header("Time Out & Level Failed Settings")]
+        [SerializeField] private int _reviveCoinCost = 1900;
+        [SerializeField] private float _reviveExtraSeconds = 20f;
+        [SerializeField] private int _reviveBundleCoins = 1400;
+        [SerializeField] private string _reviveBundlePrice = "₫131,000";
+        [SerializeField] private int _starterBundleCoins = 450;
+        [SerializeField] private string _starterBundlePrice = "₫52,000";
 
         private GameObject _pausePanel;
         private GameObject _victoryPanel;
-        private RectTransform _victoryDialogRect;
         private CanvasGroup _victoryCanvasGroup;
-        private Text _victoryRibbonText;
-        private Text _victoryTitleText;
-        private Text _victorySubtitleText;
-        private Text _victoryTimeInfoText;
-        private Button _victoryNextBtn;
-        private Text _victoryNextBtnText;
-        private Button _victoryReplayBtn;
-        private RectTransform[] _victoryStars;
+        private RectTransform _winTopBarRect;
+        private Text _winTopLivesCountText;
+        private Text _winTopLivesStatusText;
+        private RectTransform _winTopCoinsPillRect;
+        private RectTransform _winTopCoinTargetRect;
+        private Text _winTopCoinsCountText;
+        private RectTransform _winWellDoneRoot;
+        private RectTransform _winWellDoneGlowRect;
+        private RectTransform[] _winLetterTiles;
+        private Vector2[] _winTileRestPositions;
+        private RectTransform _winSparklesRoot;
+        private RectTransform _winCoinsRoot;
+        private RectTransform _winCoinsAuraOuter;
+        private RectTransform _winCoinsSunburstRect;
+        private RectTransform _winCoinsImageRect;
+        private Text _winRewardAmountText;
+        private RectTransform _winProgressRoot;
+        private CanvasGroup _winProgressCanvasGroup;
+        private RectTransform _winProgressFillRect;
+        private Image[] _winProgressNodes;
+        private GameObject[] _winProgressNodeGlows;
+        private GameObject[] _winProgressNodeIcons;
+        private Text[] _winProgressLabels;
+        private RectTransform _winMilestoneBubbleRect;
+        private RectTransform _winButtonsRoot;
+        private CanvasGroup _winButtonsCanvasGroup;
+        private Button _winGetBtn;
+        private RectTransform _winGetBtnRect;
+        private Vector2 _winGetBtnRestPos = new Vector2(-205f, 0f);
+        private Text _winGetAmountText;
+        private Button _winAdsBtn;
+        private RectTransform _winAdsBtnRect;
+        private Vector2 _winAdsBtnRestPos = new Vector2(212f, 0f);
+        private RectTransform _winAdsShineRect;
+        private Text _winAdsAmountText;
+        private RectTransform _winEffectsLayer;
         private Coroutine _victoryAnimCoroutine;
+        private Coroutine _winClaimCoroutine;
+        private Coroutine _winAmbientConfettiCoroutine;
         private bool _isLoadingNextLevel = false;
+        private bool _hasClaimedWinReward = false;
+        private bool _winIntroComplete = false;
+        private float _winIdleTime = 0f;
+
+        // Time Out & Level Failed Modal
+        private GameObject _timeOutPanel;
+        private CanvasGroup _timeOutCanvasGroup;
+        private RectTransform _timeOutTopBarRect;
+        private RectTransform _timeOutLivesPillRect;
+        private Image _timeOutLivesPillImg;
+        private Text _timeOutLivesCountText;
+        private Text _timeOutLivesTimerText;
+        private RectTransform _timeOutCoinsPillRect;
+        private Text _timeOutCoinsCountText;
+        private RectTransform _timeOutCenterStackRect;
+        private RectTransform _timeOutMainCardRect;
+        private RectTransform _timeOutPlanetRingedRect;
+        private RectTransform _timeOutPlanetMiniRect;
+        private RectTransform _timeOutCardSparklesRoot;
+        private Image _timeOutHeaderImg;
+        private Text _timeOutHeaderText;
+
+        private GameObject _timeOutStageRoot;
+        private RectTransform _timeOutStopwatchRoot;
+        private RectTransform _timeOutStopwatchAuraRect;
+        private RectTransform _timeOutStopwatchSunburstRect;
+        private RectTransform _timeOutStopwatchIconRect;
+        private Text _timeOutExtraText;
+        private Text _timeOutSubtitleText;
+        private Button _buyTimeBtn;
+        private RectTransform _buyTimeBtnRect;
+        private Text _buyTimeCostText;
+        private Button _adTimeBtn;
+        private RectTransform _adTimeBtnRect;
+        private RectTransform _adTimeShineRect;
+        private Text _adTimeLabelText;
+
+        private GameObject _levelFailedStageRoot;
+        private RectTransform _failedHeartRoot;
+        private RectTransform _failedAuraRect;
+        private RectTransform _failedHeartLeftRect;
+        private RectTransform _failedHeartRightRect;
+        private RectTransform _failedCrackGlowRect;
+        private Image _failedCrackGlowImg;
+        private Text _failedMinusOneText;
+        private Text _failedSubtitleText;
+        private Button _retryBtn;
+        private RectTransform _retryBtnRect;
+        private RectTransform _retryShineRect;
+
+        private RectTransform _offerCardRect;
+        private GameObject _reviveOfferRoot;
+        private Text _reviveOfferCoinsText;
+        private Button _buyRevivePackBtn;
+        private RectTransform _buyRevivePackBtnRect;
+        private Text _buyRevivePackPriceText;
+        private RectTransform _buyRevivePackShineRect;
+
+        private GameObject _starterOfferRoot;
+        private RectTransform _bestOfferRibbonRect;
+        private Text _starterOfferCoinsText;
+        private Button _buyStarterPackBtn;
+        private RectTransform _buyStarterPackBtnRect;
+        private Text _buyStarterPackPriceText;
+        private RectTransform _buyStarterPackShineRect;
+
+        private Button _tapToContinueBtn;
+        private RectTransform _tapToContinueRect;
+        private CanvasGroup _tapToContinueCanvasGroup;
+        private RectTransform _timeOutEffectsLayer;
+
+        private bool _isInLevelFailedState = false;
+        private bool _timeOutIntroComplete = false;
+        private bool _timeOutAllowContinue = false;
+        private float _timeOutIdleTime = 0f;
+        private float _timeOutLifeRegenSeconds = 28f * 60f + 16f;
+        private int _timeOutLastTickSecond = -1;
+        private Coroutine _timeOutAnimCoroutine;
+        private Coroutine _timeOutTransitionCoroutine;
+        private Coroutine _timeOutReviveCoroutine;
 
         private GameObject _feedbackPanel;
         private Text _feedbackText;
         private CanvasGroup _feedbackCanvasGroup;
-        private Coroutine _feedbackCoroutine;
 
         // Settings Toggles State (Pause Dialog matching [Image #7])
         private const string PrefSoundKey = "BMP_SoundEnabled";
         private const string PrefMusicKey = "BMP_MusicEnabled";
         private const string PrefVibrationKey = "BMP_VibrationEnabled";
+        private const string PrefBoosterFreezeKey = "BMP_BoosterFreeze";
+        private const string PrefBoosterMagnetKey = "BMP_BoosterMagnet";
+        private const string PrefBoosterWandKey = "BMP_BoosterWand";
 
         private bool _soundEnabled = true;
         private bool _musicEnabled = true;
@@ -207,9 +342,13 @@ namespace BlockMergePuzzle.UI
         private Image _vibrationToggleImg;
 
         // Boosters Bar
-        public const int BoosterFreezeUnlockLevel = 9;
+        public const int BoosterFreezeUnlockLevel = 8;
         public const int BoosterMagnetUnlockLevel = 12;
         public const int BoosterWandUnlockLevel = 16;
+        public const float FreezeBoosterDuration = 15f;
+        private const string PrefFreezeTutorialSeenKey = "BMP_FreezeTutorialSeen";
+        private const string PrefMagnetTutorialSeenKey = "BMP_MagnetTutorialSeen";
+        private const string PrefWandTutorialSeenKey = "BMP_WandTutorialSeen";
 
         private GameObject _boosterBar;
         private Button _boosterFreezeBtn;
@@ -225,6 +364,83 @@ namespace BlockMergePuzzle.UI
         private int _magnetCount = 2;
         private int _wandCount = 1;
         private float _freezeTimerRemaining = 0f;
+        private FreezeBoosterEffectController _freezeEffectController;
+        private MagnetBoosterController _magnetController;
+        private WandBoosterController _wandController;
+
+        public bool IsBoosterTutorialShowing =>
+            (_freezeEffectController != null && _freezeEffectController.IsTutorialShowing) ||
+            (_magnetController != null && _magnetController.IsTutorialShowing) ||
+            (_wandController != null && _wandController.IsTutorialShowing);
+
+        public bool IsMagnetTargeting => _magnetController != null && _magnetController.IsTargeting;
+        public bool IsMagnetBusy => _magnetController != null && _magnetController.IsBusy;
+        public bool IsWandTargeting => _wandController != null && _wandController.IsTargeting;
+        public bool IsWandBusy => _wandController != null && _wandController.IsBusy;
+
+        public void HandleMagnetWorldTap(Vector3 worldPos)
+        {
+            _magnetController?.HandleWorldTap(worldPos);
+        }
+
+        public void HandleWandWorldTap(Vector3 worldPos)
+        {
+            _wandController?.HandleWorldTap(worldPos);
+        }
+
+        private FreezeBoosterEffectController EnsureFreezeEffectController()
+        {
+            if (_freezeEffectController == null)
+            {
+                _freezeEffectController = GetOrAddComponent<FreezeBoosterEffectController>(gameObject);
+            }
+            return _freezeEffectController;
+        }
+
+        private MagnetBoosterController EnsureMagnetController()
+        {
+            if (_magnetController == null)
+            {
+                _magnetController = GetOrAddComponent<MagnetBoosterController>(gameObject);
+            }
+            return _magnetController;
+        }
+
+        private WandBoosterController EnsureWandController()
+        {
+            if (_wandController == null)
+            {
+                _wandController = GetOrAddComponent<WandBoosterController>(gameObject);
+            }
+            return _wandController;
+        }
+
+        [ContextMenu("Reset Freeze Booster Tutorial")]
+        public void ResetFreezeBoosterTutorial()
+        {
+            PlayerPrefs.DeleteKey(PrefFreezeTutorialSeenKey);
+            _freezeCount = Mathf.Max(_freezeCount, 3);
+            SaveBoosterCounts();
+            UpdateBoosterUnlockStates();
+        }
+
+        [ContextMenu("Reset Magnet Booster Tutorial")]
+        public void ResetMagnetBoosterTutorial()
+        {
+            PlayerPrefs.DeleteKey(PrefMagnetTutorialSeenKey);
+            _magnetCount = Mathf.Max(_magnetCount, 3);
+            SaveBoosterCounts();
+            UpdateBoosterUnlockStates();
+        }
+
+        [ContextMenu("Reset Wand Booster Tutorial")]
+        public void ResetWandBoosterTutorial()
+        {
+            PlayerPrefs.DeleteKey(PrefWandTutorialSeenKey);
+            _wandCount = Mathf.Max(_wandCount, 3);
+            SaveBoosterCounts();
+            UpdateBoosterUnlockStates();
+        }
 
         private void Awake()
         {
@@ -238,6 +454,9 @@ namespace BlockMergePuzzle.UI
             _soundEnabled = PlayerPrefs.GetInt(PrefSoundKey, 1) == 1;
             _musicEnabled = PlayerPrefs.GetInt(PrefMusicKey, 1) == 1;
             _vibrationEnabled = PlayerPrefs.GetInt(PrefVibrationKey, 1) == 1;
+            _freezeCount = PlayerPrefs.GetInt(PrefBoosterFreezeKey, _freezeCount);
+            _magnetCount = PlayerPrefs.GetInt(PrefBoosterMagnetKey, _magnetCount);
+            _wandCount = PlayerPrefs.GetInt(PrefBoosterWandKey, _wandCount);
             if (SoundManager.Instance != null)
             {
                 SoundManager.Instance.SoundEnabled = _soundEnabled;
@@ -320,11 +539,24 @@ namespace BlockMergePuzzle.UI
                 RebuildVictoryPanel();
             }
 
+            _timeOutPanel = transform.Find("TimeOutPanel")?.gameObject;
+            if (_timeOutPanel != null)
+            {
+                BindTimeOutPanelUI();
+            }
+            else
+            {
+                RebuildTimeOutPanel();
+            }
+
             _feedbackPanel = transform.Find("FeedbackBanner")?.gameObject;
             if (_feedbackPanel != null)
             {
                 _feedbackCanvasGroup = _feedbackPanel.GetComponent<CanvasGroup>();
                 _feedbackText = _feedbackPanel.GetComponentInChildren<Text>(true);
+                if (_feedbackCanvasGroup != null) _feedbackCanvasGroup.alpha = 0f;
+                if (_feedbackText != null) _feedbackText.text = string.Empty;
+                _feedbackPanel.SetActive(false);
             }
 
             EnsureLevelBanner();
@@ -579,16 +811,41 @@ namespace BlockMergePuzzle.UI
             }
 
             _victoryPanel = null;
-            _victoryDialogRect = null;
             _victoryCanvasGroup = null;
-            _victoryRibbonText = null;
-            _victoryTitleText = null;
-            _victorySubtitleText = null;
-            _victoryTimeInfoText = null;
-            _victoryNextBtn = null;
-            _victoryNextBtnText = null;
-            _victoryReplayBtn = null;
-            _victoryStars = null;
+            _winTopBarRect = null;
+            _winTopLivesCountText = null;
+            _winTopLivesStatusText = null;
+            _winTopCoinsPillRect = null;
+            _winTopCoinTargetRect = null;
+            _winTopCoinsCountText = null;
+            _winWellDoneRoot = null;
+            _winWellDoneGlowRect = null;
+            _winLetterTiles = null;
+            _winTileRestPositions = null;
+            _winSparklesRoot = null;
+            _winCoinsRoot = null;
+            _winCoinsAuraOuter = null;
+            _winCoinsSunburstRect = null;
+            _winCoinsImageRect = null;
+            _winRewardAmountText = null;
+            _winProgressRoot = null;
+            _winProgressCanvasGroup = null;
+            _winProgressFillRect = null;
+            _winProgressNodes = null;
+            _winProgressNodeGlows = null;
+            _winProgressNodeIcons = null;
+            _winProgressLabels = null;
+            _winMilestoneBubbleRect = null;
+            _winButtonsRoot = null;
+            _winButtonsCanvasGroup = null;
+            _winGetBtn = null;
+            _winGetBtnRect = null;
+            _winGetAmountText = null;
+            _winAdsBtn = null;
+            _winAdsBtnRect = null;
+            _winAdsShineRect = null;
+            _winAdsAmountText = null;
+            _winEffectsLayer = null;
 
             Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             if (font == null) font = Resources.GetBuiltinResource<Font>("Arial.ttf");
@@ -614,57 +871,201 @@ namespace BlockMergePuzzle.UI
         private void BindVictoryPanelUI()
         {
             if (_victoryPanel == null) return;
-            Transform dialog = _victoryPanel.transform.Find("DialogBox");
-            if (dialog == null || dialog.Find("NextLevelBtn") == null)
+            Transform winContent = _victoryPanel.transform.Find("WinContent");
+            if (winContent == null ||
+                winContent.Find("WinTopBar/CoinsPill/CoinTarget") == null ||
+                winContent.Find("WellDoneRoot") == null ||
+                winContent.Find("CoinsRewardRoot/CoinsSunburst") == null ||
+                winContent.Find("ButtonsRow/Btn_Get") == null ||
+                winContent.Find("ButtonsRow/Btn_Ads/ShineClip") == null)
             {
-                // Automatically upgrade legacy 1-button VictoryPanel across all existing scenes
+                // Automatically upgrade legacy VictoryPanel across all existing scenes
                 RebuildVictoryPanel();
                 return;
             }
 
             _victoryCanvasGroup = _victoryPanel.GetComponent<CanvasGroup>();
             if (_victoryCanvasGroup == null) _victoryCanvasGroup = _victoryPanel.AddComponent<CanvasGroup>();
-            _victoryDialogRect = dialog.GetComponent<RectTransform>();
-            _victoryRibbonText = dialog.Find("HeaderRibbon/RibbonText")?.GetComponent<Text>();
-            _victoryTitleText = dialog.Find("Title")?.GetComponent<Text>();
-            _victorySubtitleText = dialog.Find("Subtitle")?.GetComponent<Text>();
-            _victoryTimeInfoText = dialog.Find("TimeChip/TimeInfoText")?.GetComponent<Text>();
 
-            Transform starsRow = dialog.Find("StarsRow");
-            if (starsRow != null)
-            {
-                _victoryStars = new RectTransform[]
-                {
-                    starsRow.Find("Star_Left")?.GetComponent<RectTransform>(),
-                    starsRow.Find("Star_Center")?.GetComponent<RectTransform>(),
-                    starsRow.Find("Star_Right")?.GetComponent<RectTransform>()
-                };
-            }
+            Transform topBarTr = winContent.Find("WinTopBar");
+            _winTopBarRect = topBarTr as RectTransform;
+            _winTopLivesCountText = topBarTr?.Find("LivesPill/LivesCountText")?.GetComponent<Text>();
+            _winTopLivesStatusText = topBarTr?.Find("LivesPill/LivesStatusText")?.GetComponent<Text>();
+            Transform coinsPillTr = topBarTr?.Find("CoinsPill");
+            _winTopCoinsPillRect = coinsPillTr as RectTransform;
+            _winTopCoinTargetRect = coinsPillTr?.Find("CoinTarget") as RectTransform;
+            _winTopCoinsCountText = coinsPillTr?.Find("CoinsCountText")?.GetComponent<Text>();
 
-            Transform nextTr = dialog.Find("NextLevelBtn");
-            if (nextTr != null)
+            Transform wellDoneTr = winContent.Find("WellDoneRoot");
+            _winWellDoneRoot = wellDoneTr as RectTransform;
+            _winWellDoneGlowRect = wellDoneTr?.Find("WellDoneGlow") as RectTransform;
+            _winSparklesRoot = wellDoneTr?.Find("WellDoneSparkles") as RectTransform;
+
+            Transform lettersTr = wellDoneTr?.Find("LetterBlocks");
+            if (lettersTr != null)
             {
-                _victoryNextBtn = nextTr.GetComponent<Button>();
-                _victoryNextBtnText = nextTr.Find("BtnText")?.GetComponent<Text>();
-                if (_victoryNextBtn != null)
+                string[] tileNames = { "Tile_W", "Tile_E1", "Tile_L1", "Tile_L2", "Tile_D", "Tile_O", "Tile_N", "Tile_E2" };
+                _winLetterTiles = new RectTransform[tileNames.Length];
+                _winTileRestPositions = new Vector2[tileNames.Length];
+                for (int i = 0; i < tileNames.Length; i++)
                 {
-                    _victoryNextBtn.onClick.RemoveAllListeners();
-                    _victoryNextBtn.onClick.AddListener(OnVictoryNextClicked);
+                    RectTransform rt = lettersTr.Find(tileNames[i]) as RectTransform;
+                    _winLetterTiles[i] = rt;
+                    _winTileRestPositions[i] = rt != null ? rt.anchoredPosition : Vector2.zero;
                 }
             }
 
-            Transform replayTr = dialog.Find("PlayAgainBtn");
-            if (replayTr != null)
+            Transform coinsTr = winContent.Find("CoinsRewardRoot");
+            _winCoinsRoot = coinsTr as RectTransform;
+            _winCoinsAuraOuter = coinsTr?.Find("CoinsAuraOuter") as RectTransform;
+            _winCoinsSunburstRect = coinsTr?.Find("CoinsSunburst") as RectTransform;
+            _winCoinsImageRect = coinsTr?.Find("CoinsImage") as RectTransform;
+            _winRewardAmountText = coinsTr?.Find("RewardAmountText")?.GetComponent<Text>();
+
+            Transform progTr = winContent.Find("LevelProgressRoot");
+            _winProgressRoot = progTr as RectTransform;
+            if (progTr != null)
             {
-                _victoryReplayBtn = replayTr.GetComponent<Button>();
-                if (_victoryReplayBtn != null)
+                _winProgressCanvasGroup = progTr.GetComponent<CanvasGroup>();
+                if (_winProgressCanvasGroup == null) _winProgressCanvasGroup = progTr.gameObject.AddComponent<CanvasGroup>();
+                _winProgressFillRect = progTr.Find("TrackBar/TrackFill") as RectTransform;
+                _winMilestoneBubbleRect = progTr.Find("MilestoneBubble") as RectTransform;
+
+                _winProgressNodes = new Image[5];
+                _winProgressNodeGlows = new GameObject[5];
+                _winProgressNodeIcons = new GameObject[5];
+                _winProgressLabels = new Text[5];
+
+                for (int i = 0; i < 5; i++)
                 {
-                    _victoryReplayBtn.onClick.RemoveAllListeners();
-                    _victoryReplayBtn.onClick.AddListener(OnVictoryReplayClicked);
+                    Transform nodeTr = progTr.Find($"Node_{i}");
+                    if (nodeTr == null) continue;
+                    _winProgressNodeGlows[i] = nodeTr.Find("NodeGlow")?.gameObject;
+                    Transform circleTr = nodeTr.Find("NodeCircle");
+                    if (circleTr != null)
+                    {
+                        _winProgressNodes[i] = circleTr.GetComponent<Image>();
+                        _winProgressNodeIcons[i] = circleTr.Find("NodeIcon")?.gameObject;
+                    }
+                    _winProgressLabels[i] = nodeTr.Find("LevelLabel")?.GetComponent<Text>();
                 }
             }
 
+            Transform buttonsTr = winContent.Find("ButtonsRow");
+            _winButtonsRoot = buttonsTr as RectTransform;
+            if (buttonsTr != null)
+            {
+                _winButtonsCanvasGroup = buttonsTr.GetComponent<CanvasGroup>();
+                if (_winButtonsCanvasGroup == null) _winButtonsCanvasGroup = buttonsTr.gameObject.AddComponent<CanvasGroup>();
+                Transform getTr = buttonsTr.Find("Btn_Get");
+                if (getTr != null)
+                {
+                    _winGetBtn = getTr.GetComponent<Button>();
+                    _winGetBtnRect = getTr as RectTransform;
+                    if (_winGetBtnRect != null) _winGetBtnRestPos = _winGetBtnRect.anchoredPosition;
+                    _winGetAmountText = getTr.Find("Content/AmountText")?.GetComponent<Text>();
+                    if (_winGetBtn != null)
+                    {
+                        _winGetBtn.onClick.RemoveAllListeners();
+                        _winGetBtn.onClick.AddListener(OnVictoryGetClicked);
+                    }
+                }
+
+                Transform adsTr = buttonsTr.Find("Btn_Ads");
+                if (adsTr != null)
+                {
+                    _winAdsBtn = adsTr.GetComponent<Button>();
+                    _winAdsBtnRect = adsTr as RectTransform;
+                    if (_winAdsBtnRect != null) _winAdsBtnRestPos = _winAdsBtnRect.anchoredPosition;
+                    _winAdsShineRect = adsTr.Find("ShineClip/ShineSweep") as RectTransform;
+                    _winAdsAmountText = adsTr.Find("Content/AmountText")?.GetComponent<Text>();
+                    if (_winAdsBtn != null)
+                    {
+                        _winAdsBtn.onClick.RemoveAllListeners();
+                        _winAdsBtn.onClick.AddListener(OnVictoryAdsClicked);
+                    }
+                }
+            }
+
+            EnsureWinProceduralSprites(winContent);
+            UpdateVictoryBannerContent();
             _victoryPanel.SetActive(false);
+        }
+
+        private void EnsureWinProceduralSprites(Transform winContent)
+        {
+            if (winContent == null) return;
+
+            Sprite glowSp = GemSpriteManager.GetWinHelperSprite("win_radial_glow") ?? SpriteGenerator.GetRadialGlowSprite();
+            Sprite flareSp = GemSpriteManager.GetWinHelperSprite("win_star_flare") ?? SpriteGenerator.GetStarFlareSprite();
+            Sprite shardSp = GemSpriteManager.GetWinHelperSprite("win_shard") ?? SpriteGenerator.GetShardSprite();
+            Sprite trackSp = GemSpriteManager.GetWinHelperSprite("win_progress_track") ?? SpriteGenerator.GetWinProgressTrackSprite();
+            Sprite fillSp = GemSpriteManager.GetWinHelperSprite("win_progress_fill") ?? SpriteGenerator.GetWinProgressFillSprite();
+            Sprite nodeSp = GemSpriteManager.GetWinHelperSprite("win_progress_node") ?? SpriteGenerator.GetWinProgressNodeSprite();
+            Sprite bubbleSp = GemSpriteManager.GetWinHelperSprite("win_speech_bubble") ?? SpriteGenerator.GetWinSpeechBubbleSprite();
+            Sprite sunburstSp = GemSpriteManager.GetWinHelperSprite("win_sunburst") ?? SpriteGenerator.GetWinSunburstSprite();
+            Sprite shineSp = GemSpriteManager.GetWinHelperSprite("win_shine_sweep") ?? SpriteGenerator.GetWinShineSweepSprite();
+
+            SetSpriteIfMissing(winContent.Find("WinTopBar/LivesPill"), GemSpriteManager.GetHomeSceneSprite("heart"));
+            SetSpriteIfMissing(winContent.Find("WinTopBar/CoinsPill"), GemSpriteManager.GetHomeSceneSprite("coins"));
+            SetSpriteIfMissing(winContent.Find("WellDoneRoot/WellDoneGlow"), glowSp);
+            if (_winSparklesRoot != null)
+            {
+                for (int i = 0; i < _winSparklesRoot.childCount; i++)
+                {
+                    Transform ch = _winSparklesRoot.GetChild(i);
+                    SetSpriteIfMissing(ch, ch.name.StartsWith("Confetti") ? shardSp : flareSp);
+                }
+            }
+
+            if (_winLetterTiles != null)
+            {
+                string[] letterAssets = { "W", "E", "L", "N (2)", "D", "O", "N", "E (2)" };
+                for (int i = 0; i < _winLetterTiles.Length && i < letterAssets.Length; i++)
+                {
+                    Transform tileTr = _winLetterTiles[i];
+                    if (tileTr == null) continue;
+                    Transform graphicTr = tileTr.Find("TileGraphic");
+                    SetSpriteIfMissing(graphicTr != null ? graphicTr : tileTr, GemSpriteManager.GetWinSceneSprite(letterAssets[i]));
+                }
+            }
+
+            SetSpriteIfMissing(winContent.Find("CoinsRewardRoot/CoinsAuraOuter"), glowSp);
+            SetSpriteIfMissing(winContent.Find("CoinsRewardRoot/CoinsAuraInner"), glowSp);
+            SetSpriteIfMissing(winContent.Find("CoinsRewardRoot/CoinsSunburst"), sunburstSp);
+            SetSpriteIfMissing(winContent.Find("CoinsRewardRoot/CoinsImage"), GemSpriteManager.GetWinSceneSprite("Coins"));
+            for (int i = 0; i < 3; i++)
+            {
+                SetSpriteIfMissing(winContent.Find($"CoinsRewardRoot/CoinSparkle_{i}"), flareSp);
+            }
+
+            SetSpriteIfMissing(winContent.Find("LevelProgressRoot/TrackBar"), trackSp);
+            SetSpriteIfMissing(winContent.Find("LevelProgressRoot/TrackBar/TrackFill"), fillSp);
+            for (int i = 0; i < 5; i++)
+            {
+                SetSpriteIfMissing(winContent.Find($"LevelProgressRoot/Node_{i}/NodeGlow"), glowSp);
+                SetSpriteIfMissing(winContent.Find($"LevelProgressRoot/Node_{i}/NodeCircle"), nodeSp);
+                SetSpriteIfMissing(winContent.Find($"LevelProgressRoot/Node_{i}/NodeCircle/NodeIcon"), flareSp);
+            }
+
+            SetSpriteIfMissing(winContent.Find("LevelProgressRoot/MilestoneBubble"), bubbleSp);
+            SetSpriteIfMissing(winContent.Find("LevelProgressRoot/MilestoneBubble/BubbleIcon"), GemSpriteManager.GetNewBlockSprite("Group 343"));
+
+            SetSpriteIfMissing(winContent.Find("ButtonsRow/Btn_Get"), GemSpriteManager.GetWinSceneSprite("Button1"));
+            SetSpriteIfMissing(winContent.Find("ButtonsRow/Btn_Get/Content/CoinIcon"), GemSpriteManager.GetWinSceneSprite("Coin"));
+            SetSpriteIfMissing(winContent.Find("ButtonsRow/Btn_Ads"), GemSpriteManager.GetWinSceneSprite("Button2"));
+            SetSpriteIfMissing(winContent.Find("ButtonsRow/Btn_Ads/Content/AdsIcon"), GemSpriteManager.GetWinSceneSprite("ADS"));
+            SetSpriteIfMissing(winContent.Find("ButtonsRow/Btn_Ads/ShineClip/ShineSweep"), shineSp);
+        }
+
+        private static void SetSpriteIfMissing(Transform tr, Sprite fallback)
+        {
+            if (tr == null || fallback == null) return;
+            Image img = tr.GetComponent<Image>();
+            if (img != null && img.sprite == null)
+            {
+                img.sprite = fallback;
+            }
         }
 
         private void BindSettingRow(Transform rowTr, ref Image iconImgRef, ref Image toggleImgRef, UnityEngine.Events.UnityAction onToggle)
@@ -715,7 +1116,7 @@ namespace BlockMergePuzzle.UI
                 countTextRef = badgeTr.GetComponentInChildren<Text>(true);
             }
 
-            Transform lockTr = slotTr.Find("Lock");
+            Transform lockTr = slotTr.Find("LockedVisual") ?? slotTr.Find("Lock");
             if (lockTr != null)
             {
                 lockRef = lockTr.gameObject;
@@ -735,7 +1136,12 @@ namespace BlockMergePuzzle.UI
 #endif
             }
 #endif
-            return lm != null ? (int)lm.CurrentLevel : 1;
+            return lm != null ? lm.CurrentLevelNumber : 1;
+        }
+
+        private int GetMaxLevelNumber()
+        {
+            return CustomLevelRepository.GetMaxLevelNumber();
         }
 
         [ContextMenu("Update Booster Unlock States")]
@@ -754,68 +1160,183 @@ namespace BlockMergePuzzle.UI
             SetBoosterSlotVisual(_boosterBar.transform.Find("Booster_Wand"), currentLevel >= BoosterWandUnlockLevel, BoosterWandUnlockLevel, _wandCount);
         }
 
+        private static T GetOrAddComponent<T>(GameObject go) where T : Component
+        {
+            T comp = go.GetComponent<T>();
+            if (comp == null) comp = go.AddComponent<T>();
+            return comp;
+        }
+
+        private GameObject EnsureLockedBoosterVisual(Transform slotTr, Font font)
+        {
+            if (slotTr == null) return null;
+            if (font == null)
+            {
+                font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+                if (font == null) font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+            }
+
+            Transform existing = slotTr.Find("LockedVisual");
+            GameObject lockedObj = existing != null ? existing.gameObject : new GameObject("LockedVisual", typeof(RectTransform));
+            if (existing == null)
+            {
+                lockedObj.transform.SetParent(slotTr, false);
+            }
+
+            RectTransform lRect = GetOrAddComponent<RectTransform>(lockedObj);
+            lRect.anchorMin = Vector2.zero;
+            lRect.anchorMax = Vector2.one;
+            lRect.pivot = new Vector2(0.5f, 0.5f);
+            lRect.offsetMin = Vector2.zero;
+            lRect.offsetMax = Vector2.zero;
+            lRect.localScale = Vector3.one;
+
+            AspectRatioFitter fitter = GetOrAddComponent<AspectRatioFitter>(lockedObj);
+            fitter.aspectMode = AspectRatioFitter.AspectMode.FitInParent;
+            fitter.aspectRatio = 393f / 416f;
+
+            Image bgImg = GetOrAddComponent<Image>(lockedObj);
+            Sprite lockedBgSp = GemSpriteManager.GetBoosterSprite("booster_locked_bg");
+            if (lockedBgSp != null) bgImg.sprite = lockedBgSp;
+            bgImg.color = Color.white;
+            bgImg.preserveAspect = true;
+            bgImg.raycastTarget = false;
+
+            // Padlock Icon centered in cyan area
+            Transform padlockTr = lockedObj.transform.Find("PadlockIcon");
+            GameObject padlockObj = padlockTr != null ? padlockTr.gameObject : new GameObject("PadlockIcon", typeof(RectTransform));
+            if (padlockTr == null) padlockObj.transform.SetParent(lockedObj.transform, false);
+
+            RectTransform pRect = GetOrAddComponent<RectTransform>(padlockObj);
+            pRect.anchorMin = new Vector2(0.305f, 0.355f);
+            pRect.anchorMax = new Vector2(0.695f, 0.705f);
+            pRect.offsetMin = Vector2.zero;
+            pRect.offsetMax = Vector2.zero;
+
+            Image padlockImg = GetOrAddComponent<Image>(padlockObj);
+            Sprite lockSp = GemSpriteManager.GetBoosterSprite("lock");
+            if (lockSp != null) padlockImg.sprite = lockSp;
+            padlockImg.color = Color.white;
+            padlockImg.preserveAspect = true;
+            padlockImg.raycastTarget = false;
+
+            Shadow pShadow = GetOrAddComponent<Shadow>(padlockObj);
+            pShadow.effectColor = new Color(0.05f, 0.16f, 0.42f, 0.45f);
+            pShadow.effectDistance = new Vector2(0f, -4f);
+
+            // Unlock Level Text inside curved red cup
+            Transform lvlTr = lockedObj.transform.Find("UnlockLevelText");
+            GameObject lvlObj = lvlTr != null ? lvlTr.gameObject : new GameObject("UnlockLevelText", typeof(RectTransform));
+            if (lvlTr == null) lvlObj.transform.SetParent(lockedObj.transform, false);
+
+            RectTransform tRect = GetOrAddComponent<RectTransform>(lvlObj);
+            tRect.anchorMin = new Vector2(0.20f, 0.215f);
+            tRect.anchorMax = new Vector2(0.80f, 0.350f);
+            tRect.offsetMin = Vector2.zero;
+            tRect.offsetMax = Vector2.zero;
+
+            Text lvlText = GetOrAddComponent<Text>(lvlObj);
+            if (font != null) lvlText.font = font;
+            lvlText.fontStyle = FontStyle.Bold;
+            lvlText.alignment = TextAnchor.MiddleCenter;
+            lvlText.resizeTextForBestFit = true;
+            lvlText.resizeTextMinSize = 14;
+            lvlText.resizeTextMaxSize = 44;
+            lvlText.color = new Color(1.0f, 0.96f, 0.76f);
+            lvlText.raycastTarget = false;
+
+            Outline tOutline = GetOrAddComponent<Outline>(lvlObj);
+            tOutline.effectColor = new Color(0.34f, 0.06f, 0.05f, 0.98f);
+            tOutline.effectDistance = new Vector2(2.2f, -2.2f);
+
+            Shadow tShadow = GetOrAddComponent<Shadow>(lvlObj);
+            tShadow.effectColor = new Color(0.22f, 0.03f, 0.03f, 0.95f);
+            tShadow.effectDistance = new Vector2(0f, -3.2f);
+
+            lockedObj.transform.SetAsLastSibling();
+            return lockedObj;
+        }
+
         private void SetBoosterSlotVisual(Transform slotTr, bool isUnlocked, int unlockLevel, int currentCount)
         {
             if (slotTr == null) return;
 
-            Image bgImg = slotTr.GetComponent<Image>();
-            if (bgImg != null)
+            Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            if (font == null) font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+
+            for (int i = 0; i < slotTr.childCount; i++)
             {
-                bgImg.color = isUnlocked
-                    ? Color.white
-                    : new Color(0.20f, 0.22f, 0.28f, 0.56f); // Mờ + tối lại khi chưa mở
+                Transform child = slotTr.GetChild(i);
+                if (child.name.StartsWith("Lock") && child.name != "LockedVisual")
+                {
+                    child.gameObject.SetActive(false);
+                }
             }
 
+            GameObject lockedVisual = EnsureLockedBoosterVisual(slotTr, font);
+            Image bgImg = slotTr.GetComponent<Image>();
             Transform iconTr = slotTr.Find("Icon");
+            Transform badgeTr = slotTr.Find("Badge_Count");
+
+            if (!isUnlocked)
+            {
+                if (bgImg != null)
+                {
+                    bgImg.color = new Color(1f, 1f, 1f, 0f);
+                }
+                if (iconTr != null) iconTr.gameObject.SetActive(false);
+                if (badgeTr != null) badgeTr.gameObject.SetActive(false);
+
+                if (lockedVisual != null)
+                {
+                    lockedVisual.SetActive(true);
+                    Text lvlText = lockedVisual.transform.Find("UnlockLevelText")?.GetComponent<Text>();
+                    if (lvlText != null)
+                    {
+                        lvlText.text = "Lv." + unlockLevel;
+                    }
+                }
+                return;
+            }
+
+            if (lockedVisual != null) lockedVisual.SetActive(false);
+
+            if (bgImg != null)
+            {
+                bgImg.color = Color.white;
+            }
+
             if (iconTr != null)
             {
+                iconTr.gameObject.SetActive(true);
                 Image iconImg = iconTr.GetComponent<Image>();
                 if (iconImg != null)
                 {
-                    iconImg.color = isUnlocked
-                        ? Color.white
-                        : new Color(0.24f, 0.26f, 0.34f, 0.38f); // Icon mờ + tối lại khi chưa mở
+                    iconImg.color = Color.white;
                 }
             }
 
-            Transform lockTr = slotTr.Find("Lock");
-            if (lockTr != null)
-            {
-                lockTr.gameObject.SetActive(!isUnlocked);
-                Image lockImg = lockTr.GetComponent<Image>();
-                if (lockImg != null)
-                {
-                    lockImg.color = Color.white;
-                }
-            }
-
-            Transform badgeTr = slotTr.Find("Badge_Count");
             if (badgeTr != null)
             {
+                badgeTr.gameObject.SetActive(true);
                 Image bImg = badgeTr.GetComponent<Image>();
                 if (bImg != null)
                 {
-                    bImg.color = isUnlocked
-                        ? new Color(0.10f, 0.14f, 0.28f, 0.96f)
-                        : new Color(0.08f, 0.10f, 0.18f, 0.90f);
+                    bImg.color = new Color(0.10f, 0.14f, 0.28f, 0.96f);
                 }
 
                 Outline outline = badgeTr.GetComponent<Outline>();
                 if (outline != null)
                 {
-                    outline.effectColor = isUnlocked
-                        ? new Color(0.35f, 0.90f, 1.0f, 0.92f)
-                        : new Color(0.85f, 0.72f, 0.25f, 0.80f);
+                    outline.effectColor = new Color(0.35f, 0.90f, 1.0f, 0.92f);
                 }
 
                 Text text = badgeTr.GetComponentInChildren<Text>(true);
                 if (text != null)
                 {
-                    text.text = isUnlocked ? ("x" + currentCount) : ("Lv." + unlockLevel);
-                    text.fontSize = isUnlocked ? 26 : 20;
-                    text.color = isUnlocked
-                        ? new Color(0.99f, 0.95f, 0.70f)
-                        : new Color(0.95f, 0.85f, 0.45f);
+                    text.text = "x" + currentCount;
+                    text.fontSize = 26;
+                    text.color = new Color(0.99f, 0.95f, 0.70f);
                 }
             }
         }
@@ -825,16 +1346,103 @@ namespace BlockMergePuzzle.UI
             if (LevelManager.Instance != null)
             {
                 LevelManager.Instance.OnRemainingBlocksChanged += HandleRemainingBlocksChanged;
-                LevelManager.Instance.OnLevelInitialized += UpdateLevelDisplay;
+                LevelManager.Instance.OnLevelInitialized += HandleLevelInitialized;
             }
 
             UpdateLevelDisplay();
             UpdateBoosterUnlockStates();
             StartTimer();
+            TryShowFreezeBoosterTutorial();
+            TryShowMagnetBoosterTutorial();
+            TryShowWandBoosterTutorial();
+        }
+
+        private void HandleLevelInitialized()
+        {
+            UpdateLevelDisplay();
+            UpdateBoosterUnlockStates();
+            if (LevelManager.Instance != null && LevelManager.Instance.HasActiveCustomLevel)
+            {
+                ResetTimer();
+            }
+            TryShowFreezeBoosterTutorial();
+            TryShowMagnetBoosterTutorial();
+            TryShowWandBoosterTutorial();
+        }
+
+        private void TryShowFreezeBoosterTutorial()
+        {
+            if (!Application.isPlaying) return;
+            if (IsVictoryShowing || IsTimeOutShowing) return;
+            if (GetCurrentLevelNumber() != BoosterFreezeUnlockLevel) return;
+            if (PlayerPrefs.GetInt(PrefFreezeTutorialSeenKey, 0) != 0) return;
+
+            EnsureBoosterBar();
+            if (_boosterFreezeBtn == null) return;
+
+            if (_freezeCount < 3)
+            {
+                _freezeCount = 3;
+                SaveBoosterCounts();
+                UpdateBoosterUnlockStates();
+            }
+
+            RectTransform freezeRect = _boosterFreezeBtn.GetComponent<RectTransform>();
+            Sprite iconSprite = GemSpriteManager.GetBoosterSprite("booster1");
+            EnsureFreezeEffectController().ShowFirstTimeTutorial(freezeRect, iconSprite);
+        }
+
+        private void TryShowMagnetBoosterTutorial()
+        {
+            if (!Application.isPlaying) return;
+            if (IsVictoryShowing || IsTimeOutShowing) return;
+            if (GetCurrentLevelNumber() != BoosterMagnetUnlockLevel) return;
+            if (PlayerPrefs.GetInt(PrefMagnetTutorialSeenKey, 0) != 0) return;
+
+            EnsureBoosterBar();
+            if (_boosterMagnetBtn == null) return;
+
+            if (_magnetCount < 3)
+            {
+                _magnetCount = 3;
+                SaveBoosterCounts();
+                UpdateBoosterUnlockStates();
+            }
+
+            RectTransform magnetRect = _boosterMagnetBtn.GetComponent<RectTransform>();
+            Sprite iconSprite = GemSpriteManager.GetBoosterSprite("booster2");
+            EnsureMagnetController().ShowFirstTimeTutorial(magnetRect, iconSprite);
+        }
+
+        private void TryShowWandBoosterTutorial()
+        {
+            if (!Application.isPlaying) return;
+            if (IsVictoryShowing || IsTimeOutShowing) return;
+            if (GetCurrentLevelNumber() != BoosterWandUnlockLevel) return;
+            if (PlayerPrefs.GetInt(PrefWandTutorialSeenKey, 0) != 0) return;
+
+            EnsureBoosterBar();
+            if (_boosterWandBtn == null) return;
+
+            if (_wandCount < 3)
+            {
+                _wandCount = 3;
+                SaveBoosterCounts();
+                UpdateBoosterUnlockStates();
+            }
+
+            RectTransform wandRect = _boosterWandBtn.GetComponent<RectTransform>();
+            Sprite iconSprite = GemSpriteManager.GetBoosterSprite("booster3");
+            EnsureWandController().ShowFirstTimeTutorial(wandRect, iconSprite);
         }
 
         private void OnDestroy()
         {
+            CleanupWinEffects();
+            CleanupTimeOutEffects();
+            _freezeEffectController?.StopImmediate();
+            _magnetController?.StopImmediate();
+            _wandController?.StopImmediate();
             if (Instance == this)
             {
                 Instance = null;
@@ -842,13 +1450,85 @@ namespace BlockMergePuzzle.UI
             if (LevelManager.Instance != null)
             {
                 LevelManager.Instance.OnRemainingBlocksChanged -= HandleRemainingBlocksChanged;
-                LevelManager.Instance.OnLevelInitialized -= UpdateLevelDisplay;
+                LevelManager.Instance.OnLevelInitialized -= HandleLevelInitialized;
             }
         }
 
         private void Update()
         {
             if (!Application.isPlaying) return;
+
+            if (IsVictoryShowing && _winIntroComplete)
+            {
+                float dt = Time.unscaledDeltaTime;
+                _winIdleTime += dt;
+                float t = _winIdleTime;
+
+                if (_winCoinsSunburstRect != null)
+                {
+                    _winCoinsSunburstRect.Rotate(0f, 0f, -24f * dt);
+                }
+                if (_winCoinsImageRect != null)
+                {
+                    _winCoinsImageRect.anchoredPosition = new Vector2(0f, 22f + Mathf.Sin(t * 2.4f) * 5.5f);
+                }
+                if (_winCoinsAuraOuter != null)
+                {
+                    float pulse = 1f + Mathf.Sin(t * 2.5f) * 0.06f;
+                    _winCoinsAuraOuter.localScale = new Vector3(pulse, pulse, 1f);
+                }
+                if (_winSparklesRoot != null)
+                {
+                    for (int i = 0; i < _winSparklesRoot.childCount; i++)
+                    {
+                        Transform child = _winSparklesRoot.GetChild(i);
+                        if (child == null) continue;
+                        float s = 0.78f + 0.30f * Mathf.Sin(t * 4.2f + i * 1.1f);
+                        child.localScale = new Vector3(s, s, 1f);
+                    }
+                }
+                if (_winLetterTiles != null && _winTileRestPositions != null)
+                {
+                    for (int i = 0; i < _winLetterTiles.Length && i < _winTileRestPositions.Length; i++)
+                    {
+                        if (_winLetterTiles[i] == null) continue;
+                        _winLetterTiles[i].anchoredPosition = _winTileRestPositions[i] + new Vector2(0f, Mathf.Sin(t * 2.8f + i * 0.55f) * 2.5f);
+                    }
+                }
+                if (_winMilestoneBubbleRect != null)
+                {
+                    Vector2 bp = _winMilestoneBubbleRect.anchoredPosition;
+                    _winMilestoneBubbleRect.anchoredPosition = new Vector2(bp.x, 76f + Mathf.Sin(t * 3.0f) * 5.0f);
+                }
+                if (_winAdsBtnRect != null)
+                {
+                    float p = Mathf.Pow(Mathf.Max(0f, Mathf.Sin(t * 2.4f)), 6f);
+                    _winAdsBtnRect.localScale = Vector3.one * (1f + 0.040f * p);
+                }
+                if (_winAdsShineRect != null)
+                {
+                    float cycle = t % 2.6f;
+                    float sx = cycle < 0.65f ? Mathf.Lerp(-280f, 280f, cycle / 0.65f) : -280f;
+                    _winAdsShineRect.anchoredPosition = new Vector2(sx, 0f);
+                }
+            }
+
+            if (IsTimeOutShowing)
+            {
+                float dt = Time.unscaledDeltaTime;
+                _timeOutLifeRegenSeconds -= dt;
+                if (_timeOutLifeRegenSeconds <= 0f) _timeOutLifeRegenSeconds = 30f * 60f;
+                if (_timeOutLivesTimerText != null)
+                {
+                    _timeOutLivesTimerText.text = FormatTimeMMSS(_timeOutLifeRegenSeconds);
+                }
+
+                if (_timeOutIntroComplete)
+                {
+                    _timeOutIdleTime += dt;
+                    UpdateTimeOutIdleAnimations(_timeOutIdleTime, dt);
+                }
+            }
 
             // Detect live Inspector edit on TimeVal.text while in Play Mode
             if (_timeText != null && !string.IsNullOrEmpty(_lastDisplayedTimeString) && _timeText.text != _lastDisplayedTimeString)
@@ -857,21 +1537,26 @@ namespace BlockMergePuzzle.UI
                 {
                     _initialInspectorTimeSeconds = liveEditedSec;
                     _timeRemaining = liveEditedSec;
-                    _isTimerRunning = true;
                     UpdateTimeDisplay();
                     return;
                 }
             }
 
-            if (_freezeTimerRemaining > 0f)
+            if (_freezeEffectController != null && _freezeEffectController.IsActivating)
             {
-                if (!_isPaused)
+                // Keep level timer frozen while Freeze booster flies to the timer banner
+            }
+            else if (_freezeTimerRemaining > 0f)
+            {
+                if (!_isPaused && !IsVictoryShowing && !IsTimeOutShowing)
                 {
                     _freezeTimerRemaining -= Time.deltaTime;
+                    _freezeEffectController?.UpdateFreezeRemaining(_freezeTimerRemaining, FreezeBoosterDuration);
                     if (_freezeTimerRemaining <= 0f)
                     {
                         _freezeTimerRemaining = 0f;
                         UpdateTimeDisplay();
+                        _freezeEffectController?.PlayFreezeMeltOut();
                     }
                 }
             }
@@ -881,6 +1566,7 @@ namespace BlockMergePuzzle.UI
                 if (_timeRemaining <= 0f)
                 {
                     _timeRemaining = 0f;
+                    _timeOutLastTickSecond = -1;
                     _isTimerRunning = false;
                     UpdateTimeDisplay();
                     OnTimeExpired();
@@ -888,6 +1574,19 @@ namespace BlockMergePuzzle.UI
                 else
                 {
                     UpdateTimeDisplay();
+                    if (_timeRemaining <= 5f)
+                    {
+                        int wholeSec = Mathf.CeilToInt(_timeRemaining);
+                        if (wholeSec != _timeOutLastTickSecond)
+                        {
+                            _timeOutLastTickSecond = wholeSec;
+                            if (_timeText != null) StartCoroutine(CoPulseTransform(_timeText.transform, 1.20f, 0.22f));
+                        }
+                    }
+                    else
+                    {
+                        _timeOutLastTickSecond = -1;
+                    }
                 }
             }
         }
@@ -942,7 +1641,10 @@ namespace BlockMergePuzzle.UI
             // 4. Victory Modal
             BuildVictoryPanel(font);
 
-            // 5. Feedback Banner
+            // 5. Time Out & Level Failed Modal
+            BuildTimeOutPanel(font);
+
+            // 6. Feedback Banner
             BuildFeedbackBanner(font);
 
             UpdateTimeDisplay();
@@ -1199,21 +1901,8 @@ namespace BlockMergePuzzle.UI
             cShadow.effectDistance = new Vector2(1.5f, -1.5f);
             countTextRef = countText;
 
-            // Lock Overlay
-            GameObject lockObj = new GameObject("Lock");
-            lockObj.transform.SetParent(slotObj.transform, false);
-            RectTransform lRect = lockObj.AddComponent<RectTransform>();
-            lRect.anchorMin = new Vector2(0.5f, 0.5f);
-            lRect.anchorMax = new Vector2(0.5f, 0.5f);
-            lRect.pivot = new Vector2(0.5f, 0.5f);
-            lRect.anchoredPosition = new Vector2(0f, -2f);
-            lRect.sizeDelta = new Vector2(88f, 96f);
-
-            Image lockImg = lockObj.AddComponent<Image>();
-            lockImg.sprite = GemSpriteManager.GetBoosterSprite("lock");
-            lockImg.preserveAspect = true;
-            lockImg.raycastTarget = false;
-            lockRef = lockObj;
+            // Locked Visual (glossy cyan-blue + curved red cup + padlock + Lv.X)
+            lockRef = EnsureLockedBoosterVisual(slotObj.transform, font);
         }
 
         private void BuildTutorialUI(Font font)
@@ -1541,127 +2230,303 @@ namespace BlockMergePuzzle.UI
         private void BuildVictoryPanel(Font font)
         {
             _victoryPanel = CreateUIPanel("VictoryPanel", transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
-            SetImageColor(_victoryPanel, new Color(0.03f, 0.04f, 0.12f, 0.82f));
+            SetImageColor(_victoryPanel, new Color(0.04f, 0.02f, 0.12f, 0.85f));
             _victoryCanvasGroup = _victoryPanel.AddComponent<CanvasGroup>();
             _victoryCanvasGroup.alpha = 1f;
 
-            // Subtle warm halo behind the card
-            GameObject haloObj = CreateUIPanel("BackdropGlow", _victoryPanel.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 10f), new Vector2(960f, 960f));
-            Image haloImg = haloObj.GetComponent<Image>();
-            haloImg.sprite = SpriteGenerator.GetRadialGlowSprite();
-            haloImg.color = new Color(1.0f, 0.82f, 0.28f, 0.24f);
-            haloImg.raycastTarget = false;
+            GameObject winContent = CreateUIContainer("WinContent", _victoryPanel.transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
 
-            // Main crystal victory card
-            GameObject dialog = CreateUIPanel("DialogBox", _victoryPanel.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -20f), new Vector2(840f, 760f));
-            _victoryDialogRect = dialog.GetComponent<RectTransform>();
-            Image dialogImg = dialog.GetComponent<Image>();
-            dialogImg.sprite = SpriteGenerator.GetVictoryCardSprite();
-            dialogImg.type = Image.Type.Sliced;
-            dialogImg.color = Color.white;
+            Sprite glowSp = GemSpriteManager.GetWinHelperSprite("win_radial_glow") ?? SpriteGenerator.GetRadialGlowSprite();
+            Sprite flareSp = GemSpriteManager.GetWinHelperSprite("win_star_flare") ?? SpriteGenerator.GetStarFlareSprite();
+            Sprite shardSp = GemSpriteManager.GetWinHelperSprite("win_shard") ?? SpriteGenerator.GetShardSprite();
+            Sprite trackSp = GemSpriteManager.GetWinHelperSprite("win_progress_track") ?? SpriteGenerator.GetWinProgressTrackSprite();
+            Sprite fillSp = GemSpriteManager.GetWinHelperSprite("win_progress_fill") ?? SpriteGenerator.GetWinProgressFillSprite();
+            Sprite nodeSp = GemSpriteManager.GetWinHelperSprite("win_progress_node") ?? SpriteGenerator.GetWinProgressNodeSprite();
+            Sprite bubbleSp = GemSpriteManager.GetWinHelperSprite("win_speech_bubble") ?? SpriteGenerator.GetWinSpeechBubbleSprite();
+            Sprite sunburstSp = GemSpriteManager.GetWinHelperSprite("win_sunburst") ?? SpriteGenerator.GetWinSunburstSprite();
+            Sprite shineSp = GemSpriteManager.GetWinHelperSprite("win_shine_sweep") ?? SpriteGenerator.GetWinShineSweepSprite();
 
-            // Golden top ribbon
-            GameObject ribbonObj = CreateUIPanel("HeaderRibbon", dialog.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, 4f), new Vector2(540f, 108f));
-            Image ribbonImg = ribbonObj.GetComponent<Image>();
-            ribbonImg.sprite = SpriteGenerator.GetVictoryRibbonSprite();
-            ribbonImg.type = Image.Type.Sliced;
-            ribbonImg.color = Color.white;
-            ribbonImg.raycastTarget = false;
+            // 0. Top Resource Bar (Lives & Coins pills matching HomeScene)
+            GameObject topBarObj = CreateUIContainer("WinTopBar", winContent.transform,
+                new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -130f), new Vector2(680f, 118f));
+            _winTopBarRect = topBarObj.GetComponent<RectTransform>();
 
-            _victoryRibbonText = CreateStyledText("RibbonText", ribbonObj.transform, "LEVEL 1 CLEAR!", font, 40,
-                new Color(0.290f, 0.114f, 0.012f), Vector2.zero, Vector2.zero, false,
-                new Color(1.0f, 0.957f, 0.722f, 0.85f), new Vector2(0f, -2f));
+            Image livesPill = CreateWinImage("LivesPill", _winTopBarRect, new Vector2(-156f, 0f), new Vector2(274f, 102f),
+                GemSpriteManager.GetHomeSceneSprite("heart"), Color.white, preserveAspect: true);
+            _winTopLivesCountText = CreateStyledText("LivesCountText", livesPill.transform, "5", font, 38,
+                Color.white, new Vector2(-86f, 7f), new Vector2(64f, 52f), true,
+                new Color(0.20f, 0.02f, 0.09f, 0.90f), new Vector2(0f, -2.5f));
+            Outline topLivesOutline = _winTopLivesCountText.gameObject.AddComponent<Outline>();
+            topLivesOutline.effectColor = new Color(0.361f, 0.055f, 0.157f, 0.98f);
+            topLivesOutline.effectDistance = new Vector2(2.2f, -2.2f);
+            _winTopLivesStatusText = CreateStyledText("LivesStatusText", livesPill.transform, "Full", font, 33,
+                new Color(0.153f, 0.094f, 0.329f), new Vector2(46f, 2f), new Vector2(148f, 52f), true,
+                new Color(1f, 1f, 1f, 0.55f), new Vector2(0f, -1f));
 
-            // Flanking corner sparkles
-            CreateVictorySparkle("SparkleLeft", dialog.transform, new Vector2(-355f, 325f), 68f);
-            CreateVictorySparkle("SparkleRight", dialog.transform, new Vector2(355f, 325f), 68f);
+            Image coinsPill = CreateWinImage("CoinsPill", _winTopBarRect, new Vector2(156f, 0f), new Vector2(284f, 112f),
+                GemSpriteManager.GetHomeSceneSprite("coins"), Color.white, preserveAspect: true);
+            _winTopCoinsPillRect = coinsPill.rectTransform;
+            GameObject coinTargetObj = CreateUIContainer("CoinTarget", _winTopCoinsPillRect,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-95f, 0f), new Vector2(70f, 70f));
+            _winTopCoinTargetRect = coinTargetObj.GetComponent<RectTransform>();
+            _winTopCoinsCountText = CreateStyledText("CoinsCountText", _winTopCoinsPillRect, "0", font, 36,
+                new Color(0.153f, 0.094f, 0.329f), new Vector2(46f, 3f), new Vector2(156f, 54f), true,
+                new Color(1f, 1f, 1f, 0.55f), new Vector2(0f, -1f));
 
-            // Three celebratory golden stars
-            GameObject starsRow = new GameObject("StarsRow");
-            starsRow.transform.SetParent(dialog.transform, false);
-            RectTransform starsRowRect = starsRow.AddComponent<RectTransform>();
-            starsRowRect.anchorMin = new Vector2(0.5f, 0.5f);
-            starsRowRect.anchorMax = new Vector2(0.5f, 0.5f);
-            starsRowRect.anchoredPosition = new Vector2(0f, 225f);
-            starsRowRect.sizeDelta = new Vector2(460f, 150f);
+            // 1. WELL DONE 2x4 Lego Block Banner
+            GameObject wellDoneObj = CreateUIContainer("WellDoneRoot", winContent.transform, new Vector2(0.5f, 0.785f), new Vector2(0.5f, 0.785f), Vector2.zero, new Vector2(640f, 320f));
+            _winWellDoneRoot = wellDoneObj.GetComponent<RectTransform>();
 
-            GameObject starGlowObj = CreateUIPanel("CenterStarGlow", starsRow.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 14f), new Vector2(195f, 195f));
-            Image starGlowImg = starGlowObj.GetComponent<Image>();
-            starGlowImg.sprite = SpriteGenerator.GetRadialGlowSprite();
-            starGlowImg.color = new Color(1.0f, 0.85f, 0.25f, 0.48f);
-            starGlowImg.raycastTarget = false;
+            Image wellGlowImg = CreateWinImage("WellDoneGlow", wellDoneObj.transform, new Vector2(0f, 6f), new Vector2(820f, 480f),
+                glowSp, new Color(1.0f, 0.50f, 0.92f, 0.72f), preserveAspect: false);
+            _winWellDoneGlowRect = wellGlowImg.GetComponent<RectTransform>();
 
-            _victoryStars = new RectTransform[]
+            GameObject sparklesObj = CreateUIContainer("WellDoneSparkles", wellDoneObj.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(700f, 380f));
+            _winSparklesRoot = sparklesObj.GetComponent<RectTransform>();
+
+            CreateWinSparkle("Sparkle_0", _winSparklesRoot, new Vector2(-280f, 128f), 46f, flareSp, new Color(0.290f, 0.957f, 1.000f, 1f));
+            CreateWinSparkle("Sparkle_1", _winSparklesRoot, new Vector2(-168f, 174f), 40f, flareSp, new Color(1.000f, 0.416f, 0.910f, 1f));
+            CreateWinSparkle("Sparkle_2", _winSparklesRoot, new Vector2(-42f, 182f), 50f, flareSp, new Color(1.000f, 0.914f, 0.333f, 1f));
+            CreateWinSparkle("Sparkle_3", _winSparklesRoot, new Vector2(102f, 176f), 42f, flareSp, new Color(0.482f, 1.000f, 0.361f, 1f));
+            CreateWinSparkle("Sparkle_4", _winSparklesRoot, new Vector2(246f, 148f), 52f, flareSp, new Color(1.000f, 0.886f, 0.302f, 1f));
+            CreateWinSparkle("Sparkle_5", _winSparklesRoot, new Vector2(290f, 34f), 40f, flareSp, new Color(1.000f, 0.604f, 0.267f, 1f));
+            CreateWinSparkle("Sparkle_6", _winSparklesRoot, new Vector2(-294f, -38f), 42f, flareSp, new Color(0.361f, 0.922f, 1.000f, 1f));
+            CreateWinSparkle("Sparkle_7", _winSparklesRoot, new Vector2(268f, -126f), 44f, flareSp, new Color(1.000f, 0.459f, 0.710f, 1f));
+
+            CreateWinConfetti("Confetti_0", _winSparklesRoot, new Vector2(-235f, 160f), 15f, 22f, shardSp, new Color(1.00f, 0.45f, 0.78f, 0.95f));
+            CreateWinConfetti("Confetti_1", _winSparklesRoot, new Vector2(-114f, -148f), 14f, -35f, shardSp, new Color(0.35f, 0.94f, 1.00f, 0.95f));
+            CreateWinConfetti("Confetti_2", _winSparklesRoot, new Vector2(20f, 168f), 15f, 45f, shardSp, new Color(1.00f, 0.89f, 0.32f, 0.95f));
+            CreateWinConfetti("Confetti_3", _winSparklesRoot, new Vector2(174f, 162f), 17f, -20f, shardSp, new Color(0.45f, 1.00f, 0.45f, 0.95f));
+            CreateWinConfetti("Confetti_4", _winSparklesRoot, new Vector2(244f, -44f), 15f, 60f, shardSp, new Color(1.00f, 0.56f, 0.24f, 0.95f));
+            CreateWinConfetti("Confetti_5", _winSparklesRoot, new Vector2(-248f, -128f), 14f, -50f, shardSp, new Color(1.00f, 0.90f, 0.35f, 0.95f));
+            CreateWinConfetti("Confetti_6", _winSparklesRoot, new Vector2(114f, -152f), 14f, 30f, shardSp, new Color(1.00f, 0.40f, 0.85f, 0.95f));
+            CreateWinConfetti("Confetti_7", _winSparklesRoot, new Vector2(-10f, -154f), 15f, 15f, shardSp, new Color(0.45f, 1.00f, 0.52f, 0.95f));
+
+            GameObject lettersObj = CreateUIContainer("LetterBlocks", wellDoneObj.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(600f, 300f));
+
+            // Bottom row (DONE) created first so top row (WELL) overlaps cleanly
+            RectTransform tileD = CreateWinLetterTile("Tile_D", lettersObj.transform, new Vector2(-194.6f, -79.6f), new Vector2(163.5f, 187.0f), "D");
+            RectTransform tileO = CreateWinLetterTile("Tile_O", lettersObj.transform, new Vector2(-65.2f, -79.85f), new Vector2(153.6f, 185.3f), "O");
+            RectTransform tileN = CreateWinLetterTile("Tile_N", lettersObj.transform, new Vector2(64.3f, -80.15f), new Vector2(144.6f, 179.8f), "N");
+            RectTransform tileE2 = CreateWinLetterTile("Tile_E2", lettersObj.transform, new Vector2(193.3f, -81.05f), new Vector2(150.2f, 182.0f), "E (2)");
+
+            // Top row (WELL): N (2).png is the yellow-lime second 'L' tile (needs backing fill for transparent cutout inside 'L')
+            RectTransform tileW = CreateWinLetterTile("Tile_W", lettersObj.transform, new Vector2(-196.8f, 76.1f), new Vector2(173.0f, 176.8f), "W");
+            RectTransform tileE1 = CreateWinLetterTile("Tile_E1", lettersObj.transform, new Vector2(-63.5f, 77.9f), new Vector2(154.5f, 187.9f), "E");
+            RectTransform tileL1 = CreateWinLetterTile("Tile_L1", lettersObj.transform, new Vector2(64.3f, 75.6f), new Vector2(147.0f, 173.5f), "L");
+            RectTransform tileL2 = CreateWinLetterTileWithBacking("Tile_L2", lettersObj.transform, new Vector2(193.3f, 76.2f), new Vector2(145.7f, 173.3f), "N (2)",
+                new Vector2(8.75f, 4.77f), new Vector2(54f, 94f), new Color(0.996f, 0.992f, 0.965f, 1f));
+
+            _winLetterTiles = new RectTransform[] { tileW, tileE1, tileL1, tileL2, tileD, tileO, tileN, tileE2 };
+            _winTileRestPositions = new Vector2[_winLetterTiles.Length];
+            for (int i = 0; i < _winLetterTiles.Length; i++)
             {
-                CreateVictoryStar("Star_Left", starsRow.transform, new Vector2(-142f, -12f), 100f, 12f),
-                CreateVictoryStar("Star_Center", starsRow.transform, new Vector2(0f, 16f), 134f, 0f),
-                CreateVictoryStar("Star_Right", starsRow.transform, new Vector2(142f, -12f), 100f, -12f)
-            };
+                _winTileRestPositions[i] = _winLetterTiles[i] != null ? _winLetterTiles[i].anchoredPosition : Vector2.zero;
+            }
 
-            // Title & Subtitle
-            _victoryTitleText = CreateStyledText("Title", dialog.transform, "CHIẾN THẮNG!", font, 60,
-                new Color(1.0f, 0.902f, 0.341f), new Vector2(0f, 102f), new Vector2(760f, 88f), true,
-                new Color(0.071f, 0.024f, 0.165f, 0.85f), new Vector2(0f, -5f));
-            Outline titleOutline = _victoryTitleText.gameObject.AddComponent<Outline>();
-            titleOutline.effectColor = new Color(0.133f, 0.051f, 0.278f, 0.98f);
-            titleOutline.effectDistance = new Vector2(3f, -3f);
+            // 2. Center Coins Reward & "+40"
+            GameObject coinsRootObj = CreateUIContainer("CoinsRewardRoot", winContent.transform, new Vector2(0.5f, 0.525f), new Vector2(0.5f, 0.525f), Vector2.zero, new Vector2(480f, 420f));
+            _winCoinsRoot = coinsRootObj.GetComponent<RectTransform>();
 
-            _victorySubtitleText = CreateStyledText("Subtitle", dialog.transform, "Hoàn thành Level 1! Sẵn sàng sang Level 2?", font, 29,
-                new Color(0.918f, 0.894f, 1.0f), new Vector2(0f, 24f), new Vector2(760f, 84f), true,
-                new Color(0.06f, 0.03f, 0.16f, 0.78f), new Vector2(1.5f, -1.5f));
-            _victorySubtitleText.horizontalOverflow = HorizontalWrapMode.Wrap;
-            _victorySubtitleText.verticalOverflow = VerticalWrapMode.Overflow;
+            Image outerAura = CreateWinImage("CoinsAuraOuter", _winCoinsRoot, new Vector2(0f, 14f), new Vector2(580f, 580f),
+                glowSp, new Color(1.00f, 0.42f, 0.92f, 0.88f), preserveAspect: false);
+            _winCoinsAuraOuter = outerAura.GetComponent<RectTransform>();
 
-            // Remaining Time Chip
-            GameObject timeChip = CreateUIPanel("TimeChip", dialog.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -56f), new Vector2(470f, 64f));
-            Image chipImg = timeChip.GetComponent<Image>();
-            chipImg.sprite = SpriteGenerator.GetSettingRowSprite();
-            chipImg.type = Image.Type.Sliced;
-            chipImg.color = Color.white;
-            chipImg.raycastTarget = false;
+            CreateWinImage("CoinsAuraInner", _winCoinsRoot, new Vector2(0f, 18f), new Vector2(400f, 400f),
+                glowSp, new Color(1.0f, 0.92f, 0.68f, 0.78f), preserveAspect: false);
 
-            _victoryTimeInfoText = CreateStyledText("TimeInfoText", timeChip.transform, "Thời gian còn lại: 05:00", font, 27,
-                new Color(1.0f, 0.953f, 0.702f), Vector2.zero, Vector2.zero, false,
-                new Color(0.08f, 0.03f, 0.20f, 0.75f), new Vector2(1.5f, -1.5f));
+            Image sunburstImg = CreateWinImage("CoinsSunburst", _winCoinsRoot, new Vector2(0f, 22f), new Vector2(520f, 520f),
+                sunburstSp, new Color(1.0f, 0.88f, 0.36f, 0.55f), preserveAspect: true);
+            _winCoinsSunburstRect = sunburstImg.GetComponent<RectTransform>();
 
-            // Primary Emerald Next Level Button
-            _victoryNextBtn = CreateVictoryActionButton(
-                "NextLevelBtn", dialog.transform, new Vector2(0f, -174f), new Vector2(560f, 116f),
-                SpriteGenerator.GetVictoryNextButtonSprite(), "NEXT LEVEL 2  >", font, 40,
-                Color.white, new Color(0.035f, 0.290f, 0.133f, 0.90f), new Vector2(0f, -3f),
-                OnVictoryNextClicked, out _victoryNextBtnText);
+            Image coinsImg = CreateWinImage("CoinsImage", _winCoinsRoot, new Vector2(0f, 22f), new Vector2(340f, 344f),
+                GemSpriteManager.GetWinSceneSprite("Coins"), Color.white, preserveAspect: true);
+            _winCoinsImageRect = coinsImg.GetComponent<RectTransform>();
 
-            // Secondary Replay Button
-            _victoryReplayBtn = CreateVictoryActionButton(
-                "PlayAgainBtn", dialog.transform, new Vector2(0f, -298f), new Vector2(420f, 88f),
-                SpriteGenerator.GetVictoryReplayButtonSprite(), "CHƠI LẠI", font, 33,
-                new Color(0.929f, 0.910f, 1.0f), new Color(0.094f, 0.055f, 0.220f, 0.85f), new Vector2(0f, -2f),
-                OnVictoryReplayClicked, out _);
+            CreateWinSparkle("CoinSparkle_0", _winCoinsRoot, new Vector2(-142f, 108f), 42f, flareSp, new Color(1.00f, 0.96f, 0.80f, 1f));
+            CreateWinSparkle("CoinSparkle_1", _winCoinsRoot, new Vector2(148f, 76f), 38f, flareSp, new Color(1.00f, 0.96f, 0.80f, 1f));
+            CreateWinSparkle("CoinSparkle_2", _winCoinsRoot, new Vector2(116f, -42f), 34f, flareSp, new Color(1.00f, 0.96f, 0.80f, 1f));
 
+            _winRewardAmountText = CreateStyledText("RewardAmountText", _winCoinsRoot, "+" + BaseWinRewardCoins, font, 90,
+                Color.white, new Vector2(0f, -124f), new Vector2(340f, 114f), true,
+                new Color(0.06f, 0.01f, 0.14f, 0.92f), new Vector2(0f, -6f));
+            Outline rewardOutline = _winRewardAmountText.gameObject.AddComponent<Outline>();
+            rewardOutline.effectColor = new Color(0.141f, 0.031f, 0.243f, 0.98f); // #24083E
+            rewardOutline.effectDistance = new Vector2(4f, -4f);
+
+            // 3. Level Progress Bar & Milestone Bubble
+            GameObject progObj = CreateUIContainer("LevelProgressRoot", winContent.transform, new Vector2(0.5f, 0.345f), new Vector2(0.5f, 0.345f), Vector2.zero, new Vector2(860f, 200f));
+            _winProgressRoot = progObj.GetComponent<RectTransform>();
+            _winProgressCanvasGroup = progObj.AddComponent<CanvasGroup>();
+            _winProgressCanvasGroup.alpha = 1f;
+
+            Image trackImg = CreateWinImage("TrackBar", _winProgressRoot, Vector2.zero, new Vector2(820f, 28f), trackSp, Color.white, preserveAspect: false);
+            GameObject fillObj = CreateUIPanel("TrackFill", trackImg.transform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), Vector2.zero, new Vector2(410f, 28f));
+            _winProgressFillRect = fillObj.GetComponent<RectTransform>();
+            _winProgressFillRect.pivot = new Vector2(0f, 0.5f);
+            Image fillImg = fillObj.GetComponent<Image>();
+            fillImg.sprite = fillSp;
+            fillImg.color = Color.white;
+            fillImg.raycastTarget = false;
+
+            _winProgressNodes = new Image[5];
+            _winProgressNodeGlows = new GameObject[5];
+            _winProgressNodeIcons = new GameObject[5];
+            _winProgressLabels = new Text[5];
+
+            for (int i = 0; i < 5; i++)
+            {
+                float nodeX = -300f + i * 150f;
+                GameObject nodeContainer = CreateUIContainer($"Node_{i}", _winProgressRoot, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(nodeX, 0f), new Vector2(120f, 140f));
+
+                Image nodeGlow = CreateWinImage("NodeGlow", nodeContainer.transform, Vector2.zero, new Vector2(116f, 116f),
+                    glowSp, new Color(1.0f, 0.48f, 0.96f, 0.85f), preserveAspect: false);
+                _winProgressNodeGlows[i] = nodeGlow.gameObject;
+
+                Image nodeCircle = CreateWinImage("NodeCircle", nodeContainer.transform, Vector2.zero, new Vector2(52f, 52f),
+                    nodeSp, Color.white, preserveAspect: true);
+                _winProgressNodes[i] = nodeCircle;
+
+                Image nodeIcon = CreateWinImage("NodeIcon", nodeCircle.transform, Vector2.zero, new Vector2(32f, 32f),
+                    flareSp, new Color(1.0f, 0.97f, 0.88f, 1f), preserveAspect: true);
+                _winProgressNodeIcons[i] = nodeIcon.gameObject;
+
+                Text lvlLabel = CreateStyledText("LevelLabel", nodeContainer.transform, "Lv" + (i + 1), font, 30,
+                    Color.white, new Vector2(0f, -48f), new Vector2(120f, 44f), true,
+                    new Color(0.05f, 0.01f, 0.12f, 0.88f), new Vector2(0f, -3f));
+                Outline lblOutline = lvlLabel.gameObject.AddComponent<Outline>();
+                lblOutline.effectColor = new Color(0.082f, 0.024f, 0.157f, 0.95f); // #150628
+                lblOutline.effectDistance = new Vector2(2f, -2f);
+                _winProgressLabels[i] = lvlLabel;
+            }
+
+            Image bubbleImg = CreateWinImage("MilestoneBubble", _winProgressRoot, new Vector2(0f, 76f), new Vector2(92f, 98f),
+                bubbleSp, Color.white, preserveAspect: true);
+            _winMilestoneBubbleRect = bubbleImg.GetComponent<RectTransform>();
+            CreateWinImage("BubbleIcon", bubbleImg.transform, new Vector2(0f, 7f), new Vector2(54f, 54f),
+                GemSpriteManager.GetNewBlockSprite("Group 343"), Color.white, preserveAspect: true);
+
+            // 4. Bottom Action Buttons (Get 40 & AD 80)
+            GameObject buttonsObj = CreateUIContainer("ButtonsRow", winContent.transform, new Vector2(0.5f, 0.195f), new Vector2(0.5f, 0.195f), Vector2.zero, new Vector2(880f, 250f));
+            _winButtonsRoot = buttonsObj.GetComponent<RectTransform>();
+            _winButtonsCanvasGroup = buttonsObj.AddComponent<CanvasGroup>();
+            _winButtonsCanvasGroup.alpha = 1f;
+
+            // Left Button: Get [Coin] 40
+            GameObject getObj = CreateUIPanel("Btn_Get", _winButtonsRoot, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-205f, 0f), new Vector2(412f, 236f));
+            _winGetBtnRect = getObj.GetComponent<RectTransform>();
+            _winGetBtnRestPos = _winGetBtnRect.anchoredPosition;
+            Image getImg = getObj.GetComponent<Image>();
+            getImg.sprite = GemSpriteManager.GetWinSceneSprite("Button1");
+            getImg.preserveAspect = true;
+            getImg.color = Color.white;
+            _winGetBtn = getObj.AddComponent<Button>();
+            _winGetBtn.targetGraphic = getImg;
+            _winGetBtn.onClick.AddListener(OnVictoryGetClicked);
+
+            GameObject getContent = CreateUIContainer("Content", getObj.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-7f, 0f), new Vector2(360f, 190f));
+            Text getLabel = CreateStyledText("GetLabel", getContent.transform, "Get", font, 46,
+                Color.white, new Vector2(0f, 40f), new Vector2(300f, 64f), true,
+                new Color(0.03f, 0.08f, 0.18f, 0.90f), new Vector2(0f, -4f));
+            Outline getLblOutline = getLabel.gameObject.AddComponent<Outline>();
+            getLblOutline.effectColor = new Color(0.039f, 0.098f, 0.208f, 0.96f); // #0A1935
+            getLblOutline.effectDistance = new Vector2(2.5f, -2.5f);
+
+            CreateWinImage("CoinIcon", getContent.transform, new Vector2(-58f, -32f), new Vector2(80f, 80f),
+                GemSpriteManager.GetWinSceneSprite("Coin"), Color.white, preserveAspect: true);
+
+            _winGetAmountText = CreateStyledText("AmountText", getContent.transform, BaseWinRewardCoins.ToString(), font, 64,
+                Color.white, new Vector2(48f, -34f), new Vector2(140f, 74f), true,
+                new Color(0.03f, 0.08f, 0.18f, 0.92f), new Vector2(0f, -4f));
+            _winGetAmountText.alignment = TextAnchor.MiddleLeft;
+            Outline getAmtOutline = _winGetAmountText.gameObject.AddComponent<Outline>();
+            getAmtOutline.effectColor = new Color(0.039f, 0.098f, 0.208f, 0.96f);
+            getAmtOutline.effectDistance = new Vector2(3f, -3f);
+
+            // Right Button: [AD] 80
+            GameObject adsObj = CreateUIPanel("Btn_Ads", _winButtonsRoot, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(212f, 0f), new Vector2(420f, 234f));
+            _winAdsBtnRect = adsObj.GetComponent<RectTransform>();
+            _winAdsBtnRestPos = _winAdsBtnRect.anchoredPosition;
+            Image adsImg = adsObj.GetComponent<Image>();
+            adsImg.sprite = GemSpriteManager.GetWinSceneSprite("Button2");
+            adsImg.preserveAspect = true;
+            adsImg.color = Color.white;
+            _winAdsBtn = adsObj.AddComponent<Button>();
+            _winAdsBtn.targetGraphic = adsImg;
+            _winAdsBtn.onClick.AddListener(OnVictoryAdsClicked);
+
+            GameObject adsContent = CreateUIContainer("Content", adsObj.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(360f, 190f));
+            CreateWinImage("AdsIcon", adsContent.transform, new Vector2(-68f, 4f), new Vector2(122f, 142f),
+                GemSpriteManager.GetWinSceneSprite("ADS"), Color.white, preserveAspect: true);
+
+            _winAdsAmountText = CreateStyledText("AmountText", adsContent.transform, AdsWinRewardCoins.ToString(), font, 76,
+                Color.white, new Vector2(64f, -2f), new Vector2(160f, 88f), true,
+                new Color(0.18f, 0.02f, 0.12f, 0.92f), new Vector2(0f, -5f));
+            Outline adsAmtOutline = _winAdsAmountText.gameObject.AddComponent<Outline>();
+            adsAmtOutline.effectColor = new Color(0.290f, 0.051f, 0.196f, 0.98f); // #4A0D32
+            adsAmtOutline.effectDistance = new Vector2(3.5f, -3.5f);
+
+            GameObject shineClip = CreateUIContainer("ShineClip", adsObj.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(372f, 180f));
+            shineClip.AddComponent<RectMask2D>();
+            Image shineImg = CreateWinImage("ShineSweep", shineClip.transform, new Vector2(-280f, 0f), new Vector2(130f, 220f),
+                shineSp, new Color(1f, 1f, 1f, 0.42f), preserveAspect: false);
+            _winAdsShineRect = shineImg.GetComponent<RectTransform>();
+
+            UpdateVictoryBannerContent();
             _victoryPanel.SetActive(false);
         }
 
-        private void CreateVictorySparkle(string name, Transform parent, Vector2 anchoredPos, float size)
+        private RectTransform CreateWinLetterTileWithBacking(string name, Transform parent, Vector2 anchoredPos, Vector2 sizeDelta, string spriteName, Vector2 backingOffset, Vector2 backingSize, Color backingColor)
         {
-            GameObject sp = CreateUIPanel(name, parent, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), anchoredPos, new Vector2(size, size));
-            Image spImg = sp.GetComponent<Image>();
-            spImg.sprite = SpriteGenerator.GetStarFlareSprite();
-            spImg.color = new Color(1.0f, 0.92f, 0.55f, 0.92f);
-            spImg.raycastTarget = false;
+            GameObject root = CreateUIContainer(name, parent, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), anchoredPos, sizeDelta);
+            CreateWinImage("FillBacking", root.transform, backingOffset, backingSize, null, backingColor, preserveAspect: false);
+            GameObject graphicObj = CreateUIPanel("TileGraphic", root.transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            Image gImg = graphicObj.GetComponent<Image>();
+            gImg.sprite = GemSpriteManager.GetWinSceneSprite(spriteName);
+            gImg.color = Color.white;
+            gImg.preserveAspect = true;
+            gImg.raycastTarget = false;
+            return root.GetComponent<RectTransform>();
         }
 
-        private RectTransform CreateVictoryStar(string name, Transform parent, Vector2 anchoredPos, float size, float rotZ)
+        private GameObject CreateUIContainer(string name, Transform parent, Vector2 anchorMin, Vector2 anchorMax, Vector2 anchoredPos, Vector2 sizeDelta)
         {
-            GameObject starObj = CreateUIPanel(name, parent, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), anchoredPos, new Vector2(size, size));
-            RectTransform rect = starObj.GetComponent<RectTransform>();
-            rect.localEulerAngles = new Vector3(0f, 0f, rotZ);
+            GameObject obj = new GameObject(name);
+            obj.transform.SetParent(parent, false);
+            RectTransform rect = obj.AddComponent<RectTransform>();
+            rect.anchorMin = anchorMin;
+            rect.anchorMax = anchorMax;
+            rect.anchoredPosition = anchoredPos;
+            rect.sizeDelta = sizeDelta;
+            return obj;
+        }
 
-            Image img = starObj.GetComponent<Image>();
-            img.sprite = SpriteGenerator.GetGoldenStarSprite();
-            img.preserveAspect = true;
-            img.color = Color.white;
+        private Image CreateWinImage(string name, Transform parent, Vector2 anchoredPos, Vector2 sizeDelta, Sprite sprite, Color color, bool preserveAspect)
+        {
+            GameObject obj = CreateUIPanel(name, parent, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), anchoredPos, sizeDelta);
+            Image img = obj.GetComponent<Image>();
+            img.sprite = sprite;
+            img.color = color;
+            img.preserveAspect = preserveAspect;
             img.raycastTarget = false;
-            return rect;
+            return img;
+        }
+
+        private RectTransform CreateWinLetterTile(string name, Transform parent, Vector2 anchoredPos, Vector2 sizeDelta, string spriteName)
+        {
+            Image img = CreateWinImage(name, parent, anchoredPos, sizeDelta, GemSpriteManager.GetWinSceneSprite(spriteName), Color.white, preserveAspect: true);
+            return img.GetComponent<RectTransform>();
+        }
+
+        private void CreateWinSparkle(string name, Transform parent, Vector2 anchoredPos, float size, Sprite flareSprite, Color color)
+        {
+            CreateWinImage(name, parent, anchoredPos, new Vector2(size, size), flareSprite, color, preserveAspect: true);
+        }
+
+        private void CreateWinConfetti(string name, Transform parent, Vector2 anchoredPos, float size, float rotZ, Sprite shardSprite, Color color)
+        {
+            Image img = CreateWinImage(name, parent, anchoredPos, new Vector2(size, size), shardSprite, color, preserveAspect: false);
+            img.GetComponent<RectTransform>().localEulerAngles = new Vector3(0f, 0f, rotZ);
         }
 
         private Text CreateStyledText(string name, Transform parent, string content, Font font, int fontSize,
@@ -1700,25 +2565,6 @@ namespace BlockMergePuzzle.UI
             return txt;
         }
 
-        private Button CreateVictoryActionButton(string name, Transform parent, Vector2 anchoredPos, Vector2 sizeDelta,
-            Sprite sprite, string label, Font font, int fontSize, Color textColor, Color shadowColor, Vector2 shadowDist,
-            UnityEngine.Events.UnityAction onClick, out Text labelText)
-        {
-            GameObject btnObj = CreateUIPanel(name, parent, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), anchoredPos, sizeDelta);
-            Image btnImg = btnObj.GetComponent<Image>();
-            btnImg.sprite = sprite;
-            btnImg.type = Image.Type.Sliced;
-            btnImg.color = Color.white;
-
-            labelText = CreateStyledText("BtnText", btnObj.transform, label, font, fontSize,
-                textColor, Vector2.zero, Vector2.zero, false, shadowColor, shadowDist);
-
-            Button btn = btnObj.AddComponent<Button>();
-            btn.targetGraphic = btnImg;
-            if (onClick != null) btn.onClick.AddListener(onClick);
-            return btn;
-        }
-
         private void BuildFeedbackBanner(Font font)
         {
             _feedbackPanel = CreateUIPanel("FeedbackBanner", transform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 140f), new Vector2(960f, 110f));
@@ -1741,12 +2587,18 @@ namespace BlockMergePuzzle.UI
                 TextAnchor.MiddleCenter,
                 Vector2.zero,
                 new Color(1f, 0.32f, 0.32f, 1f));
+            _feedbackPanel.SetActive(false);
         }
 
         public void StartTimer()
         {
             _timeRemaining = GetLevelDurationSeconds();
-            _isTimerRunning = true;
+            _freezeTimerRemaining = 0f;
+            _freezeEffectController?.StopFreezeEffectsOnly();
+            _magnetController?.StopTargetingOnly();
+            _wandController?.StopTargetingOnly();
+            _hasTimerStartedByInput = false;
+            _isTimerRunning = false;
             _isPaused = false;
             UpdateTimeDisplay();
         }
@@ -1756,11 +2608,24 @@ namespace BlockMergePuzzle.UI
             _isTimerRunning = false;
         }
 
+        public void BeginTimerOnFirstInteraction()
+        {
+            if (_hasTimerStartedByInput || _isTimerRunning) return;
+            if (IsVictoryShowing || IsTimeOutShowing) return;
+            if (_timeRemaining <= 0f) return;
+            _hasTimerStartedByInput = true;
+            _isTimerRunning = true;
+        }
+
         public void ResetTimer()
         {
             _timeRemaining = GetLevelDurationSeconds();
             _freezeTimerRemaining = 0f;
-            _isTimerRunning = true;
+            _freezeEffectController?.StopFreezeEffectsOnly();
+            _magnetController?.StopTargetingOnly();
+            _wandController?.StopTargetingOnly();
+            _hasTimerStartedByInput = false;
+            _isTimerRunning = false;
             _isPaused = false;
             UpdateTimeDisplay();
         }
@@ -1773,9 +2638,10 @@ namespace BlockMergePuzzle.UI
             _timeText.text = string.Format("{0:D2}:{1:D2}", mins, secs);
             _lastDisplayedTimeString = _timeText.text;
 
-            if (_freezeTimerRemaining > 0f)
+            bool isFrozenState = _freezeTimerRemaining > 0f || (_freezeEffectController != null && _freezeEffectController.IsActivating);
+            if (isFrozenState)
             {
-                _timeText.color = new Color(0.35f, 0.95f, 1.0f);
+                _timeText.color = new Color(0.75f, 0.97f, 1.0f);
             }
             else if (_timeRemaining < 20f && _timeRemaining > 0f)
             {
@@ -1789,7 +2655,7 @@ namespace BlockMergePuzzle.UI
 
         private void OnTimeExpired()
         {
-            ShowFeedbackError("Hết giờ! Hãy thử lại.");
+            ShowTimeOutPopup();
         }
 
         public void OnReturnClicked()
@@ -1801,7 +2667,7 @@ namespace BlockMergePuzzle.UI
 
         public void OnPauseClicked()
         {
-            if (IsVictoryShowing) return;
+            if (IsVictoryShowing || IsTimeOutShowing) return;
             if (SoundManager.Instance != null) SoundManager.Instance.PlayButton();
             if (_pauseButtonImg != null) StartCoroutine(CoButtonPunch(_pauseButtonImg.transform));
             TogglePause();
@@ -1809,6 +2675,21 @@ namespace BlockMergePuzzle.UI
 
         public void OnBoosterFreezeClicked()
         {
+            if (IsVictoryShowing || IsTimeOutShowing || _isPaused) return;
+            if (_magnetController != null && (_magnetController.IsTutorialShowing || _magnetController.IsExecuting)) return;
+            if (_wandController != null && (_wandController.IsTutorialShowing || _wandController.IsExecuting)) return;
+            FreezeBoosterEffectController fx = EnsureFreezeEffectController();
+            if (fx.IsActivating) return;
+
+            if (_magnetController != null && _magnetController.IsTargeting)
+            {
+                _magnetController.CancelTargeting();
+            }
+            if (_wandController != null && _wandController.IsTargeting)
+            {
+                _wandController.CancelTargeting();
+            }
+
             if (SoundManager.Instance != null) SoundManager.Instance.PlayButton();
             if (_boosterFreezeBtn != null) StartCoroutine(CoButtonPunch(_boosterFreezeBtn.transform));
             int lvl = GetCurrentLevelNumber();
@@ -1823,60 +2704,149 @@ namespace BlockMergePuzzle.UI
                 return;
             }
 
+            if (fx.IsTutorialShowing)
+            {
+                fx.DismissTutorial();
+                PlayerPrefs.SetInt(PrefFreezeTutorialSeenKey, 1);
+                PlayerPrefs.Save();
+            }
+
             _freezeCount--;
+            SaveBoosterCounts();
             if (_boosterFreezeCountText != null) _boosterFreezeCountText.text = "x" + _freezeCount;
-            _freezeTimerRemaining = 15f;
+
+            _freezeTimerRemaining = FreezeBoosterDuration;
             UpdateTimeDisplay();
-            ShowFloatingText("ĐÃ ĐÓNG BĂNG 15S!", Vector3.zero, new Color(0.35f, 0.95f, 1.0f));
+
+            RectTransform freezeBtnRect = _boosterFreezeBtn != null ? _boosterFreezeBtn.GetComponent<RectTransform>() : null;
+            RectTransform timerBannerRect = _timeBannerImg != null
+                ? _timeBannerImg.rectTransform
+                : (_headerPanel != null ? _headerPanel.transform.Find("Banner_Time") as RectTransform : null);
+            Sprite iconSprite = GemSpriteManager.GetBoosterSprite("booster1");
+
+            fx.PlayFreezeActivation(freezeBtnRect, timerBannerRect, iconSprite, () =>
+            {
+                _freezeTimerRemaining = FreezeBoosterDuration;
+                UpdateTimeDisplay();
+            });
         }
 
         public void OnBoosterMagnetClicked()
         {
+            if (IsVictoryShowing || IsTimeOutShowing || _isPaused) return;
+            if (_freezeEffectController != null && (_freezeEffectController.IsTutorialShowing || _freezeEffectController.IsActivating)) return;
+            if (_wandController != null && (_wandController.IsTutorialShowing || _wandController.IsExecuting)) return;
+
+            if (_wandController != null && _wandController.IsTargeting)
+            {
+                _wandController.CancelTargeting();
+            }
+
             if (SoundManager.Instance != null) SoundManager.Instance.PlayButton();
             if (_boosterMagnetBtn != null) StartCoroutine(CoButtonPunch(_boosterMagnetBtn.transform));
+
             int lvl = GetCurrentLevelNumber();
             if (lvl < BoosterMagnetUnlockLevel)
             {
                 ShowFeedbackError($"Nam Châm mở khoá ở Level {BoosterMagnetUnlockLevel}!");
                 return;
             }
+
+            MagnetBoosterController magnetCtrl = EnsureMagnetController();
+            if (magnetCtrl.IsExecuting) return;
+            if (magnetCtrl.IsTargeting)
+            {
+                magnetCtrl.CancelTargeting();
+                return;
+            }
+
             if (_magnetCount <= 0)
             {
                 ShowFeedbackError("Hết lượt dùng Nam Châm!");
                 return;
             }
 
-            _magnetCount--;
-            if (_boosterMagnetCountText != null) _boosterMagnetCountText.text = "x" + _magnetCount;
-            if (TryMagnetAutoMerge())
+            if (magnetCtrl.IsTutorialShowing)
             {
-                ShowFloatingText("NAM CHÂM MERGE!", Vector3.zero, new Color(1.0f, 0.85f, 0.30f));
+                magnetCtrl.DismissTutorial();
+                PlayerPrefs.SetInt(PrefMagnetTutorialSeenKey, 1);
+                PlayerPrefs.Save();
             }
-            else
+
+            Gameplay.PlayerPieceController.Instance?.CancelActiveDragIfNeeded();
+
+            RectTransform magnetBtnRect = _boosterMagnetBtn != null ? _boosterMagnetBtn.GetComponent<RectTransform>() : null;
+            Sprite iconSprite = GemSpriteManager.GetBoosterSprite("booster2");
+
+            magnetCtrl.BeginTargeting(magnetBtnRect, iconSprite, () =>
             {
-                ShowFloatingText("KÍCH HOẠT NAM CHÂM!", Vector3.zero, new Color(1.0f, 0.85f, 0.30f));
-            }
+                _magnetCount = Mathf.Max(0, _magnetCount - 1);
+                SaveBoosterCounts();
+                if (_boosterMagnetCountText != null) _boosterMagnetCountText.text = "x" + _magnetCount;
+            });
         }
 
         public void OnBoosterWandClicked()
         {
+            if (IsVictoryShowing || IsTimeOutShowing || _isPaused) return;
+            if (_freezeEffectController != null && (_freezeEffectController.IsTutorialShowing || _freezeEffectController.IsActivating)) return;
+            if (_magnetController != null && (_magnetController.IsTutorialShowing || _magnetController.IsExecuting)) return;
+
+            if (_magnetController != null && _magnetController.IsTargeting)
+            {
+                _magnetController.CancelTargeting();
+            }
+
             if (SoundManager.Instance != null) SoundManager.Instance.PlayButton();
             if (_boosterWandBtn != null) StartCoroutine(CoButtonPunch(_boosterWandBtn.transform));
+
             int lvl = GetCurrentLevelNumber();
             if (lvl < BoosterWandUnlockLevel)
             {
                 ShowFeedbackError($"Đũa Thần mở khoá ở Level {BoosterWandUnlockLevel}!");
                 return;
             }
+
+            WandBoosterController wandCtrl = EnsureWandController();
+            if (wandCtrl.IsExecuting) return;
+            if (wandCtrl.IsTargeting)
+            {
+                wandCtrl.CancelTargeting();
+                return;
+            }
+
             if (_wandCount <= 0)
             {
                 ShowFeedbackError("Hết lượt dùng Đũa Thần!");
                 return;
             }
 
-            _wandCount--;
-            if (_boosterWandCountText != null) _boosterWandCountText.text = "x" + _wandCount;
-            ShowFloatingText("ĐŨA THẦN PHÉP THUẬT!", Vector3.zero, new Color(1.0f, 0.60f, 1.0f));
+            if (wandCtrl.IsTutorialShowing)
+            {
+                wandCtrl.DismissTutorial();
+                PlayerPrefs.SetInt(PrefWandTutorialSeenKey, 1);
+                PlayerPrefs.Save();
+            }
+
+            Gameplay.PlayerPieceController.Instance?.CancelActiveDragIfNeeded();
+
+            RectTransform wandBtnRect = _boosterWandBtn != null ? _boosterWandBtn.GetComponent<RectTransform>() : null;
+            Sprite iconSprite = GemSpriteManager.GetBoosterSprite("booster3");
+
+            wandCtrl.BeginTargeting(wandBtnRect, iconSprite, () =>
+            {
+                _wandCount = Mathf.Max(0, _wandCount - 1);
+                SaveBoosterCounts();
+                if (_boosterWandCountText != null) _boosterWandCountText.text = "x" + _wandCount;
+            });
+        }
+
+        private void SaveBoosterCounts()
+        {
+            PlayerPrefs.SetInt(PrefBoosterFreezeKey, Mathf.Max(0, _freezeCount));
+            PlayerPrefs.SetInt(PrefBoosterMagnetKey, Mathf.Max(0, _magnetCount));
+            PlayerPrefs.SetInt(PrefBoosterWandKey, Mathf.Max(0, _wandCount));
+            PlayerPrefs.Save();
         }
 
         private bool TryMagnetAutoMerge()
@@ -1888,11 +2858,11 @@ namespace BlockMergePuzzle.UI
             for (int i = 0; i < pieces.Count; i++)
             {
                 var p1 = pieces[i];
-                if (p1 == null || p1.IsSliding || p1.IsEscaping) continue;
+                if (p1 == null || p1.IsSliding || p1.IsEscaping || p1.IsFrozen || p1.IsStone) continue;
                 for (int j = i + 1; j < pieces.Count; j++)
                 {
                     var p2 = pieces[j];
-                    if (p2 == null || p2.IsSliding || p2.IsEscaping) continue;
+                    if (p2 == null || p2.IsSliding || p2.IsEscaping || p2.IsFrozen || p2.IsStone) continue;
                     if (p1.PieceColor == p2.PieceColor && p1.Shape == p2.Shape && p1.Value == p2.Value)
                     {
                         LevelManager.Instance.ExecuteMerge(p1, p2, 0.16f);
@@ -1905,10 +2875,11 @@ namespace BlockMergePuzzle.UI
 
         public void TogglePause()
         {
-            if (IsVictoryShowing) return;
+            if (IsVictoryShowing || IsTimeOutShowing || IsBoosterTutorialShowing) return;
             _isPaused = !_isPaused;
             if (_pausePanel != null)
             {
+                if (_isPaused) _pausePanel.transform.SetAsLastSibling();
                 _pausePanel.SetActive(_isPaused);
             }
             Time.timeScale = _isPaused ? 0f : 1f;
@@ -1931,6 +2902,71 @@ namespace BlockMergePuzzle.UI
             NextLevel();
         }
 
+        public void OnVictoryGetClicked()
+        {
+            ClaimWinRewardAndAdvance(BaseWinRewardCoins, _winGetBtnRect);
+        }
+
+        public void OnVictoryAdsClicked()
+        {
+            ClaimWinRewardAndAdvance(AdsWinRewardCoins, _winAdsBtnRect);
+        }
+
+        private void ClaimWinRewardAndAdvance(int coinAmount, RectTransform clickedBtnRect)
+        {
+            if (_hasClaimedWinReward) return;
+            _hasClaimedWinReward = true;
+
+            int startCoins = PlayerPrefs.GetInt(PrefCoinsKey, 0);
+            if (!CustomLevelRepository.IsEditorPlayTestActive)
+            {
+                int targetCoins = startCoins + coinAmount;
+                PlayerPrefs.SetInt(PrefCoinsKey, targetCoins);
+
+                int currentLevel = GetCurrentLevelNumber();
+                int maxLvl = GetMaxLevelNumber();
+                int nextLevel = currentLevel < maxLvl ? (currentLevel + 1) : 1;
+                PlayerPrefs.SetInt(PrefCurrentLevelKey, nextLevel);
+                PlayerPrefs.SetInt(PrefJustWonLevelKey, 1);
+                PlayerPrefs.Save();
+            }
+
+            _winIntroComplete = false;
+            if (_victoryAnimCoroutine != null)
+            {
+                StopCoroutine(_victoryAnimCoroutine);
+                _victoryAnimCoroutine = null;
+            }
+            if (_winTopBarRect != null)
+            {
+                _winTopBarRect.anchoredPosition = new Vector2(0f, -130f);
+            }
+            if (_winTopCoinsCountText != null)
+            {
+                _winTopCoinsCountText.text = startCoins.ToString();
+            }
+
+            if (_winGetBtn != null) _winGetBtn.interactable = false;
+            if (_winAdsBtn != null) _winAdsBtn.interactable = false;
+            if (_winButtonsCanvasGroup != null)
+            {
+                _winButtonsCanvasGroup.interactable = false;
+                _winButtonsCanvasGroup.blocksRaycasts = false;
+            }
+
+            if (SoundManager.Instance != null) SoundManager.Instance.PlayButton();
+
+            if (Application.isPlaying)
+            {
+                if (_winClaimCoroutine != null) StopCoroutine(_winClaimCoroutine);
+                _winClaimCoroutine = StartCoroutine(CoClaimRewardAndAdvance(startCoins, coinAmount, clickedBtnRect));
+            }
+            else
+            {
+                ReturnToHomeAfterVictory();
+            }
+        }
+
         public void OnVictoryReplayClicked()
         {
             if (SoundManager.Instance != null) SoundManager.Instance.PlayButton();
@@ -1946,9 +2982,19 @@ namespace BlockMergePuzzle.UI
             _isPaused = false;
             if (_pausePanel != null) _pausePanel.SetActive(false);
             HideGameOver();
+            HideTimeOutPopup();
+            CleanupWinEffects();
+            if (_victoryPanel != null) _victoryPanel.SetActive(false);
+            _hasClaimedWinReward = false;
 
             int currentLevel = GetCurrentLevelNumber();
-            int nextLevel = currentLevel < MaxLevelNumber ? (currentLevel + 1) : 1;
+            int maxLvl = GetMaxLevelNumber();
+            int nextLevel = currentLevel < maxLvl ? (currentLevel + 1) : 1;
+            if (!CustomLevelRepository.IsEditorPlayTestActive)
+            {
+                PlayerPrefs.SetInt(PrefCurrentLevelKey, nextLevel);
+                PlayerPrefs.Save();
+            }
             string nextSceneName = "Level" + nextLevel;
 
             if (Application.CanStreamedLevelBeLoaded(nextSceneName))
@@ -1961,7 +3007,16 @@ namespace BlockMergePuzzle.UI
             _isLoadingNextLevel = false;
             if (LevelManager.Instance != null)
             {
-                LevelManager.Instance.SwitchLevel((LevelId)nextLevel);
+                if (CustomLevelRepository.TryGetLevel(nextLevel, out CustomLevelData nextData))
+                {
+                    _customDurationSeconds = 0f;
+                    _customTimeMMSS = "";
+                    LevelManager.Instance.LoadCustomLevel(nextData, true);
+                }
+                else
+                {
+                    LevelManager.Instance.SwitchLevel((LevelId)nextLevel);
+                }
             }
             ResetTimer();
             UpdateLevelDisplay();
@@ -1979,6 +3034,20 @@ namespace BlockMergePuzzle.UI
             _isPaused = false;
             if (_pausePanel != null) _pausePanel.SetActive(false);
             HideGameOver();
+            HideTimeOutPopup();
+            CleanupWinEffects();
+            if (_victoryPanel != null) _victoryPanel.SetActive(false);
+            _hasClaimedWinReward = false;
+
+            if (LevelManager.Instance != null && LevelManager.Instance.HasActiveCustomLevel)
+            {
+                LevelManager.Instance.InitializeLevel(true);
+                ResetTimer();
+                UpdateLevelDisplay();
+                UpdateBoosterUnlockStates();
+                if (_tutorialGuide != null) _tutorialGuide.HandleLevelReset();
+                return;
+            }
 
             Scene activeScene = SceneManager.GetActiveScene();
             if (activeScene.buildIndex >= 0 &&
@@ -2028,43 +3097,9 @@ namespace BlockMergePuzzle.UI
 
         public void ShowFeedbackError(string message)
         {
-            if (_feedbackPanel == null || _feedbackText == null) return;
-            _feedbackText.text = "⚠️ " + message;
-
-            if (_feedbackCoroutine != null) StopCoroutine(_feedbackCoroutine);
-            _feedbackCoroutine = StartCoroutine(CoAnimateFeedback());
-        }
-
-        private IEnumerator CoAnimateFeedback()
-        {
-            _feedbackPanel.SetActive(true);
-            _feedbackCanvasGroup.alpha = 1f;
-
-            float elapsed = 0f;
-            float punchDuration = 0.20f;
-            while (elapsed < punchDuration)
-            {
-                elapsed += Time.deltaTime;
-                float t = elapsed / punchDuration;
-                float scale = 1.0f + Mathf.Sin(t * Mathf.PI) * 0.10f;
-                _feedbackPanel.transform.localScale = Vector3.one * scale;
-                yield return null;
-            }
-            _feedbackPanel.transform.localScale = Vector3.one;
-
-            yield return new WaitForSeconds(2.4f);
-
-            float fadeElapsed = 0f;
-            float fadeDuration = 0.35f;
-            while (fadeElapsed < fadeDuration)
-            {
-                fadeElapsed += Time.deltaTime;
-                _feedbackCanvasGroup.alpha = Mathf.Lerp(1f, 0f, fadeElapsed / fadeDuration);
-                yield return null;
-            }
-
-            _feedbackCanvasGroup.alpha = 0f;
-            _feedbackCoroutine = null;
+            if (_feedbackCanvasGroup != null) _feedbackCanvasGroup.alpha = 0f;
+            if (_feedbackText != null) _feedbackText.text = string.Empty;
+            if (_feedbackPanel != null) _feedbackPanel.SetActive(false);
         }
 
         public void ShowFloatingText(string text, Vector3 worldPos, Color color)
@@ -2113,6 +3148,39 @@ namespace BlockMergePuzzle.UI
         public void UpdateRemainingBlocks(int count) { }
         public void UpdateProgress(int escaped, int total) { }
 
+        public void ReplayVictoryAnimation()
+        {
+            HideGameOver();
+            _hasClaimedWinReward = false;
+            ShowVictoryPopup();
+        }
+
+        private void CleanupWinEffects()
+        {
+            if (_victoryAnimCoroutine != null)
+            {
+                StopCoroutine(_victoryAnimCoroutine);
+                _victoryAnimCoroutine = null;
+            }
+            if (_winClaimCoroutine != null)
+            {
+                StopCoroutine(_winClaimCoroutine);
+                _winClaimCoroutine = null;
+            }
+            if (_winAmbientConfettiCoroutine != null)
+            {
+                StopCoroutine(_winAmbientConfettiCoroutine);
+                _winAmbientConfettiCoroutine = null;
+            }
+            _winIntroComplete = false;
+            if (_winEffectsLayer != null)
+            {
+                if (Application.isPlaying) Destroy(_winEffectsLayer.gameObject);
+                else DestroyImmediate(_winEffectsLayer.gameObject);
+                _winEffectsLayer = null;
+            }
+        }
+
         public void ShowVictoryPopup()
         {
             if (_victoryPanel == null)
@@ -2121,11 +3189,17 @@ namespace BlockMergePuzzle.UI
             }
             if (_victoryPanel == null || _victoryPanel.activeSelf) return;
 
+            HideTimeOutPopup();
+            _hasClaimedWinReward = false;
             _isPaused = false;
             Time.timeScale = 1f;
             if (_pausePanel != null) _pausePanel.SetActive(false);
 
             StopTimer();
+            _freezeTimerRemaining = 0f;
+            _freezeEffectController?.StopImmediate();
+            _magnetController?.StopImmediate();
+            _wandController?.StopImmediate();
             Gameplay.PlayerPieceController.Instance?.ResetSelection();
 
             UpdateVictoryBannerContent();
@@ -2134,110 +3208,1029 @@ namespace BlockMergePuzzle.UI
 
             if (Application.isPlaying)
             {
-                if (_victoryAnimCoroutine != null) StopCoroutine(_victoryAnimCoroutine);
+                CleanupWinEffects();
                 _victoryAnimCoroutine = StartCoroutine(CoAnimateVictoryBanner());
             }
             else
             {
                 if (_victoryCanvasGroup != null) _victoryCanvasGroup.alpha = 1f;
-                if (_victoryDialogRect != null) _victoryDialogRect.localScale = Vector3.one;
-                if (_victoryStars != null)
+                ResetWinAnimatedTransforms();
+            }
+        }
+
+        public void SetVictoryPreviewActive(bool active)
+        {
+            if (active)
+            {
+                if (_victoryPanel == null ||
+                    _victoryPanel.transform.Find("WinContent/WinTopBar/CoinsPill/CoinTarget") == null ||
+                    _victoryPanel.transform.Find("WinContent/WellDoneRoot") == null ||
+                    _victoryPanel.transform.Find("WinContent/CoinsRewardRoot/CoinsSunburst") == null ||
+                    _victoryPanel.transform.Find("WinContent/ButtonsRow/Btn_Ads/ShineClip") == null)
                 {
-                    for (int i = 0; i < _victoryStars.Length; i++)
+                    RebuildVictoryPanel();
+                }
+                if (_victoryPanel == null) return;
+
+                _hasClaimedWinReward = false;
+                UpdateVictoryBannerContent();
+                _victoryPanel.transform.SetAsLastSibling();
+                _victoryPanel.SetActive(true);
+                if (_victoryCanvasGroup != null) _victoryCanvasGroup.alpha = 1f;
+                ResetWinAnimatedTransforms();
+            }
+            else if (_victoryPanel != null)
+            {
+                CleanupWinEffects();
+                _victoryPanel.SetActive(false);
+            }
+        }
+
+        private void ResetWinAnimatedTransforms()
+        {
+            if (_winWellDoneRoot != null) _winWellDoneRoot.localScale = Vector3.one;
+            if (_winWellDoneGlowRect != null) _winWellDoneGlowRect.localScale = Vector3.one;
+            if (_winLetterTiles != null)
+            {
+                for (int i = 0; i < _winLetterTiles.Length; i++)
+                {
+                    if (_winLetterTiles[i] == null) continue;
+                    _winLetterTiles[i].localScale = Vector3.one;
+                    _winLetterTiles[i].localRotation = Quaternion.identity;
+                    if (_winTileRestPositions != null && i < _winTileRestPositions.Length)
                     {
-                        if (_victoryStars[i] != null) _victoryStars[i].localScale = Vector3.one;
+                        _winLetterTiles[i].anchoredPosition = _winTileRestPositions[i];
                     }
                 }
+            }
+            if (_winSparklesRoot != null)
+            {
+                for (int i = 0; i < _winSparklesRoot.childCount; i++)
+                {
+                    Transform ch = _winSparklesRoot.GetChild(i);
+                    if (ch != null) ch.localScale = Vector3.one;
+                }
+            }
+            if (_winCoinsRoot != null) _winCoinsRoot.localScale = Vector3.one;
+            if (_winCoinsAuraOuter != null) _winCoinsAuraOuter.localScale = Vector3.one;
+            if (_winCoinsSunburstRect != null) _winCoinsSunburstRect.localScale = Vector3.one;
+            if (_winCoinsImageRect != null) _winCoinsImageRect.anchoredPosition = new Vector2(0f, 22f);
+            if (_winRewardAmountText != null)
+            {
+                _winRewardAmountText.rectTransform.localScale = Vector3.one;
+                _winRewardAmountText.text = "+" + BaseWinRewardCoins;
+            }
+            if (_winProgressRoot != null)
+            {
+                _winProgressRoot.localScale = Vector3.one;
+                _winProgressRoot.anchoredPosition = Vector2.zero;
+            }
+            if (_winProgressCanvasGroup != null) _winProgressCanvasGroup.alpha = 1f;
+            if (_winProgressNodes != null)
+            {
+                for (int i = 0; i < _winProgressNodes.Length; i++)
+                {
+                    if (_winProgressNodes[i] != null) _winProgressNodes[i].rectTransform.localScale = Vector3.one;
+                }
+            }
+            if (_winMilestoneBubbleRect != null)
+            {
+                _winMilestoneBubbleRect.localScale = Vector3.one;
+                _winMilestoneBubbleRect.localRotation = Quaternion.identity;
+                Vector2 bp = _winMilestoneBubbleRect.anchoredPosition;
+                _winMilestoneBubbleRect.anchoredPosition = new Vector2(bp.x, 76f);
+            }
+            if (_winTopBarRect != null)
+            {
+                _winTopBarRect.anchoredPosition = new Vector2(0f, -130f);
+                _winTopBarRect.localScale = Vector3.one;
+            }
+            if (_winTopCoinsPillRect != null) _winTopCoinsPillRect.localScale = Vector3.one;
+            if (_winButtonsRoot != null) _winButtonsRoot.localScale = Vector3.one;
+            if (_winButtonsCanvasGroup != null)
+            {
+                _winButtonsCanvasGroup.alpha = 1f;
+                _winButtonsCanvasGroup.interactable = true;
+                _winButtonsCanvasGroup.blocksRaycasts = true;
+            }
+            if (_winGetBtn != null) _winGetBtn.interactable = true;
+            if (_winAdsBtn != null) _winAdsBtn.interactable = true;
+            if (_winGetBtnRect != null)
+            {
+                _winGetBtnRect.localScale = Vector3.one;
+                _winGetBtnRect.anchoredPosition = _winGetBtnRestPos;
+            }
+            if (_winAdsBtnRect != null)
+            {
+                _winAdsBtnRect.localScale = Vector3.one;
+                _winAdsBtnRect.anchoredPosition = _winAdsBtnRestPos;
+            }
+            if (_winAdsShineRect != null)
+            {
+                _winAdsShineRect.anchoredPosition = new Vector2(-280f, 0f);
             }
         }
 
         private void UpdateVictoryBannerContent()
         {
             int currentLevel = GetCurrentLevelNumber();
-            bool hasNext = currentLevel < MaxLevelNumber;
-            int nextLevel = hasNext ? (currentLevel + 1) : 1;
+            int startLvl = ((Mathf.Max(1, currentLevel) - 1) / 5) * 5 + 1;
+            int activeIdx = Mathf.Clamp(currentLevel - startLvl, 0, 4);
 
-            if (_victoryRibbonText != null)
+            Color completedPurple = new Color(0.62f, 0.28f, 0.96f, 1f);
+            Color activeMagenta = new Color(0.94f, 0.24f, 0.84f, 1f);
+            Color upcomingCyan = new Color(0.14f, 0.84f, 0.94f, 1f);
+
+            for (int i = 0; i < 5; i++)
             {
-                _victoryRibbonText.text = hasNext ? ("LEVEL " + currentLevel + " CLEAR!") : "ALL LEVELS CLEAR!";
+                if (_winProgressLabels != null && i < _winProgressLabels.Length && _winProgressLabels[i] != null)
+                {
+                    _winProgressLabels[i].text = "Lv" + (startLvl + i);
+                }
+
+                bool isActive = (i == activeIdx);
+                bool isCompleted = (i < activeIdx);
+
+                if (_winProgressNodes != null && i < _winProgressNodes.Length && _winProgressNodes[i] != null)
+                {
+                    _winProgressNodes[i].color = isActive ? activeMagenta : (isCompleted ? completedPurple : upcomingCyan);
+                    RectTransform nodeRect = _winProgressNodes[i].rectTransform;
+                    nodeRect.sizeDelta = isActive ? new Vector2(62f, 62f) : new Vector2(50f, 50f);
+                }
+
+                if (_winProgressNodeGlows != null && i < _winProgressNodeGlows.Length && _winProgressNodeGlows[i] != null)
+                {
+                    _winProgressNodeGlows[i].SetActive(isActive);
+                }
+
+                if (_winProgressNodeIcons != null && i < _winProgressNodeIcons.Length && _winProgressNodeIcons[i] != null)
+                {
+                    _winProgressNodeIcons[i].SetActive(isActive);
+                }
             }
-            if (_victoryTitleText != null)
+
+            if (_winProgressFillRect != null)
             {
-                _victoryTitleText.text = "CHIẾN THẮNG!";
+                _winProgressFillRect.sizeDelta = new Vector2(110f + activeIdx * 150f, 28f);
             }
-            if (_victorySubtitleText != null)
+
+            if (_winMilestoneBubbleRect != null)
             {
-                _victorySubtitleText.text = hasNext
-                    ? ("Hoàn thành Level " + currentLevel + "! Sẵn sàng sang Level " + nextLevel + "?")
-                    : ("Chúc mừng! Bạn đã chinh phục tất cả " + MaxLevelNumber + " màn chơi!");
+                _winMilestoneBubbleRect.anchoredPosition = new Vector2(-300f + activeIdx * 150f, 76f);
             }
-            if (_victoryTimeInfoText != null)
-            {
-                _victoryTimeInfoText.text = "Thời gian còn lại: " + FormatTimeMMSS(_timeRemaining);
-            }
-            if (_victoryNextBtnText != null)
-            {
-                _victoryNextBtnText.text = hasNext ? ("NEXT LEVEL " + nextLevel + "  >") : "CHƠI TỪ LEVEL 1";
-            }
+
+            int lives = PlayerPrefs.HasKey(PrefLivesKey) ? PlayerPrefs.GetInt(PrefLivesKey, DefaultLives) : MaxLives;
+            if (_winTopLivesCountText != null) _winTopLivesCountText.text = Mathf.Clamp(lives, 0, MaxLives).ToString();
+            if (_winTopLivesStatusText != null) _winTopLivesStatusText.text = lives >= MaxLives ? "Full" : FormatTimeMMSS(_timeOutLifeRegenSeconds);
+            int coins = PlayerPrefs.GetInt(PrefCoinsKey, 0);
+            if (_winTopCoinsCountText != null) _winTopCoinsCountText.text = coins.ToString();
+
+            if (_winRewardAmountText != null) _winRewardAmountText.text = "+" + BaseWinRewardCoins;
+            if (_winGetAmountText != null) _winGetAmountText.text = BaseWinRewardCoins.ToString();
+            if (_winAdsAmountText != null) _winAdsAmountText.text = AdsWinRewardCoins.ToString();
         }
 
         private IEnumerator CoAnimateVictoryBanner()
         {
+            Transform winContent = _victoryPanel.transform.Find("WinContent") ?? _victoryPanel.transform;
+            GameObject fxObj = CreateUIContainer("WinEffectsLayer", winContent, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            _winEffectsLayer = fxObj.GetComponent<RectTransform>();
+            _winEffectsLayer.SetAsLastSibling();
+
+            RectTransform cometAnchor = CreateUIContainer("CometAnchor", _winEffectsLayer, new Vector2(0.5f, 0.525f), new Vector2(0.5f, 0.525f), Vector2.zero, new Vector2(800f, 800f)).GetComponent<RectTransform>();
+            RectTransform confettiAnchor = CreateUIContainer("ConfettiAnchor", _winEffectsLayer, new Vector2(0.5f, 0.785f), new Vector2(0.5f, 0.785f), Vector2.zero, new Vector2(900f, 900f)).GetComponent<RectTransform>();
+            RectTransform nodeAnchor = CreateUIContainer("NodeAnchor", _winEffectsLayer, new Vector2(0.5f, 0.345f), new Vector2(0.5f, 0.345f), Vector2.zero, new Vector2(860f, 200f)).GetComponent<RectTransform>();
+
+            // Initial states at t=0
             if (_victoryCanvasGroup != null) _victoryCanvasGroup.alpha = 0f;
-            if (_victoryDialogRect != null) _victoryDialogRect.localScale = Vector3.one * 0.65f;
-            if (_victoryStars != null)
+            if (_winTopBarRect != null) _winTopBarRect.anchoredPosition = new Vector2(0f, 80f);
+            if (_winTopCoinsPillRect != null) _winTopCoinsPillRect.localScale = Vector3.one;
+            if (_winButtonsCanvasGroup != null)
             {
-                for (int i = 0; i < _victoryStars.Length; i++)
+                _winButtonsCanvasGroup.alpha = 1f;
+                _winButtonsCanvasGroup.interactable = true;
+                _winButtonsCanvasGroup.blocksRaycasts = true;
+            }
+            if (_winGetBtn != null) _winGetBtn.interactable = true;
+            if (_winAdsBtn != null) _winAdsBtn.interactable = true;
+            if (_winWellDoneGlowRect != null) _winWellDoneGlowRect.localScale = Vector3.zero;
+            if (_winLetterTiles != null)
+            {
+                for (int i = 0; i < _winLetterTiles.Length; i++)
                 {
-                    if (_victoryStars[i] != null) _victoryStars[i].localScale = Vector3.zero;
+                    if (_winLetterTiles[i] != null) _winLetterTiles[i].localScale = Vector3.zero;
                 }
             }
+            if (_winSparklesRoot != null)
+            {
+                for (int i = 0; i < _winSparklesRoot.childCount; i++)
+                {
+                    Transform ch = _winSparklesRoot.GetChild(i);
+                    if (ch != null) ch.localScale = Vector3.zero;
+                }
+            }
+            if (_winCoinsRoot != null) _winCoinsRoot.localScale = Vector3.zero;
+            if (_winCoinsSunburstRect != null) _winCoinsSunburstRect.localScale = Vector3.zero;
+            if (_winRewardAmountText != null)
+            {
+                _winRewardAmountText.text = "+0";
+                _winRewardAmountText.rectTransform.localScale = Vector3.zero;
+            }
+            if (_winProgressCanvasGroup != null) _winProgressCanvasGroup.alpha = 0f;
+            if (_winProgressRoot != null) _winProgressRoot.anchoredPosition = new Vector2(0f, -32f);
 
-            float fadeDur = 0.20f;
-            float popDur = 0.34f;
+            int currentLevel = GetCurrentLevelNumber();
+            int startLvl = ((Mathf.Max(1, currentLevel) - 1) / 5) * 5 + 1;
+            int activeIdx = Mathf.Clamp(currentLevel - startLvl, 0, 4);
+            float prevFillW = activeIdx > 0 ? (110f + (activeIdx - 1) * 150f) : 14f;
+            float targetFillW = 110f + activeIdx * 150f;
+
+            if (_winProgressFillRect != null) _winProgressFillRect.sizeDelta = new Vector2(prevFillW, 28f);
+            if (_winProgressNodes != null && activeIdx < _winProgressNodes.Length && _winProgressNodes[activeIdx] != null)
+            {
+                _winProgressNodes[activeIdx].color = new Color(0.14f, 0.84f, 0.94f, 1f);
+                _winProgressNodes[activeIdx].rectTransform.sizeDelta = new Vector2(50f, 50f);
+            }
+            if (_winProgressNodeGlows != null && activeIdx < _winProgressNodeGlows.Length && _winProgressNodeGlows[activeIdx] != null)
+            {
+                _winProgressNodeGlows[activeIdx].SetActive(false);
+            }
+            if (_winProgressNodeIcons != null && activeIdx < _winProgressNodeIcons.Length && _winProgressNodeIcons[activeIdx] != null)
+            {
+                _winProgressNodeIcons[activeIdx].SetActive(false);
+            }
+            if (_winMilestoneBubbleRect != null)
+            {
+                _winMilestoneBubbleRect.anchoredPosition = new Vector2(-300f + activeIdx * 150f, 34f);
+                _winMilestoneBubbleRect.localScale = Vector3.zero;
+            }
+
+            if (_winGetBtnRect != null)
+            {
+                _winGetBtnRect.localScale = Vector3.zero;
+                _winGetBtnRect.anchoredPosition = _winGetBtnRestPos + new Vector2(0f, -48f);
+            }
+            if (_winAdsBtnRect != null)
+            {
+                _winAdsBtnRect.localScale = Vector3.zero;
+                _winAdsBtnRect.anchoredPosition = _winAdsBtnRestPos + new Vector2(0f, -48f);
+            }
+
+            // Phase 1: Launch golden coin comet arc
+            const float cometDur = 0.42f;
+            StartCoroutine(CoSpawnCoinCometAndTrail(cometAnchor, cometDur));
+
+            Sprite glowSp = GemSpriteManager.GetWinHelperSprite("win_radial_glow") ?? SpriteGenerator.GetRadialGlowSprite();
+            Sprite flareSp = GemSpriteManager.GetWinHelperSprite("win_star_flare") ?? SpriteGenerator.GetStarFlareSprite();
+            RectTransform fillSpark = null;
+
+            bool impactFired = false;
+            bool fillStarted = false;
+            bool nodeBurstFired = false;
+
+            const float totalDur = 1.72f;
             float elapsed = 0f;
 
-            while (elapsed < popDur)
+            while (elapsed < totalDur)
             {
-                elapsed += Time.unscaledDeltaTime;
+                float dt = Time.unscaledDeltaTime;
+                elapsed += dt;
+
+                // Backdrop fade in & top resource bar slide down
                 if (_victoryCanvasGroup != null)
                 {
-                    _victoryCanvasGroup.alpha = Mathf.Clamp01(elapsed / fadeDur);
+                    _victoryCanvasGroup.alpha = Mathf.Clamp01(elapsed / 0.20f);
                 }
-                if (_victoryDialogRect != null)
+                if (_winTopBarRect != null)
                 {
-                    float t = Mathf.Clamp01(elapsed / popDur);
-                    float scale = EvaluateOvershootScale(t, 0.65f, 1.06f, 1.0f, 0.68f);
-                    _victoryDialogRect.localScale = Vector3.one * scale;
+                    float tbT = Mathf.Clamp01(elapsed / 0.28f);
+                    float easeOut = 1f - (1f - tbT) * (1f - tbT);
+                    _winTopBarRect.anchoredPosition = new Vector2(0f, Mathf.Lerp(80f, -130f, easeOut));
+                }
+
+                // Phase 2 trigger at t = 0.42s
+                if (!impactFired && elapsed >= cometDur)
+                {
+                    impactFired = true;
+                    StartCoroutine(CoSpawnFlashBurst(cometAnchor, new Vector2(0f, 22f), glowSp, new Color(1.0f, 0.91f, 0.44f, 0.95f), 0.30f, 2.2f, 0.28f));
+                    StartCoroutine(CoRunConfettiBurst(confettiAnchor, 42));
+                    SoundManager.Instance?.PlayPickup();
+                }
+
+                // Coins pop + Sunburst + Rolling "+40" (0.42s -> 0.76s)
+                if (elapsed >= cometDur)
+                {
+                    float ct = Mathf.Clamp01((elapsed - cometDur) / 0.34f);
+                    if (_winCoinsRoot != null)
+                    {
+                        _winCoinsRoot.localScale = Vector3.one * EvaluateOvershootScale(ct, 0.25f, 1.18f, 1f, 0.62f);
+                    }
+                    if (_winCoinsSunburstRect != null)
+                    {
+                        _winCoinsSunburstRect.localScale = Vector3.one * Mathf.SmoothStep(0f, 1f, ct);
+                        _winCoinsSunburstRect.Rotate(0f, 0f, -24f * dt);
+                    }
+                    if (_winRewardAmountText != null)
+                    {
+                        float rt = Mathf.Clamp01((elapsed - 0.45f) / 0.31f);
+                        float easeR = 1f - (1f - rt) * (1f - rt);
+                        _winRewardAmountText.text = "+" + Mathf.RoundToInt(Mathf.Lerp(0f, BaseWinRewardCoins, easeR));
+                        _winRewardAmountText.rectTransform.localScale = Vector3.one * EvaluateOvershootScale(rt, 0f, 1.20f, 1f, 0.65f);
+                    }
+                }
+
+                // WELL DONE spread/tilted drop -> magnetic Lego snap (0.42s -> 1.02s)
+                if (elapsed >= cometDur && _winLetterTiles != null && _winTileRestPositions != null)
+                {
+                    for (int i = 0; i < _winLetterTiles.Length && i < _winTileRestPositions.Length; i++)
+                    {
+                        RectTransform tile = _winLetterTiles[i];
+                        if (tile == null) continue;
+
+                        int col = i % 4;
+                        bool isTop = i < 4;
+                        Vector2 restPos = _winTileRestPositions[i];
+                        Vector2 spreadOff = new Vector2((col - 1.5f) * 24f, isTop ? 34f : -30f);
+                        float spreadTilt = ((i % 2 == 0) ? 1f : -1f) * (isTop ? 9.5f : -8.5f);
+                        float tileAppearStart = cometDur + i * 0.024f;
+
+                        if (elapsed < tileAppearStart)
+                        {
+                            tile.localScale = Vector3.zero;
+                        }
+                        else if (elapsed < 0.78f)
+                        {
+                            float popT = Mathf.Clamp01((elapsed - tileAppearStart) / 0.20f);
+                            float popScale = EvaluateOvershootScale(popT, 0f, 1.16f, 1.02f, 0.65f);
+                            float easeOut = 1f - (1f - popT) * (1f - popT);
+                            tile.localScale = Vector3.one * popScale;
+                            tile.anchoredPosition = Vector2.Lerp(restPos + spreadOff * 1.8f, restPos + spreadOff, easeOut);
+                            tile.localRotation = Quaternion.Euler(0f, 0f, Mathf.Lerp(spreadTilt * 1.4f, spreadTilt, easeOut));
+                        }
+                        else if (elapsed < 1.02f)
+                        {
+                            float snapT = Mathf.Clamp01((elapsed - 0.78f) / 0.24f);
+                            float smoothSnap = snapT < 0.5f ? 4f * snapT * snapT * snapT : 1f - Mathf.Pow(-2f * snapT + 2f, 3f) / 2f;
+                            tile.anchoredPosition = Vector2.Lerp(restPos + spreadOff, restPos, smoothSnap);
+                            tile.localRotation = Quaternion.Euler(0f, 0f, Mathf.Lerp(spreadTilt, 0f, smoothSnap));
+                            tile.localScale = Vector3.one * Mathf.Lerp(1.02f, 1f, smoothSnap);
+                        }
+                        else
+                        {
+                            tile.anchoredPosition = restPos;
+                            tile.localRotation = Quaternion.identity;
+                            tile.localScale = Vector3.one;
+                        }
+                    }
+                }
+
+                // WELL DONE squash & stretch + perimeter glow/sparkles flare (0.94s -> 1.18s)
+                if (elapsed >= 0.94f)
+                {
+                    if (_winWellDoneRoot != null)
+                    {
+                        float sqT = Mathf.Clamp01((elapsed - 0.96f) / 0.18f);
+                        if (sqT > 0f && sqT < 1f)
+                        {
+                            float wave = Mathf.Sin(sqT * Mathf.PI * 2f) * (1f - sqT);
+                            _winWellDoneRoot.localScale = new Vector3(1f + 0.08f * wave, 1f - 0.09f * wave, 1f);
+                        }
+                        else if (sqT >= 1f)
+                        {
+                            _winWellDoneRoot.localScale = Vector3.one;
+                        }
+                    }
+                    if (_winWellDoneGlowRect != null)
+                    {
+                        float gt = Mathf.Clamp01((elapsed - 0.94f) / 0.24f);
+                        _winWellDoneGlowRect.localScale = Vector3.one * EvaluateOvershootScale(gt, 0f, 1.25f, 1f, 0.6f);
+                    }
+                    if (_winSparklesRoot != null)
+                    {
+                        for (int i = 0; i < _winSparklesRoot.childCount; i++)
+                        {
+                            Transform ch = _winSparklesRoot.GetChild(i);
+                            if (ch == null) continue;
+                            float st = Mathf.Clamp01((elapsed - (0.94f + i * 0.01f)) / 0.20f);
+                            ch.localScale = Vector3.one * EvaluateOvershootScale(st, 0f, 1.25f, 1f, 0.6f);
+                        }
+                    }
+                }
+
+                // Buttons staggered elastic entrance (0.62s -> 1.04s)
+                if (elapsed >= 0.62f && _winGetBtnRect != null)
+                {
+                    float gt = Mathf.Clamp01((elapsed - 0.62f) / 0.30f);
+                    float ease = 1f - (1f - gt) * (1f - gt);
+                    _winGetBtnRect.localScale = Vector3.one * EvaluateOvershootScale(gt, 0f, 1.10f, 1f, 0.65f);
+                    _winGetBtnRect.anchoredPosition = _winGetBtnRestPos + new Vector2(0f, Mathf.Lerp(-48f, 0f, ease));
+                }
+                if (elapsed >= 0.72f && _winAdsBtnRect != null)
+                {
+                    float at = Mathf.Clamp01((elapsed - 0.72f) / 0.32f);
+                    float ease = 1f - (1f - at) * (1f - at);
+                    _winAdsBtnRect.localScale = Vector3.one * EvaluateOvershootScale(at, 0f, 1.14f, 1f, 0.65f);
+                    _winAdsBtnRect.anchoredPosition = _winAdsBtnRestPos + new Vector2(0f, Mathf.Lerp(-48f, 0f, ease));
+                }
+
+                // Phase 3: Progress bar slide-in (0.80s -> 1.04s)
+                if (elapsed >= 0.80f)
+                {
+                    float pt = Mathf.Clamp01((elapsed - 0.80f) / 0.24f);
+                    float easeP = 1f - (1f - pt) * (1f - pt);
+                    if (_winProgressCanvasGroup != null) _winProgressCanvasGroup.alpha = pt;
+                    if (_winProgressRoot != null) _winProgressRoot.anchoredPosition = new Vector2(0f, Mathf.Lerp(-32f, 0f, easeP));
+                }
+
+                // Smooth neon fill sweep (1.04s -> 1.40s)
+                if (elapsed >= 1.04f && elapsed < 1.40f && _winProgressFillRect != null)
+                {
+                    if (!fillStarted)
+                    {
+                        fillStarted = true;
+                        fillSpark = SpawnFloatingEffectImage("FillSpark", _winProgressFillRect, flareSp, Vector2.zero, new Vector2(46f, 46f), Color.white, true);
+                        fillSpark.anchorMin = new Vector2(1f, 0.5f);
+                        fillSpark.anchorMax = new Vector2(1f, 0.5f);
+                    }
+                    float ft = Mathf.Clamp01((elapsed - 1.04f) / 0.36f);
+                    float easeOutCubic = 1f - Mathf.Pow(1f - ft, 3f);
+                    _winProgressFillRect.sizeDelta = new Vector2(Mathf.Lerp(prevFillW, targetFillW, easeOutCubic), 28f);
+                    if (fillSpark != null) fillSpark.Rotate(0f, 0f, 180f * dt);
+                }
+
+                // Active node burst & floating milestone bubble spring (1.40s -> 1.72s)
+                if (elapsed >= 1.40f)
+                {
+                    if (!nodeBurstFired)
+                    {
+                        nodeBurstFired = true;
+                        if (fillSpark != null)
+                        {
+                            Destroy(fillSpark.gameObject);
+                            fillSpark = null;
+                        }
+                        if (_winProgressFillRect != null) _winProgressFillRect.sizeDelta = new Vector2(targetFillW, 28f);
+
+                        if (_winProgressNodes != null && activeIdx < _winProgressNodes.Length && _winProgressNodes[activeIdx] != null)
+                        {
+                            _winProgressNodes[activeIdx].color = new Color(0.94f, 0.24f, 0.84f, 1f);
+                            _winProgressNodes[activeIdx].rectTransform.sizeDelta = new Vector2(62f, 62f);
+                        }
+                        if (_winProgressNodeGlows != null && activeIdx < _winProgressNodeGlows.Length && _winProgressNodeGlows[activeIdx] != null)
+                        {
+                            _winProgressNodeGlows[activeIdx].SetActive(true);
+                        }
+                        if (_winProgressNodeIcons != null && activeIdx < _winProgressNodeIcons.Length && _winProgressNodeIcons[activeIdx] != null)
+                        {
+                            _winProgressNodeIcons[activeIdx].SetActive(true);
+                        }
+
+                        StartCoroutine(CoSpawnFlashBurst(nodeAnchor, new Vector2(-300f + activeIdx * 150f, 0f), glowSp, new Color(1.0f, 0.45f, 0.96f, 0.95f), 0.35f, 2.0f, 0.28f));
+                        SoundManager.Instance?.PlayPickup();
+                    }
+
+                    float nt = Mathf.Clamp01((elapsed - 1.40f) / 0.28f);
+                    if (_winProgressNodes != null && activeIdx < _winProgressNodes.Length && _winProgressNodes[activeIdx] != null)
+                    {
+                        _winProgressNodes[activeIdx].rectTransform.localScale = Vector3.one * EvaluateOvershootScale(nt, 0.70f, 1.40f, 1f, 0.55f);
+                    }
+
+                    if (_winMilestoneBubbleRect != null)
+                    {
+                        float bt = Mathf.Clamp01((elapsed - 1.42f) / 0.30f);
+                        float bScale = EvaluateOvershootScale(bt, 0f, 1.24f, 1f, 0.58f);
+                        float bY = EvaluateOvershootScale(bt, 34f, 88f, 76f, 0.60f);
+                        float rotZ = Mathf.Sin(bt * Mathf.PI * 2f) * (1f - bt) * -12f;
+                        _winMilestoneBubbleRect.localScale = Vector3.one * bScale;
+                        _winMilestoneBubbleRect.anchoredPosition = new Vector2(-300f + activeIdx * 150f, bY);
+                        _winMilestoneBubbleRect.localRotation = Quaternion.Euler(0f, 0f, rotZ);
+                    }
+                }
+
+                yield return null;
+            }
+
+            if (fillSpark != null) Destroy(fillSpark.gameObject);
+            if (_victoryCanvasGroup != null) _victoryCanvasGroup.alpha = 1f;
+            UpdateVictoryBannerContent();
+            ResetWinAnimatedTransforms();
+
+            _winIntroComplete = true;
+            _winIdleTime = 0f;
+            _victoryAnimCoroutine = null;
+            _winAmbientConfettiCoroutine = StartCoroutine(CoRunAmbientConfetti(confettiAnchor));
+        }
+
+        private IEnumerator CoSpawnCoinCometAndTrail(RectTransform anchor, float duration)
+        {
+            if (anchor == null) yield break;
+
+            Sprite coinSp = GemSpriteManager.GetWinSceneSprite("Coin");
+            Sprite glowSp = GemSpriteManager.GetWinHelperSprite("win_radial_glow") ?? SpriteGenerator.GetRadialGlowSprite();
+            Sprite flareSp = GemSpriteManager.GetWinHelperSprite("win_star_flare") ?? SpriteGenerator.GetStarFlareSprite();
+
+            Vector2 p0 = new Vector2(-390f, -60f);
+            Vector2 p1 = new Vector2(-200f, -320f);
+            Vector2 p2 = new Vector2(0f, 22f);
+
+            RectTransform cometGlow = SpawnFloatingEffectImage("CometGlow", anchor, glowSp, p0, new Vector2(180f, 180f), new Color(1.0f, 0.86f, 0.25f, 0.85f), false);
+            RectTransform cometCoin = SpawnFloatingEffectImage("CometCoin", anchor, coinSp, p0, new Vector2(128f, 128f), Color.white, true);
+
+            float elapsed = 0f;
+            float trailAccum = 0f;
+
+            while (elapsed < duration && anchor != null && _winEffectsLayer != null && IsVictoryShowing)
+            {
+                float dt = Time.unscaledDeltaTime;
+                elapsed += dt;
+                trailAccum += dt;
+
+                float t = Mathf.Clamp01(elapsed / duration);
+                float ease = t < 0.5f ? 2f * t * t : 1f - Mathf.Pow(-2f * t + 2f, 2f) * 0.5f;
+                float u = 1f - ease;
+                Vector2 pos = (u * u) * p0 + (2f * u * ease) * p1 + (ease * ease) * p2;
+
+                cometCoin.anchoredPosition = pos;
+                cometGlow.anchoredPosition = pos;
+                cometCoin.localScale = Vector3.one * Mathf.Lerp(1.15f, 1.45f, Mathf.Sin(t * Mathf.PI));
+                cometCoin.Rotate(0f, 0f, -540f * dt);
+
+                if (trailAccum >= 0.022f)
+                {
+                    trailAccum = 0f;
+                    StartCoroutine(CoAnimateTrailDot(anchor, pos, glowSp, flareSp));
+                }
+
+                yield return null;
+            }
+
+            if (cometCoin != null) Destroy(cometCoin.gameObject);
+            if (cometGlow != null) Destroy(cometGlow.gameObject);
+        }
+
+        private IEnumerator CoAnimateTrailDot(RectTransform anchor, Vector2 pos, Sprite glowSp, Sprite flareSp)
+        {
+            if (anchor == null) yield break;
+
+            bool useFlare = UnityEngine.Random.value > 0.55f;
+            float baseSize = useFlare ? UnityEngine.Random.Range(24f, 38f) : UnityEngine.Random.Range(28f, 44f);
+            Vector2 jitter = new Vector2(UnityEngine.Random.Range(-14f, 14f), UnityEngine.Random.Range(-14f, 14f));
+            RectTransform rt = SpawnFloatingEffectImage("CometTrail", anchor, useFlare ? flareSp : glowSp, pos + jitter, new Vector2(baseSize, baseSize), new Color(1.0f, 0.90f, 0.36f, 0.95f), true);
+            Image img = rt.GetComponent<Image>();
+
+            float life = useFlare ? 0.42f : 0.32f;
+            float age = 0f;
+            Vector2 drift = new Vector2(UnityEngine.Random.Range(-22f, 22f), UnityEngine.Random.Range(15f, 48f));
+
+            while (age < life && rt != null && _winEffectsLayer != null && IsVictoryShowing)
+            {
+                float dt = Time.unscaledDeltaTime;
+                age += dt;
+                float t = Mathf.Clamp01(age / life);
+                rt.anchoredPosition += drift * dt;
+                rt.localScale = Vector3.one * (1f - t * 0.85f);
+                if (img != null) img.color = new Color(1.0f, 0.90f, 0.36f, (1f - t) * 0.92f);
+                yield return null;
+            }
+
+            if (rt != null) Destroy(rt.gameObject);
+        }
+
+        private IEnumerator CoSpawnFlashBurst(RectTransform parent, Vector2 pos, Sprite sprite, Color color, float startScale, float endScale, float duration)
+        {
+            if (parent == null || sprite == null) yield break;
+            RectTransform rt = SpawnFloatingEffectImage("FlashBurst", parent, sprite, pos, new Vector2(220f, 220f), color, false);
+            Image img = rt.GetComponent<Image>();
+
+            float elapsed = 0f;
+            while (elapsed < duration && rt != null && _winEffectsLayer != null && IsVictoryShowing)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                float t = Mathf.Clamp01(elapsed / duration);
+                float ease = 1f - (1f - t) * (1f - t);
+                rt.localScale = Vector3.one * Mathf.Lerp(startScale, endScale, ease);
+                if (img != null)
+                {
+                    Color c = color;
+                    c.a = color.a * (1f - t * t);
+                    img.color = c;
                 }
                 yield return null;
             }
 
-            if (_victoryCanvasGroup != null) _victoryCanvasGroup.alpha = 1f;
-            if (_victoryDialogRect != null) _victoryDialogRect.localScale = Vector3.one;
+            if (rt != null) Destroy(rt.gameObject);
+        }
 
-            if (_victoryStars != null)
+        private struct ConfettiParticle
+        {
+            public RectTransform Rect;
+            public Image Img;
+            public Vector2 Vel;
+            public float Spin;
+            public float FlutterFreq;
+            public float FlutterPhase;
+            public float Lifetime;
+            public float Age;
+            public Color BaseColor;
+        }
+
+        private static readonly Color[] WinConfettiPalette = new Color[]
+        {
+            new Color(1.00f, 0.25f, 0.38f, 1f),
+            new Color(1.00f, 0.86f, 0.18f, 1f),
+            new Color(0.22f, 0.92f, 1.00f, 1f),
+            new Color(0.32f, 0.96f, 0.42f, 1f),
+            new Color(1.00f, 0.36f, 0.86f, 1f),
+            new Color(1.00f, 0.56f, 0.16f, 1f),
+            new Color(0.35f, 0.56f, 1.00f, 1f)
+        };
+
+        private IEnumerator CoRunConfettiBurst(RectTransform anchor, int count)
+        {
+            if (anchor == null) yield break;
+            Sprite shardSp = GemSpriteManager.GetWinHelperSprite("win_shard") ?? SpriteGenerator.GetShardSprite();
+            List<ConfettiParticle> particles = new List<ConfettiParticle>(count);
+
+            for (int i = 0; i < count; i++)
             {
-                for (int i = 0; i < _victoryStars.Length; i++)
-                {
-                    RectTransform starRect = _victoryStars[i];
-                    if (starRect == null) continue;
+                float ang = UnityEngine.Random.Range(0f, Mathf.PI * 2f);
+                float spd = UnityEngine.Random.Range(260f, 760f);
+                Vector2 vel = new Vector2(Mathf.Cos(ang) * spd, Mathf.Sin(ang) * spd + UnityEngine.Random.Range(160f, 420f));
+                Vector2 spawnPos = new Vector2(UnityEngine.Random.Range(-90f, 90f), UnityEngine.Random.Range(-50f, 50f));
+                float w = UnityEngine.Random.Range(16f, 28f);
+                float h = UnityEngine.Random.Range(8f, 14f);
+                Color col = WinConfettiPalette[i % WinConfettiPalette.Length];
 
-                    float starDur = 0.22f;
-                    float starElapsed = 0f;
-                    while (starElapsed < starDur)
-                    {
-                        starElapsed += Time.unscaledDeltaTime;
-                        float st = Mathf.Clamp01(starElapsed / starDur);
-                        float s = EvaluateOvershootScale(st, 0f, 1.18f, 1.0f, 0.65f);
-                        starRect.localScale = Vector3.one * s;
-                        yield return null;
-                    }
-                    starRect.localScale = Vector3.one;
-                }
+                RectTransform rt = SpawnFloatingEffectImage("ConfettiBurst_" + i, anchor, shardSp, spawnPos, new Vector2(w, h), col, false);
+                rt.localRotation = Quaternion.Euler(0f, 0f, UnityEngine.Random.Range(0f, 360f));
+
+                particles.Add(new ConfettiParticle
+                {
+                    Rect = rt,
+                    Img = rt.GetComponent<Image>(),
+                    Vel = vel,
+                    Spin = UnityEngine.Random.Range(-420f, 420f),
+                    FlutterFreq = UnityEngine.Random.Range(8f, 16f),
+                    FlutterPhase = UnityEngine.Random.Range(0f, Mathf.PI * 2f),
+                    Lifetime = UnityEngine.Random.Range(1.8f, 2.8f),
+                    Age = 0f,
+                    BaseColor = col
+                });
             }
 
-            _victoryAnimCoroutine = null;
+            while (particles.Count > 0 && anchor != null && _winEffectsLayer != null && IsVictoryShowing)
+            {
+                float dt = Time.unscaledDeltaTime;
+                for (int i = particles.Count - 1; i >= 0; i--)
+                {
+                    ConfettiParticle p = particles[i];
+                    p.Age += dt;
+                    if (p.Age >= p.Lifetime || p.Rect == null)
+                    {
+                        if (p.Rect != null) Destroy(p.Rect.gameObject);
+                        particles.RemoveAt(i);
+                        continue;
+                    }
+
+                    p.Vel.x *= Mathf.Max(0f, 1f - 1.35f * dt);
+                    p.Vel.y -= 620f * dt;
+                    p.Rect.anchoredPosition += p.Vel * dt;
+                    p.Rect.Rotate(0f, 0f, p.Spin * dt);
+                    p.Rect.localScale = new Vector3(1f, Mathf.Cos(p.Age * p.FlutterFreq + p.FlutterPhase), 1f);
+
+                    if (p.Img != null)
+                    {
+                        float remain = p.Lifetime - p.Age;
+                        float alpha = remain < 0.5f ? Mathf.Clamp01(remain / 0.5f) : 1f;
+                        p.Img.color = new Color(p.BaseColor.r, p.BaseColor.g, p.BaseColor.b, alpha);
+                    }
+                    particles[i] = p;
+                }
+                yield return null;
+            }
+
+            for (int i = 0; i < particles.Count; i++)
+            {
+                if (particles[i].Rect != null) Destroy(particles[i].Rect.gameObject);
+            }
+        }
+
+        private IEnumerator CoRunAmbientConfetti(RectTransform anchor)
+        {
+            if (anchor == null) yield break;
+            Sprite shardSp = GemSpriteManager.GetWinHelperSprite("win_shard") ?? SpriteGenerator.GetShardSprite();
+            List<ConfettiParticle> active = new List<ConfettiParticle>(12);
+            float spawnTimer = 0.25f;
+
+            while (anchor != null && _winEffectsLayer != null && IsVictoryShowing)
+            {
+                float dt = Time.unscaledDeltaTime;
+                spawnTimer += dt;
+                if (spawnTimer >= 0.55f)
+                {
+                    spawnTimer = 0f;
+                    float w = UnityEngine.Random.Range(14f, 22f);
+                    float h = UnityEngine.Random.Range(7f, 12f);
+                    Color col = WinConfettiPalette[UnityEngine.Random.Range(0, WinConfettiPalette.Length)];
+                    Vector2 pos = new Vector2(UnityEngine.Random.Range(-420f, 420f), 420f);
+                    RectTransform rt = SpawnFloatingEffectImage("ConfettiAmbient", anchor, shardSp, pos, new Vector2(w, h), col, false);
+                    active.Add(new ConfettiParticle
+                    {
+                        Rect = rt,
+                        Img = rt.GetComponent<Image>(),
+                        Vel = new Vector2(UnityEngine.Random.Range(-45f, 45f), UnityEngine.Random.Range(-220f, -150f)),
+                        Spin = UnityEngine.Random.Range(-220f, 220f),
+                        FlutterFreq = UnityEngine.Random.Range(6f, 11f),
+                        FlutterPhase = UnityEngine.Random.Range(0f, Mathf.PI * 2f),
+                        Lifetime = 3.2f,
+                        Age = 0f,
+                        BaseColor = col
+                    });
+                }
+
+                for (int i = active.Count - 1; i >= 0; i--)
+                {
+                    ConfettiParticle p = active[i];
+                    p.Age += dt;
+                    if (p.Age >= p.Lifetime || p.Rect == null)
+                    {
+                        if (p.Rect != null) Destroy(p.Rect.gameObject);
+                        active.RemoveAt(i);
+                        continue;
+                    }
+
+                    p.Rect.anchoredPosition += p.Vel * dt;
+                    p.Rect.Rotate(0f, 0f, p.Spin * dt);
+                    p.Rect.localScale = new Vector3(1f, Mathf.Cos(p.Age * p.FlutterFreq + p.FlutterPhase), 1f);
+                    if (p.Img != null)
+                    {
+                        float alpha = p.Age < 0.35f ? (p.Age / 0.35f) : (p.Lifetime - p.Age < 0.6f ? Mathf.Clamp01((p.Lifetime - p.Age) / 0.6f) : 0.9f);
+                        p.Img.color = new Color(p.BaseColor.r, p.BaseColor.g, p.BaseColor.b, alpha);
+                    }
+                    active[i] = p;
+                }
+
+                yield return null;
+            }
+
+            for (int i = 0; i < active.Count; i++)
+            {
+                if (active[i].Rect != null) Destroy(active[i].Rect.gameObject);
+            }
+            _winAmbientConfettiCoroutine = null;
+        }
+
+        private struct FlyingClaimCoin
+        {
+            public RectTransform Rect;
+            public Image Img;
+            public Vector2 StartPos;
+            public Vector2 ScatterPos;
+            public Vector2 ControlPos;
+            public float LaunchDelay;
+            public float FlightDur;
+            public float Spin;
+            public bool Arrived;
+        }
+
+        private static Vector2 WorldToLocalInRect(RectTransform source, RectTransform targetParent)
+        {
+            if (source == null || targetParent == null) return Vector2.zero;
+            Vector3 worldCenter = source.TransformPoint(source.rect.center);
+            Vector3 localPos = targetParent.InverseTransformPoint(worldCenter);
+            return new Vector2(localPos.x, localPos.y);
+        }
+
+        private void ReturnToHomeAfterVictory()
+        {
+            if (_isLoadingNextLevel) return;
+
+            Time.timeScale = 1f;
+            _isPaused = false;
+            if (_pausePanel != null) _pausePanel.SetActive(false);
+
+            if (CustomLevelRepository.IsEditorPlayTestActive)
+            {
+                _isLoadingNextLevel = false;
+                RestartLevel();
+                return;
+            }
+
+            if (Application.CanStreamedLevelBeLoaded("HomeScene"))
+            {
+                _isLoadingNextLevel = true;
+                SceneManager.LoadScene("HomeScene");
+                return;
+            }
+
+            _isLoadingNextLevel = false;
+            NextLevel();
+        }
+
+        private IEnumerator CoClaimRewardAndAdvance(int startCoins, int coinAmount, RectTransform clickedBtnRect)
+        {
+            if (_victoryCanvasGroup != null) _victoryCanvasGroup.alpha = 1f;
+            if (clickedBtnRect != null) StartCoroutine(CoButtonPunch(clickedBtnRect));
+
+            Transform winContent = _victoryPanel != null ? (_victoryPanel.transform.Find("WinContent") ?? _victoryPanel.transform) : transform;
+            if (_winEffectsLayer == null)
+            {
+                _winEffectsLayer = CreateUIContainer("WinEffectsLayer", winContent, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero).GetComponent<RectTransform>();
+            }
+            _winEffectsLayer.SetAsLastSibling();
+            Canvas.ForceUpdateCanvases();
+
+            Sprite coinSp = GemSpriteManager.GetWinSceneSprite("Coin");
+            Sprite glowSp = GemSpriteManager.GetWinHelperSprite("win_radial_glow") ?? SpriteGenerator.GetRadialGlowSprite();
+            Sprite flareSp = GemSpriteManager.GetWinHelperSprite("win_star_flare") ?? SpriteGenerator.GetStarFlareSprite();
+
+            RectTransform originRect = clickedBtnRect != null
+                ? clickedBtnRect
+                : (_winCoinsImageRect != null ? _winCoinsImageRect : _winButtonsRoot);
+            Vector2 spawnOrigin = originRect != null ? WorldToLocalInRect(originRect, _winEffectsLayer) : new Vector2(0f, -320f);
+            Vector2 targetPos = _winTopCoinTargetRect != null
+                ? WorldToLocalInRect(_winTopCoinTargetRect, _winEffectsLayer)
+                : new Vector2(156f, 820f);
+
+            StartCoroutine(CoSpawnFlashBurst(_winEffectsLayer, spawnOrigin, glowSp, new Color(1.0f, 0.90f, 0.42f, 0.85f), 0.35f, 1.9f, 0.26f));
+
+            int count = coinAmount >= AdsWinRewardCoins ? 22 : 16;
+            List<FlyingClaimCoin> coins = new List<FlyingClaimCoin>(count);
+            for (int i = 0; i < count; i++)
+            {
+                float baseAngle = (i / (float)count) * Mathf.PI * 2f + UnityEngine.Random.Range(-0.22f, 0.22f);
+                float radius = UnityEngine.Random.Range(85f, 225f);
+                Vector2 scatterPos = spawnOrigin + new Vector2(
+                    Mathf.Cos(baseAngle) * radius * 1.15f,
+                    Mathf.Sin(baseAngle) * radius * 0.85f + 70f);
+                scatterPos.x = Mathf.Clamp(scatterPos.x, -380f, 380f);
+
+                float launchDelay = 0.24f + i * 0.026f;
+                float flightDur = UnityEngine.Random.Range(0.38f, 0.48f);
+                Vector2 mid = Vector2.Lerp(scatterPos, targetPos, 0.45f);
+                Vector2 controlPos = mid + new Vector2(
+                    UnityEngine.Random.Range(-220f, 220f),
+                    UnityEngine.Random.Range(-60f, 120f));
+
+                RectTransform rt = SpawnFloatingEffectImage("ClaimCoin_" + i, _winEffectsLayer, coinSp, spawnOrigin, new Vector2(68f, 68f), Color.white, true);
+                coins.Add(new FlyingClaimCoin
+                {
+                    Rect = rt,
+                    Img = rt.GetComponent<Image>(),
+                    StartPos = spawnOrigin,
+                    ScatterPos = scatterPos,
+                    ControlPos = controlPos,
+                    LaunchDelay = launchDelay,
+                    FlightDur = flightDur,
+                    Spin = UnityEngine.Random.Range(-360f, 360f),
+                    Arrived = false
+                });
+            }
+
+            float elapsed = 0f;
+            float pillPunchTimer = 0f;
+            int arrivedCount = 0;
+            const float btnFadeDur = 0.18f;
+            const float safetyTimeout = 2.5f;
+
+            while (arrivedCount < count && elapsed < safetyTimeout && _winEffectsLayer != null)
+            {
+                float dt = Time.unscaledDeltaTime;
+                elapsed += dt;
+
+                // Fade & shrink buttons out as coins burst
+                float btnT = Mathf.Clamp01(elapsed / btnFadeDur);
+                if (_winButtonsCanvasGroup != null)
+                {
+                    _winButtonsCanvasGroup.alpha = 1f - btnT;
+                }
+                if (_winButtonsRoot != null)
+                {
+                    _winButtonsRoot.localScale = Vector3.one * Mathf.Lerp(1f, 0.92f, btnT);
+                }
+
+                // Top CoinsPill punch pulse when coins land
+                if (pillPunchTimer > 0f && _winTopCoinsPillRect != null)
+                {
+                    pillPunchTimer = Mathf.Max(0f, pillPunchTimer - dt);
+                    float pt = 1f - (pillPunchTimer / 0.14f);
+                    float s = 1f + Mathf.Sin(pt * Mathf.PI) * 0.13f;
+                    _winTopCoinsPillRect.localScale = Vector3.one * s;
+                }
+                else if (_winTopCoinsPillRect != null)
+                {
+                    _winTopCoinsPillRect.localScale = Vector3.one;
+                }
+
+                for (int i = 0; i < coins.Count; i++)
+                {
+                    FlyingClaimCoin c = coins[i];
+                    if (c.Arrived || c.Rect == null) continue;
+
+                    if (elapsed < c.LaunchDelay)
+                    {
+                        float sT = Mathf.Clamp01(elapsed / 0.24f);
+                        float sEase = 1f - Mathf.Pow(1f - sT, 3f);
+                        c.Rect.anchoredPosition = Vector2.Lerp(c.StartPos, c.ScatterPos, sEase);
+                        c.Rect.localScale = Vector3.one * EvaluateOvershootScale(sT, 0.25f, 1.18f, 1.0f, 0.65f);
+                        c.Rect.Rotate(0f, 0f, c.Spin * 0.35f * dt);
+                    }
+                    else
+                    {
+                        float fT = Mathf.Clamp01((elapsed - c.LaunchDelay) / c.FlightDur);
+                        float e = Mathf.Lerp(fT * fT, fT * fT * (3f - 2f * fT), 0.45f);
+                        float u = 1f - e;
+                        c.Rect.anchoredPosition = (u * u) * c.ScatterPos + (2f * u * e) * c.ControlPos + (e * e) * targetPos;
+                        c.Rect.localScale = Vector3.one * Mathf.Lerp(1.02f, 0.68f, e);
+                        c.Rect.Rotate(0f, 0f, c.Spin * dt);
+
+                        if (fT >= 1f)
+                        {
+                            c.Arrived = true;
+                            Destroy(c.Rect.gameObject);
+                            c.Rect = null;
+                            arrivedCount++;
+
+                            float progress = arrivedCount / (float)count;
+                            if (_winTopCoinsCountText != null)
+                            {
+                                _winTopCoinsCountText.text = Mathf.RoundToInt(Mathf.Lerp(startCoins, startCoins + coinAmount, progress)).ToString();
+                            }
+                            pillPunchTimer = 0.14f;
+
+                            if (arrivedCount == 1 || arrivedCount == count || arrivedCount % 2 == 0)
+                            {
+                                StartCoroutine(CoSpawnFlashBurst(_winEffectsLayer, targetPos, flareSp,
+                                    new Color(1.0f, 0.92f, 0.42f, 0.95f), 0.25f, 1.15f, 0.20f));
+                                SoundManager.Instance?.PlayCoinTick(0.94f + 0.34f * progress);
+                            }
+                        }
+                    }
+
+                    coins[i] = c;
+                }
+
+                yield return null;
+            }
+
+            for (int i = 0; i < coins.Count; i++)
+            {
+                if (coins[i].Rect != null) Destroy(coins[i].Rect.gameObject);
+            }
+
+            if (_winTopCoinsCountText != null)
+            {
+                _winTopCoinsCountText.text = (startCoins + coinAmount).ToString();
+            }
+            if (_winTopCoinsPillRect != null)
+            {
+                _winTopCoinsPillRect.localScale = Vector3.one;
+            }
+            if (_winEffectsLayer != null)
+            {
+                StartCoroutine(CoSpawnFlashBurst(_winEffectsLayer, targetPos, glowSp,
+                    new Color(1.0f, 0.92f, 0.48f, 0.95f), 0.35f, 1.55f, 0.26f));
+            }
+            SoundManager.Instance?.PlayPickup();
+
+            float hold = 0f;
+            while (hold < 0.26f)
+            {
+                hold += Time.unscaledDeltaTime;
+                yield return null;
+            }
+
+            float fadeOut = 0f;
+            const float fadeDur = 0.18f;
+            while (fadeOut < fadeDur)
+            {
+                fadeOut += Time.unscaledDeltaTime;
+                if (_victoryCanvasGroup != null)
+                {
+                    _victoryCanvasGroup.alpha = 1f - Mathf.Clamp01(fadeOut / fadeDur);
+                }
+                yield return null;
+            }
+
+            _winClaimCoroutine = null;
+            ReturnToHomeAfterVictory();
+        }
+
+        private static RectTransform SpawnFloatingEffectImage(string name, Transform parent, Sprite sprite, Vector2 pos, Vector2 size, Color color, bool preserveAspect = true)
+        {
+            GameObject obj = new GameObject(name);
+            obj.transform.SetParent(parent, false);
+            RectTransform rt = obj.AddComponent<RectTransform>();
+            rt.anchorMin = new Vector2(0.5f, 0.5f);
+            rt.anchorMax = new Vector2(0.5f, 0.5f);
+            rt.anchoredPosition = pos;
+            rt.sizeDelta = size;
+            Image img = obj.AddComponent<Image>();
+            img.sprite = sprite;
+            img.color = color;
+            img.preserveAspect = preserveAspect;
+            img.raycastTarget = false;
+            return rt;
         }
 
         private static float EvaluateOvershootScale(float t, float startScale, float peakScale, float endScale, float peakT)
@@ -2258,12 +4251,9 @@ namespace BlockMergePuzzle.UI
 
         public void HideGameOver()
         {
-            if (_victoryAnimCoroutine != null)
-            {
-                StopCoroutine(_victoryAnimCoroutine);
-                _victoryAnimCoroutine = null;
-            }
+            CleanupWinEffects();
             if (_victoryPanel != null) _victoryPanel.SetActive(false);
+            HideTimeOutPopup();
         }
 
         private GameObject CreateUIPanel(string name, Transform parent, Vector2 anchorMin, Vector2 anchorMax, Vector2 anchoredPos, Vector2 sizeDelta)
@@ -2309,6 +4299,1844 @@ namespace BlockMergePuzzle.UI
             {
                 img.color = color;
             }
+        }
+
+        // =========================================================================
+        // TIME OUT -> LEVEL FAILED (COSMIC GEMSTONE PURPLE + PLANET THEME)
+        // =========================================================================
+
+        private static readonly Color TimeOutHeaderTint = Color.white;
+        private static readonly Color FailedHeaderTint = new Color(1.00f, 0.78f, 0.90f, 1.0f);
+        private static readonly Color[] LoseHeartShardPalette = new Color[]
+        {
+            new Color(1.00f, 0.25f, 0.50f, 1f),
+            new Color(0.88f, 0.14f, 0.42f, 1f),
+            new Color(0.74f, 0.38f, 1.00f, 1f),
+            new Color(1.00f, 0.72f, 0.90f, 1f)
+        };
+
+        [ContextMenu("Rebuild Time Out Panel")]
+        public void RebuildTimeOutPanel()
+        {
+            int siblingIdx = -1;
+            Transform oldPanel = transform.Find("TimeOutPanel");
+            if (oldPanel != null)
+            {
+                siblingIdx = oldPanel.GetSiblingIndex();
+                if (Application.isPlaying) Destroy(oldPanel.gameObject);
+                else DestroyImmediate(oldPanel.gameObject);
+            }
+
+            _timeOutPanel = null;
+            _timeOutCanvasGroup = null;
+            _timeOutTopBarRect = null;
+            _timeOutLivesPillRect = null;
+            _timeOutLivesPillImg = null;
+            _timeOutLivesCountText = null;
+            _timeOutLivesTimerText = null;
+            _timeOutCoinsPillRect = null;
+            _timeOutCoinsCountText = null;
+            _timeOutCenterStackRect = null;
+            _timeOutMainCardRect = null;
+            _timeOutPlanetRingedRect = null;
+            _timeOutPlanetMiniRect = null;
+            _timeOutCardSparklesRoot = null;
+            _timeOutHeaderImg = null;
+            _timeOutHeaderText = null;
+            _timeOutStageRoot = null;
+            _timeOutStopwatchRoot = null;
+            _timeOutStopwatchAuraRect = null;
+            _timeOutStopwatchSunburstRect = null;
+            _timeOutStopwatchIconRect = null;
+            _timeOutExtraText = null;
+            _timeOutSubtitleText = null;
+            _buyTimeBtn = null;
+            _buyTimeBtnRect = null;
+            _buyTimeCostText = null;
+            _adTimeBtn = null;
+            _adTimeBtnRect = null;
+            _adTimeShineRect = null;
+            _adTimeLabelText = null;
+            _levelFailedStageRoot = null;
+            _failedHeartRoot = null;
+            _failedAuraRect = null;
+            _failedHeartLeftRect = null;
+            _failedHeartRightRect = null;
+            _failedCrackGlowRect = null;
+            _failedCrackGlowImg = null;
+            _failedMinusOneText = null;
+            _failedSubtitleText = null;
+            _retryBtn = null;
+            _retryBtnRect = null;
+            _retryShineRect = null;
+            _offerCardRect = null;
+            _reviveOfferRoot = null;
+            _reviveOfferCoinsText = null;
+            _buyRevivePackBtn = null;
+            _buyRevivePackBtnRect = null;
+            _buyRevivePackPriceText = null;
+            _buyRevivePackShineRect = null;
+            _starterOfferRoot = null;
+            _bestOfferRibbonRect = null;
+            _starterOfferCoinsText = null;
+            _buyStarterPackBtn = null;
+            _buyStarterPackBtnRect = null;
+            _buyStarterPackPriceText = null;
+            _buyStarterPackShineRect = null;
+            _tapToContinueBtn = null;
+            _tapToContinueRect = null;
+            _tapToContinueCanvasGroup = null;
+            _timeOutEffectsLayer = null;
+
+            Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            if (font == null) font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+            BuildTimeOutPanel(font);
+
+            if (_timeOutPanel != null)
+            {
+                if (siblingIdx >= 0)
+                {
+                    _timeOutPanel.transform.SetSiblingIndex(Mathf.Min(siblingIdx, transform.childCount - 1));
+                }
+                Transform feedbackTr = transform.Find("FeedbackBanner");
+                if (feedbackTr != null)
+                {
+                    feedbackTr.SetAsLastSibling();
+                }
+            }
+        }
+
+        private void BindTimeOutPanelUI()
+        {
+            if (_timeOutPanel == null) return;
+
+            Transform topBar = _timeOutPanel.transform.Find("TopResourceBar");
+            Transform centerStack = _timeOutPanel.transform.Find("CenterStack");
+            Transform mainCard = centerStack?.Find("MainCard");
+            Transform offerCard = centerStack?.Find("OfferBannerCard");
+            Transform tapContinue = centerStack?.Find("Btn_TapToContinue");
+
+            if (topBar == null || centerStack == null || mainCard == null || offerCard == null || tapContinue == null ||
+                mainCard.Find("TimeOutContent/ButtonsRow/Btn_BuyTime") == null ||
+                mainCard.Find("TimeOutContent/ButtonsRow/Btn_AdTime") == null ||
+                mainCard.Find("LevelFailedContent/BrokenHeartRoot/HeartLeft") == null ||
+                offerCard.Find("ReviveOfferContent/BoostersCluster/BoosterFreeze") == null ||
+                offerCard.Find("StarterOfferContent/BoostersCluster/BoosterFreeze") == null)
+            {
+                RebuildTimeOutPanel();
+                return;
+            }
+
+            _timeOutCanvasGroup = _timeOutPanel.GetComponent<CanvasGroup>();
+            if (_timeOutCanvasGroup == null) _timeOutCanvasGroup = _timeOutPanel.AddComponent<CanvasGroup>();
+
+            Button backdropBtn = _timeOutPanel.GetComponent<Button>();
+            if (backdropBtn != null)
+            {
+                backdropBtn.onClick.RemoveAllListeners();
+                backdropBtn.onClick.AddListener(OnTimeOutContinueClicked);
+            }
+
+            _timeOutTopBarRect = topBar as RectTransform;
+            Transform livesPillTr = topBar.Find("LivesPill");
+            if (livesPillTr != null)
+            {
+                _timeOutLivesPillRect = livesPillTr as RectTransform;
+                _timeOutLivesPillImg = livesPillTr.GetComponent<Image>();
+                _timeOutLivesCountText = livesPillTr.Find("HeartIcon/LivesCountText")?.GetComponent<Text>();
+                _timeOutLivesTimerText = livesPillTr.Find("LivesTimerText")?.GetComponent<Text>();
+                Button addLivesBtn = livesPillTr.Find("Btn_AddLives")?.GetComponent<Button>();
+                if (addLivesBtn != null)
+                {
+                    addLivesBtn.onClick.RemoveAllListeners();
+                    addLivesBtn.onClick.AddListener(OnTimeOutAddLivesClicked);
+                }
+            }
+
+            Transform coinsPillTr = topBar.Find("CoinsPill");
+            if (coinsPillTr != null)
+            {
+                _timeOutCoinsPillRect = coinsPillTr as RectTransform;
+                _timeOutCoinsCountText = coinsPillTr.Find("CoinsCountText")?.GetComponent<Text>();
+                Button addCoinsBtn = coinsPillTr.Find("Btn_AddCoins")?.GetComponent<Button>();
+                if (addCoinsBtn != null)
+                {
+                    addCoinsBtn.onClick.RemoveAllListeners();
+                    addCoinsBtn.onClick.AddListener(OnTimeOutAddCoinsClicked);
+                }
+            }
+
+            _timeOutCenterStackRect = centerStack as RectTransform;
+            _timeOutMainCardRect = mainCard as RectTransform;
+            _timeOutPlanetRingedRect = mainCard.Find("PlanetRinged") as RectTransform;
+            _timeOutPlanetMiniRect = mainCard.Find("PlanetMini") as RectTransform;
+            _timeOutCardSparklesRoot = mainCard.Find("CardSparkles") as RectTransform;
+
+            Transform headerTr = mainCard.Find("HeaderBanner");
+            if (headerTr != null)
+            {
+                _timeOutHeaderImg = headerTr.GetComponent<Image>();
+                _timeOutHeaderText = headerTr.Find("HeaderTitleText")?.GetComponent<Text>();
+            }
+
+            Transform timeOutTr = mainCard.Find("TimeOutContent");
+            if (timeOutTr != null)
+            {
+                _timeOutStageRoot = timeOutTr.gameObject;
+                Transform swTr = timeOutTr.Find("StopwatchRoot");
+                _timeOutStopwatchRoot = swTr as RectTransform;
+                _timeOutStopwatchAuraRect = swTr?.Find("StopwatchAura") as RectTransform;
+                _timeOutStopwatchSunburstRect = swTr?.Find("StopwatchSunburst") as RectTransform;
+                _timeOutStopwatchIconRect = swTr?.Find("StopwatchIcon") as RectTransform;
+                _timeOutExtraText = timeOutTr.Find("ExtraTimeText")?.GetComponent<Text>();
+                _timeOutSubtitleText = timeOutTr.Find("TimeOutSubtitle")?.GetComponent<Text>();
+
+                Transform buyTr = timeOutTr.Find("ButtonsRow/Btn_BuyTime");
+                if (buyTr != null)
+                {
+                    _buyTimeBtn = buyTr.GetComponent<Button>();
+                    _buyTimeBtnRect = buyTr as RectTransform;
+                    _buyTimeCostText = buyTr.Find("CostText")?.GetComponent<Text>();
+                    if (_buyTimeBtn != null)
+                    {
+                        _buyTimeBtn.onClick.RemoveAllListeners();
+                        _buyTimeBtn.onClick.AddListener(OnBuyExtraTimeClicked);
+                    }
+                }
+
+                Transform adTr = timeOutTr.Find("ButtonsRow/Btn_AdTime");
+                if (adTr != null)
+                {
+                    _adTimeBtn = adTr.GetComponent<Button>();
+                    _adTimeBtnRect = adTr as RectTransform;
+                    _adTimeLabelText = adTr.Find("AdLabel")?.GetComponent<Text>();
+                    _adTimeShineRect = adTr.Find("ShineClip/ShineSweep") as RectTransform;
+                    if (_adTimeBtn != null)
+                    {
+                        _adTimeBtn.onClick.RemoveAllListeners();
+                        _adTimeBtn.onClick.AddListener(OnWatchAdExtraTimeClicked);
+                    }
+                }
+            }
+
+            Transform failedTr = mainCard.Find("LevelFailedContent");
+            if (failedTr != null)
+            {
+                _levelFailedStageRoot = failedTr.gameObject;
+                Transform heartRootTr = failedTr.Find("BrokenHeartRoot");
+                _failedHeartRoot = heartRootTr as RectTransform;
+                _failedAuraRect = heartRootTr?.Find("FailAura") as RectTransform;
+                _failedHeartLeftRect = heartRootTr?.Find("HeartLeft") as RectTransform;
+                _failedHeartRightRect = heartRootTr?.Find("HeartRight") as RectTransform;
+                Transform crackGlowTr = heartRootTr?.Find("CrackGlow");
+                _failedCrackGlowRect = crackGlowTr as RectTransform;
+                _failedCrackGlowImg = crackGlowTr?.GetComponent<Image>();
+                _failedMinusOneText = heartRootTr?.Find("MinusOneText")?.GetComponent<Text>();
+                _failedSubtitleText = failedTr.Find("FailedSubtitle")?.GetComponent<Text>();
+
+                Transform retryTr = failedTr.Find("Btn_Retry");
+                if (retryTr != null)
+                {
+                    _retryBtn = retryTr.GetComponent<Button>();
+                    _retryBtnRect = retryTr as RectTransform;
+                    _retryShineRect = retryTr.Find("ShineClip/ShineSweep") as RectTransform;
+                    if (_retryBtn != null)
+                    {
+                        _retryBtn.onClick.RemoveAllListeners();
+                        _retryBtn.onClick.AddListener(OnRetryLevelClicked);
+                    }
+                }
+            }
+
+            _offerCardRect = offerCard as RectTransform;
+            Transform reviveOfferTr = offerCard.Find("ReviveOfferContent");
+            if (reviveOfferTr != null)
+            {
+                _reviveOfferRoot = reviveOfferTr.gameObject;
+                _reviveOfferCoinsText = reviveOfferTr.Find("CoinsBundle/CoinsText")?.GetComponent<Text>();
+                Transform buyPackTr = reviveOfferTr.Find("FooterRow/Btn_BuyRevivePack");
+                if (buyPackTr != null)
+                {
+                    _buyRevivePackBtn = buyPackTr.GetComponent<Button>();
+                    _buyRevivePackBtnRect = buyPackTr as RectTransform;
+                    _buyRevivePackPriceText = buyPackTr.Find("PriceText")?.GetComponent<Text>();
+                    _buyRevivePackShineRect = buyPackTr.Find("ShineClip/ShineSweep") as RectTransform;
+                    if (_buyRevivePackBtn != null)
+                    {
+                        _buyRevivePackBtn.onClick.RemoveAllListeners();
+                        _buyRevivePackBtn.onClick.AddListener(OnBuyReviveBundleClicked);
+                    }
+                }
+            }
+
+            Transform starterOfferTr = offerCard.Find("StarterOfferContent");
+            if (starterOfferTr != null)
+            {
+                _starterOfferRoot = starterOfferTr.gameObject;
+                _bestOfferRibbonRect = starterOfferTr.Find("BestOfferRibbon") as RectTransform;
+                _starterOfferCoinsText = starterOfferTr.Find("CoinsBundle/CoinsText")?.GetComponent<Text>();
+                Transform buyStarterTr = starterOfferTr.Find("FooterRow/Btn_BuyStarterPack");
+                if (buyStarterTr != null)
+                {
+                    _buyStarterPackBtn = buyStarterTr.GetComponent<Button>();
+                    _buyStarterPackBtnRect = buyStarterTr as RectTransform;
+                    _buyStarterPackPriceText = buyStarterTr.Find("PriceText")?.GetComponent<Text>();
+                    _buyStarterPackShineRect = buyStarterTr.Find("ShineClip/ShineSweep") as RectTransform;
+                    if (_buyStarterPackBtn != null)
+                    {
+                        _buyStarterPackBtn.onClick.RemoveAllListeners();
+                        _buyStarterPackBtn.onClick.AddListener(OnBuyStarterBundleClicked);
+                    }
+                }
+            }
+
+            _tapToContinueBtn = tapContinue.GetComponent<Button>();
+            _tapToContinueRect = tapContinue as RectTransform;
+            _tapToContinueCanvasGroup = tapContinue.GetComponent<CanvasGroup>();
+            if (_tapToContinueCanvasGroup == null) _tapToContinueCanvasGroup = tapContinue.gameObject.AddComponent<CanvasGroup>();
+            if (_tapToContinueBtn != null)
+            {
+                _tapToContinueBtn.onClick.RemoveAllListeners();
+                _tapToContinueBtn.onClick.AddListener(OnTimeOutContinueClicked);
+            }
+
+            EnsureTimeOutSprites();
+            SyncTimeOutResourceTexts();
+            ApplyTimeOutVisualState(showFailed: false);
+            _timeOutPanel.SetActive(false);
+        }
+
+        private void EnsureTimeOutSprites()
+        {
+            if (_timeOutPanel == null) return;
+
+            Sprite cardFrameSp = GemSpriteManager.GetLoseHelperSprite("lose_card_frame") ?? SpriteGenerator.GetLoseCardFrameSprite();
+            Sprite headerSp = GemSpriteManager.GetLoseHelperSprite("lose_header_banner") ?? SpriteGenerator.GetLoseHeaderBannerSprite();
+            Sprite offerCardSp = GemSpriteManager.GetLoseHelperSprite("lose_offer_card") ?? SpriteGenerator.GetLoseOfferCardSprite();
+            Sprite ribbonSp = GemSpriteManager.GetLoseHelperSprite("lose_best_offer_ribbon") ?? SpriteGenerator.GetLoseBestOfferRibbonSprite();
+            Sprite greenBtnSp = GemSpriteManager.GetLoseHelperSprite("lose_btn_green") ?? SpriteGenerator.GetLoseGreenButtonSprite();
+            Sprite pillSp = GemSpriteManager.GetLoseHelperSprite("lose_resource_pill") ?? SpriteGenerator.GetLoseResourcePillSprite();
+            Sprite plusSp = GemSpriteManager.GetLoseHelperSprite("lose_plus_badge") ?? SpriteGenerator.GetLosePlusBadgeSprite();
+            Sprite stopwatchSp = GemSpriteManager.GetLoseHelperSprite("lose_stopwatch") ?? SpriteGenerator.GetLoseStopwatchSprite();
+            Sprite heartLeftSp = GemSpriteManager.GetLoseHelperSprite("lose_heart_left") ?? SpriteGenerator.GetLoseHeartLeftSprite();
+            Sprite heartRightSp = GemSpriteManager.GetLoseHelperSprite("lose_heart_right") ?? SpriteGenerator.GetLoseHeartRightSprite();
+            Sprite heartSmallSp = GemSpriteManager.GetLoseHelperSprite("lose_heart_small") ?? SpriteGenerator.GetLoseHeartSmallSprite();
+            Sprite wingsSp = GemSpriteManager.GetLoseHelperSprite("lose_revive_wings") ?? SpriteGenerator.GetLoseReviveWingsSprite();
+            Sprite planetRingedSp = GemSpriteManager.GetLoseHelperSprite("lose_planet_ringed") ?? SpriteGenerator.GetLosePlanetRingedSprite();
+            Sprite planetMiniSp = GemSpriteManager.GetLoseHelperSprite("lose_planet_mini") ?? SpriteGenerator.GetLosePlanetMiniSprite();
+
+            Sprite glowSp = GemSpriteManager.GetWinHelperSprite("win_radial_glow") ?? SpriteGenerator.GetRadialGlowSprite();
+            Sprite flareSp = GemSpriteManager.GetWinHelperSprite("win_star_flare") ?? SpriteGenerator.GetStarFlareSprite();
+            Sprite sunburstSp = GemSpriteManager.GetWinHelperSprite("win_sunburst") ?? SpriteGenerator.GetWinSunburstSprite();
+            Sprite shineSp = GemSpriteManager.GetWinHelperSprite("win_shine_sweep") ?? SpriteGenerator.GetWinShineSweepSprite();
+
+            Sprite coinSp = GemSpriteManager.GetWinSceneSprite("Coin");
+            Sprite coinsSp = GemSpriteManager.GetWinSceneSprite("Coins");
+            Sprite adsSp = GemSpriteManager.GetWinSceneSprite("ADS");
+            Sprite adBtnSp = GemSpriteManager.GetWinSceneSprite("Button2");
+
+            Sprite freezeSp = GemSpriteManager.GetBoosterSprite("booster1");
+            Sprite magnetSp = GemSpriteManager.GetBoosterSprite("booster2");
+            Sprite wandSp = GemSpriteManager.GetBoosterSprite("booster3");
+
+            Transform topBar = _timeOutPanel.transform.Find("TopResourceBar");
+            if (topBar != null)
+            {
+                SetImageSpriteForce(topBar.Find("LivesPill"), pillSp, Image.Type.Sliced);
+                SetImageSpriteForce(topBar.Find("LivesPill/HeartIcon"), heartSmallSp, Image.Type.Simple);
+                SetImageSpriteForce(topBar.Find("LivesPill/Btn_AddLives"), plusSp, Image.Type.Simple);
+                SetImageSpriteForce(topBar.Find("CoinsPill"), pillSp, Image.Type.Sliced);
+                SetImageSpriteForce(topBar.Find("CoinsPill/CoinIcon"), coinSp, Image.Type.Simple);
+                SetImageSpriteForce(topBar.Find("CoinsPill/Btn_AddCoins"), plusSp, Image.Type.Simple);
+            }
+
+            Transform mainCard = _timeOutPanel.transform.Find("CenterStack/MainCard");
+            if (mainCard != null)
+            {
+                SetImageSpriteForce(mainCard, cardFrameSp, Image.Type.Sliced);
+                SetImageSpriteForce(mainCard.Find("PlanetRinged"), planetRingedSp, Image.Type.Simple);
+                SetImageSpriteForce(mainCard.Find("PlanetMini"), planetMiniSp, Image.Type.Simple);
+                SetImageSpriteForce(mainCard.Find("HeaderBanner"), headerSp, Image.Type.Sliced);
+
+                if (_timeOutCardSparklesRoot != null)
+                {
+                    for (int i = 0; i < _timeOutCardSparklesRoot.childCount; i++)
+                    {
+                        SetImageSpriteForce(_timeOutCardSparklesRoot.GetChild(i), flareSp, Image.Type.Simple);
+                    }
+                }
+
+                Transform swTr = mainCard.Find("TimeOutContent/StopwatchRoot");
+                if (swTr != null)
+                {
+                    SetImageSpriteForce(swTr.Find("StopwatchAura"), glowSp, Image.Type.Simple);
+                    SetImageSpriteForce(swTr.Find("StopwatchSunburst"), sunburstSp, Image.Type.Simple);
+                    SetImageSpriteForce(swTr.Find("StopwatchIcon"), stopwatchSp, Image.Type.Simple);
+                    for (int i = 0; i < 3; i++)
+                    {
+                        SetImageSpriteForce(swTr.Find("SwSparkle_" + i), flareSp, Image.Type.Simple);
+                    }
+                }
+
+                SetImageSpriteForce(mainCard.Find("TimeOutContent/ButtonsRow/Btn_BuyTime"), greenBtnSp, Image.Type.Sliced);
+                SetImageSpriteForce(mainCard.Find("TimeOutContent/ButtonsRow/Btn_BuyTime/CoinIcon"), coinSp, Image.Type.Simple);
+                SetImageSpriteForce(mainCard.Find("TimeOutContent/ButtonsRow/Btn_AdTime"), adBtnSp, Image.Type.Simple);
+                SetImageSpriteForce(mainCard.Find("TimeOutContent/ButtonsRow/Btn_AdTime/AdIcon"), adsSp, Image.Type.Simple);
+                SetImageSpriteForce(mainCard.Find("TimeOutContent/ButtonsRow/Btn_AdTime/ShineClip/ShineSweep"), shineSp, Image.Type.Simple);
+
+                Transform heartTr = mainCard.Find("LevelFailedContent/BrokenHeartRoot");
+                if (heartTr != null)
+                {
+                    SetImageSpriteForce(heartTr.Find("FailAura"), glowSp, Image.Type.Simple);
+                    SetImageSpriteForce(heartTr.Find("HeartLeft"), heartLeftSp, Image.Type.Simple);
+                    SetImageSpriteForce(heartTr.Find("HeartRight"), heartRightSp, Image.Type.Simple);
+                    SetImageSpriteForce(heartTr.Find("CrackGlow"), flareSp, Image.Type.Simple);
+                }
+
+                SetImageSpriteForce(mainCard.Find("LevelFailedContent/Btn_Retry"), greenBtnSp, Image.Type.Sliced);
+                SetImageSpriteForce(mainCard.Find("LevelFailedContent/Btn_Retry/ShineClip/ShineSweep"), shineSp, Image.Type.Simple);
+            }
+
+            Transform offerCard = _timeOutPanel.transform.Find("CenterStack/OfferBannerCard");
+            if (offerCard != null)
+            {
+                SetImageSpriteForce(offerCard, offerCardSp, Image.Type.Sliced);
+                SetImageSpriteForce(offerCard.Find("WatermarkPlanet"), planetRingedSp, Image.Type.Simple);
+
+                Transform reviveTr = offerCard.Find("ReviveOfferContent");
+                if (reviveTr != null)
+                {
+                    SetImageSpriteForce(reviveTr.Find("CoinsBundle/CoinsImg"), coinsSp, Image.Type.Simple);
+                    SetImageSpriteForce(reviveTr.Find("BoostersCluster/BoosterWand"), wandSp, Image.Type.Simple);
+                    SetImageSpriteForce(reviveTr.Find("BoostersCluster/BoosterFreeze"), freezeSp, Image.Type.Simple);
+                    SetImageSpriteForce(reviveTr.Find("BoostersCluster/BoosterMagnet"), magnetSp, Image.Type.Simple);
+                    SetImageSpriteForce(reviveTr.Find("ReviveWingsItem/WingsImg"), wingsSp, Image.Type.Simple);
+                    SetImageSpriteForce(reviveTr.Find("FooterRow/Btn_BuyRevivePack"), greenBtnSp, Image.Type.Sliced);
+                    SetImageSpriteForce(reviveTr.Find("FooterRow/Btn_BuyRevivePack/ShineClip/ShineSweep"), shineSp, Image.Type.Simple);
+                }
+
+                Transform starterTr = offerCard.Find("StarterOfferContent");
+                if (starterTr != null)
+                {
+                    SetImageSpriteForce(starterTr.Find("BestOfferRibbon"), ribbonSp, Image.Type.Sliced);
+                    SetImageSpriteForce(starterTr.Find("CoinsBundle/CoinsImg"), coinsSp, Image.Type.Simple);
+                    SetImageSpriteForce(starterTr.Find("BoostersCluster/BoosterWand"), wandSp, Image.Type.Simple);
+                    SetImageSpriteForce(starterTr.Find("BoostersCluster/BoosterFreeze"), freezeSp, Image.Type.Simple);
+                    SetImageSpriteForce(starterTr.Find("BoostersCluster/BoosterMagnet"), magnetSp, Image.Type.Simple);
+                    SetImageSpriteForce(starterTr.Find("FooterRow/Btn_BuyStarterPack"), greenBtnSp, Image.Type.Sliced);
+                    SetImageSpriteForce(starterTr.Find("FooterRow/Btn_BuyStarterPack/ShineClip/ShineSweep"), shineSp, Image.Type.Simple);
+                }
+            }
+        }
+
+        private static void SetImageSpriteForce(Transform tr, Sprite sprite, Image.Type imgType)
+        {
+            if (tr == null || sprite == null) return;
+            Image img = tr.GetComponent<Image>();
+            if (img == null) return;
+            img.sprite = sprite;
+            img.type = imgType;
+        }
+
+        private void BuildTimeOutPanel(Font font)
+        {
+            _timeOutPanel = CreateUIPanel("TimeOutPanel", transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            SetImageColor(_timeOutPanel, new Color(0.04f, 0.02f, 0.12f, 0.84f));
+            _timeOutCanvasGroup = _timeOutPanel.AddComponent<CanvasGroup>();
+            _timeOutCanvasGroup.alpha = 1f;
+
+            Button backdropBtn = _timeOutPanel.AddComponent<Button>();
+            backdropBtn.transition = Selectable.Transition.None;
+            backdropBtn.onClick.AddListener(OnTimeOutContinueClicked);
+
+            Sprite cardFrameSp = GemSpriteManager.GetLoseHelperSprite("lose_card_frame") ?? SpriteGenerator.GetLoseCardFrameSprite();
+            Sprite headerSp = GemSpriteManager.GetLoseHelperSprite("lose_header_banner") ?? SpriteGenerator.GetLoseHeaderBannerSprite();
+            Sprite offerCardSp = GemSpriteManager.GetLoseHelperSprite("lose_offer_card") ?? SpriteGenerator.GetLoseOfferCardSprite();
+            Sprite ribbonSp = GemSpriteManager.GetLoseHelperSprite("lose_best_offer_ribbon") ?? SpriteGenerator.GetLoseBestOfferRibbonSprite();
+            Sprite greenBtnSp = GemSpriteManager.GetLoseHelperSprite("lose_btn_green") ?? SpriteGenerator.GetLoseGreenButtonSprite();
+            Sprite pillSp = GemSpriteManager.GetLoseHelperSprite("lose_resource_pill") ?? SpriteGenerator.GetLoseResourcePillSprite();
+            Sprite plusSp = GemSpriteManager.GetLoseHelperSprite("lose_plus_badge") ?? SpriteGenerator.GetLosePlusBadgeSprite();
+            Sprite stopwatchSp = GemSpriteManager.GetLoseHelperSprite("lose_stopwatch") ?? SpriteGenerator.GetLoseStopwatchSprite();
+            Sprite heartLeftSp = GemSpriteManager.GetLoseHelperSprite("lose_heart_left") ?? SpriteGenerator.GetLoseHeartLeftSprite();
+            Sprite heartRightSp = GemSpriteManager.GetLoseHelperSprite("lose_heart_right") ?? SpriteGenerator.GetLoseHeartRightSprite();
+            Sprite heartSmallSp = GemSpriteManager.GetLoseHelperSprite("lose_heart_small") ?? SpriteGenerator.GetLoseHeartSmallSprite();
+            Sprite wingsSp = GemSpriteManager.GetLoseHelperSprite("lose_revive_wings") ?? SpriteGenerator.GetLoseReviveWingsSprite();
+            Sprite planetRingedSp = GemSpriteManager.GetLoseHelperSprite("lose_planet_ringed") ?? SpriteGenerator.GetLosePlanetRingedSprite();
+            Sprite planetMiniSp = GemSpriteManager.GetLoseHelperSprite("lose_planet_mini") ?? SpriteGenerator.GetLosePlanetMiniSprite();
+
+            Sprite glowSp = GemSpriteManager.GetWinHelperSprite("win_radial_glow") ?? SpriteGenerator.GetRadialGlowSprite();
+            Sprite flareSp = GemSpriteManager.GetWinHelperSprite("win_star_flare") ?? SpriteGenerator.GetStarFlareSprite();
+            Sprite sunburstSp = GemSpriteManager.GetWinHelperSprite("win_sunburst") ?? SpriteGenerator.GetWinSunburstSprite();
+            Sprite shineSp = GemSpriteManager.GetWinHelperSprite("win_shine_sweep") ?? SpriteGenerator.GetWinShineSweepSprite();
+
+            Sprite coinSp = GemSpriteManager.GetWinSceneSprite("Coin");
+            Sprite coinsSp = GemSpriteManager.GetWinSceneSprite("Coins");
+            Sprite adsSp = GemSpriteManager.GetWinSceneSprite("ADS");
+            Sprite adBtnSp = GemSpriteManager.GetWinSceneSprite("Button2");
+
+            Sprite freezeSp = GemSpriteManager.GetBoosterSprite("booster1");
+            Sprite magnetSp = GemSpriteManager.GetBoosterSprite("booster2");
+            Sprite wandSp = GemSpriteManager.GetBoosterSprite("booster3");
+
+            // 1. Top Resource Bar (Lives & Coins)
+            GameObject topBarObj = CreateUIContainer("TopResourceBar", _timeOutPanel.transform,
+                new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -145f), new Vector2(840f, 88f));
+            _timeOutTopBarRect = topBarObj.GetComponent<RectTransform>();
+
+            // Lives Pill
+            GameObject livesPillObj = CreateUIPanel("LivesPill", topBarObj.transform,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-168f, 0f), new Vector2(330f, 82f));
+            _timeOutLivesPillRect = livesPillObj.GetComponent<RectTransform>();
+            _timeOutLivesPillImg = livesPillObj.GetComponent<Image>();
+            _timeOutLivesPillImg.sprite = pillSp;
+            _timeOutLivesPillImg.type = Image.Type.Sliced;
+            _timeOutLivesPillImg.color = Color.white;
+            _timeOutLivesPillImg.raycastTarget = true;
+
+            Image heartIcon = CreateWinImage("HeartIcon", livesPillObj.transform, new Vector2(-146f, 0f), new Vector2(80f, 80f),
+                heartSmallSp, Color.white, preserveAspect: true);
+            _timeOutLivesCountText = CreateOutlinedText("LivesCountText", heartIcon.transform, DefaultLives.ToString(), font, 34,
+                Color.white, new Vector2(0f, 2f), new Vector2(60f, 52f),
+                new Color(0.227f, 0.020f, 0.125f, 0.98f), new Vector2(2f, -2f), TextAnchor.MiddleCenter);
+
+            _timeOutLivesTimerText = CreateOutlinedText("LivesTimerText", livesPillObj.transform, FormatTimeMMSS(_timeOutLifeRegenSeconds), font, 34,
+                Color.white, new Vector2(6f, 0f), new Vector2(160f, 56f),
+                new Color(0.05f, 0.02f, 0.14f, 0.95f), new Vector2(1.5f, -1.5f), TextAnchor.MiddleCenter);
+
+            GameObject addLivesObj = CreateUIPanel("Btn_AddLives", livesPillObj.transform,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(136f, 0f), new Vector2(48f, 48f));
+            Image addLivesImg = addLivesObj.GetComponent<Image>();
+            addLivesImg.sprite = plusSp;
+            addLivesImg.preserveAspect = true;
+            addLivesImg.color = Color.white;
+            Button addLivesBtn = addLivesObj.AddComponent<Button>();
+            addLivesBtn.targetGraphic = addLivesImg;
+            addLivesBtn.onClick.AddListener(OnTimeOutAddLivesClicked);
+
+            // Coins Pill
+            GameObject coinsPillObj = CreateUIPanel("CoinsPill", topBarObj.transform,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(182f, 0f), new Vector2(300f, 82f));
+            _timeOutCoinsPillRect = coinsPillObj.GetComponent<RectTransform>();
+            Image coinsPillImg = coinsPillObj.GetComponent<Image>();
+            coinsPillImg.sprite = pillSp;
+            coinsPillImg.type = Image.Type.Sliced;
+            coinsPillImg.color = Color.white;
+            coinsPillImg.raycastTarget = true;
+
+            CreateWinImage("CoinIcon", coinsPillObj.transform, new Vector2(-128f, 0f), new Vector2(76f, 76f),
+                coinSp, Color.white, preserveAspect: true);
+
+            _timeOutCoinsCountText = CreateOutlinedText("CoinsCountText", coinsPillObj.transform, "2000", font, 36,
+                new Color(1.00f, 0.97f, 0.78f), new Vector2(8f, 0f), new Vector2(165f, 56f),
+                new Color(0.05f, 0.02f, 0.14f, 0.95f), new Vector2(1.5f, -1.5f), TextAnchor.MiddleCenter);
+
+            GameObject addCoinsObj = CreateUIPanel("Btn_AddCoins", coinsPillObj.transform,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(122f, 0f), new Vector2(48f, 48f));
+            Image addCoinsImg = addCoinsObj.GetComponent<Image>();
+            addCoinsImg.sprite = plusSp;
+            addCoinsImg.preserveAspect = true;
+            addCoinsImg.color = Color.white;
+            Button addCoinsBtn = addCoinsObj.AddComponent<Button>();
+            addCoinsBtn.targetGraphic = addCoinsImg;
+            addCoinsBtn.onClick.AddListener(OnTimeOutAddCoinsClicked);
+
+            // 2. Center Stack
+            GameObject centerStackObj = CreateUIContainer("CenterStack", _timeOutPanel.transform,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -25f), new Vector2(860f, 1460f));
+            _timeOutCenterStackRect = centerStackObj.GetComponent<RectTransform>();
+
+            // 2A. Main Gemstone Card
+            GameObject mainCardObj = CreateUIPanel("MainCard", centerStackObj.transform,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 210f), new Vector2(820f, 680f));
+            _timeOutMainCardRect = mainCardObj.GetComponent<RectTransform>();
+            Image mainCardImg = mainCardObj.GetComponent<Image>();
+            mainCardImg.sprite = cardFrameSp;
+            mainCardImg.type = Image.Type.Sliced;
+            mainCardImg.color = Color.white;
+            mainCardImg.raycastTarget = true;
+
+            // Protruding Header Gemstone Banner
+            GameObject headerObj = CreateUIPanel("HeaderBanner", mainCardObj.transform,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 328f), new Vector2(670f, 124f));
+            _timeOutHeaderImg = headerObj.GetComponent<Image>();
+            _timeOutHeaderImg.sprite = headerSp;
+            _timeOutHeaderImg.type = Image.Type.Sliced;
+            _timeOutHeaderImg.color = TimeOutHeaderTint;
+            _timeOutHeaderImg.raycastTarget = false;
+
+            _timeOutHeaderText = CreateOutlinedText("HeaderTitleText", headerObj.transform, "Time Out!", font, 54,
+                Color.white, new Vector2(0f, 2f), new Vector2(560f, 92f),
+                new Color(0.125f, 0.031f, 0.259f, 0.98f), new Vector2(3.5f, -3.5f), TextAnchor.MiddleCenter);
+
+            // Cosmic Corner Planets & Sparkles (rendered after header so corner planet perches cleanly)
+            Image ringedPlanet = CreateWinImage("PlanetRinged", mainCardObj.transform, new Vector2(386f, 260f), new Vector2(158f, 124f),
+                planetRingedSp, Color.white, preserveAspect: true);
+            _timeOutPlanetRingedRect = ringedPlanet.GetComponent<RectTransform>();
+            _timeOutPlanetRingedRect.localEulerAngles = new Vector3(0f, 0f, -10f);
+
+            Image miniPlanet = CreateWinImage("PlanetMini", mainCardObj.transform, new Vector2(-368f, -284f), new Vector2(86f, 86f),
+                planetMiniSp, Color.white, preserveAspect: true);
+            _timeOutPlanetMiniRect = miniPlanet.GetComponent<RectTransform>();
+
+            GameObject sparklesObj = CreateUIContainer("CardSparkles", mainCardObj.transform,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(820f, 680f));
+            _timeOutCardSparklesRoot = sparklesObj.GetComponent<RectTransform>();
+            CreateWinSparkle("CardSparkle_0", _timeOutCardSparklesRoot, new Vector2(-356f, 278f), 38f, flareSp, new Color(0.84f, 0.65f, 1.00f, 1f));
+            CreateWinSparkle("CardSparkle_1", _timeOutCardSparklesRoot, new Vector2(-282f, 316f), 26f, flareSp, new Color(0.45f, 0.94f, 1.00f, 1f));
+            CreateWinSparkle("CardSparkle_2", _timeOutCardSparklesRoot, new Vector2(280f, 344f), 32f, flareSp, new Color(1.00f, 0.88f, 0.40f, 1f));
+            CreateWinSparkle("CardSparkle_3", _timeOutCardSparklesRoot, new Vector2(382f, 180f), 28f, flareSp, new Color(1.00f, 0.45f, 0.92f, 1f));
+            CreateWinSparkle("CardSparkle_4", _timeOutCardSparklesRoot, new Vector2(-380f, -210f), 30f, flareSp, new Color(0.45f, 0.94f, 1.00f, 1f));
+            CreateWinSparkle("CardSparkle_5", _timeOutCardSparklesRoot, new Vector2(362f, -290f), 36f, flareSp, new Color(0.84f, 0.65f, 1.00f, 1f));
+
+            // Stage 1: TimeOutContent
+            GameObject timeOutContent = CreateUIContainer("TimeOutContent", mainCardObj.transform,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -24f), new Vector2(760f, 560f));
+            _timeOutStageRoot = timeOutContent;
+
+            GameObject swRootObj = CreateUIContainer("StopwatchRoot", timeOutContent.transform,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 138f), new Vector2(260f, 260f));
+            _timeOutStopwatchRoot = swRootObj.GetComponent<RectTransform>();
+
+            Image swAura = CreateWinImage("StopwatchAura", _timeOutStopwatchRoot, Vector2.zero, new Vector2(360f, 360f),
+                glowSp, new Color(0.75f, 0.32f, 1.0f, 0.65f), preserveAspect: false);
+            _timeOutStopwatchAuraRect = swAura.GetComponent<RectTransform>();
+
+            Image swSunburst = CreateWinImage("StopwatchSunburst", _timeOutStopwatchRoot, Vector2.zero, new Vector2(300f, 300f),
+                sunburstSp, new Color(0.95f, 0.80f, 1.0f, 0.45f), preserveAspect: true);
+            _timeOutStopwatchSunburstRect = swSunburst.GetComponent<RectTransform>();
+
+            Image swIcon = CreateWinImage("StopwatchIcon", _timeOutStopwatchRoot, Vector2.zero, new Vector2(196f, 196f),
+                stopwatchSp, Color.white, preserveAspect: true);
+            _timeOutStopwatchIconRect = swIcon.GetComponent<RectTransform>();
+
+            CreateWinSparkle("SwSparkle_0", _timeOutStopwatchRoot, new Vector2(-106f, 68f), 32f, flareSp, new Color(1.00f, 0.92f, 0.42f, 1f));
+            CreateWinSparkle("SwSparkle_1", _timeOutStopwatchRoot, new Vector2(114f, 56f), 28f, flareSp, new Color(0.45f, 0.95f, 1.00f, 1f));
+            CreateWinSparkle("SwSparkle_2", _timeOutStopwatchRoot, new Vector2(92f, -72f), 26f, flareSp, new Color(1.00f, 0.45f, 0.90f, 1f));
+
+            _timeOutExtraText = CreateOutlinedText("ExtraTimeText", timeOutContent.transform, "+" + Mathf.RoundToInt(_reviveExtraSeconds) + "s", font, 54,
+                new Color(1.00f, 0.96f, 0.706f), new Vector2(0f, 18f), new Vector2(320f, 68f),
+                new Color(0.157f, 0.043f, 0.322f, 0.98f), new Vector2(3f, -3f), TextAnchor.MiddleCenter);
+
+            _timeOutSubtitleText = CreateOutlinedText("TimeOutSubtitle", timeOutContent.transform,
+                $"Add {Mathf.RoundToInt(_reviveExtraSeconds)} more seconds to keep merging!", font, 29,
+                new Color(0.925f, 0.886f, 1.00f), new Vector2(0f, -48f), new Vector2(710f, 56f),
+                new Color(0.08f, 0.03f, 0.22f, 0.92f), new Vector2(1.5f, -1.5f), TextAnchor.MiddleCenter);
+
+            GameObject buttonsRowObj = CreateUIContainer("ButtonsRow", timeOutContent.transform,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -172f), new Vector2(730f, 166f));
+
+            // Left CTA: Buy 1900
+            GameObject buyBtnObj = CreateUIPanel("Btn_BuyTime", buttonsRowObj.transform,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-178f, 0f), new Vector2(334f, 148f));
+            _buyTimeBtnRect = buyBtnObj.GetComponent<RectTransform>();
+            Image buyBtnImg = buyBtnObj.GetComponent<Image>();
+            buyBtnImg.sprite = greenBtnSp;
+            buyBtnImg.type = Image.Type.Sliced;
+            buyBtnImg.color = Color.white;
+            _buyTimeBtn = buyBtnObj.AddComponent<Button>();
+            _buyTimeBtn.targetGraphic = buyBtnImg;
+            _buyTimeBtn.onClick.AddListener(OnBuyExtraTimeClicked);
+
+            CreateOutlinedText("BuyLabel", buyBtnObj.transform, "Buy", font, 38,
+                Color.white, new Vector2(0f, 32f), new Vector2(260f, 54f),
+                new Color(0.039f, 0.180f, 0.102f, 0.98f), new Vector2(2.5f, -2.5f), TextAnchor.MiddleCenter);
+            CreateWinImage("CoinIcon", buyBtnObj.transform, new Vector2(-68f, -28f), new Vector2(50f, 50f),
+                coinSp, Color.white, preserveAspect: true);
+            _buyTimeCostText = CreateOutlinedText("CostText", buyBtnObj.transform, _reviveCoinCost.ToString(), font, 46,
+                new Color(1.00f, 0.976f, 0.784f), new Vector2(34f, -28f), new Vector2(148f, 60f),
+                new Color(0.039f, 0.180f, 0.102f, 0.98f), new Vector2(2.5f, -2.5f), TextAnchor.MiddleCenter);
+
+            // Right CTA: AD +20s
+            GameObject adBtnObj = CreateUIPanel("Btn_AdTime", buttonsRowObj.transform,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(178f, 0f), new Vector2(334f, 148f));
+            _adTimeBtnRect = adBtnObj.GetComponent<RectTransform>();
+            Image adBtnImg = adBtnObj.GetComponent<Image>();
+            adBtnImg.sprite = adBtnSp;
+            adBtnImg.type = Image.Type.Simple;
+            adBtnImg.preserveAspect = false;
+            adBtnImg.color = Color.white;
+            _adTimeBtn = adBtnObj.AddComponent<Button>();
+            _adTimeBtn.targetGraphic = adBtnImg;
+            _adTimeBtn.onClick.AddListener(OnWatchAdExtraTimeClicked);
+
+            CreateWinImage("AdIcon", adBtnObj.transform, new Vector2(-82f, 2f), new Vector2(84f, 84f),
+                adsSp, Color.white, preserveAspect: true);
+            _adTimeLabelText = CreateOutlinedText("AdLabel", adBtnObj.transform, "+" + Mathf.RoundToInt(_reviveExtraSeconds) + "s", font, 50,
+                Color.white, new Vector2(48f, -2f), new Vector2(150f, 70f),
+                new Color(0.243f, 0.043f, 0.173f, 0.98f), new Vector2(3f, -3f), TextAnchor.MiddleCenter);
+            _adTimeShineRect = CreateShineButtonOverlay(adBtnObj.transform, new Vector2(300f, 124f), new Vector2(110f, 180f), shineSp);
+
+            // Stage 2: LevelFailedContent
+            GameObject failedContent = CreateUIContainer("LevelFailedContent", mainCardObj.transform,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -24f), new Vector2(760f, 560f));
+            _levelFailedStageRoot = failedContent;
+
+            GameObject heartRootObj = CreateUIContainer("BrokenHeartRoot", failedContent.transform,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 116f), new Vector2(260f, 260f));
+            _failedHeartRoot = heartRootObj.GetComponent<RectTransform>();
+
+            Image failAura = CreateWinImage("FailAura", _failedHeartRoot, Vector2.zero, new Vector2(360f, 360f),
+                glowSp, new Color(0.95f, 0.20f, 0.52f, 0.72f), preserveAspect: false);
+            _failedAuraRect = failAura.GetComponent<RectTransform>();
+
+            Image heartLeftImg = CreateWinImage("HeartLeft", _failedHeartRoot, Vector2.zero, new Vector2(208f, 208f),
+                heartLeftSp, Color.white, preserveAspect: true);
+            _failedHeartLeftRect = heartLeftImg.GetComponent<RectTransform>();
+
+            Image heartRightImg = CreateWinImage("HeartRight", _failedHeartRoot, Vector2.zero, new Vector2(208f, 208f),
+                heartRightSp, Color.white, preserveAspect: true);
+            _failedHeartRightRect = heartRightImg.GetComponent<RectTransform>();
+
+            Image crackGlowImg = CreateWinImage("CrackGlow", _failedHeartRoot, Vector2.zero, new Vector2(110f, 180f),
+                flareSp, new Color(1.0f, 0.72f, 0.90f, 0f), preserveAspect: false);
+            _failedCrackGlowRect = crackGlowImg.GetComponent<RectTransform>();
+            _failedCrackGlowImg = crackGlowImg;
+
+            _failedMinusOneText = CreateOutlinedText("MinusOneText", _failedHeartRoot, "-1", font, 72,
+                Color.white, new Vector2(0f, 4f), new Vector2(180f, 96f),
+                new Color(0.227f, 0.020f, 0.125f, 0.98f), new Vector2(3.5f, -3.5f), TextAnchor.MiddleCenter);
+
+            _failedSubtitleText = CreateOutlinedText("FailedSubtitle", failedContent.transform, "You failed!", font, 36,
+                new Color(0.945f, 0.902f, 1.00f), new Vector2(0f, -26f), new Vector2(560f, 56f),
+                new Color(0.08f, 0.03f, 0.22f, 0.92f), new Vector2(2f, -2f), TextAnchor.MiddleCenter);
+
+            GameObject retryBtnObj = CreateUIPanel("Btn_Retry", failedContent.transform,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -158f), new Vector2(420f, 144f));
+            _retryBtnRect = retryBtnObj.GetComponent<RectTransform>();
+            Image retryImg = retryBtnObj.GetComponent<Image>();
+            retryImg.sprite = greenBtnSp;
+            retryImg.type = Image.Type.Sliced;
+            retryImg.color = Color.white;
+            _retryBtn = retryBtnObj.AddComponent<Button>();
+            _retryBtn.targetGraphic = retryImg;
+            _retryBtn.onClick.AddListener(OnRetryLevelClicked);
+
+            CreateOutlinedText("RetryText", retryBtnObj.transform, "RETRY", font, 54,
+                Color.white, Vector2.zero, new Vector2(340f, 90f),
+                new Color(0.039f, 0.180f, 0.102f, 0.98f), new Vector2(3f, -3f), TextAnchor.MiddleCenter);
+            _retryShineRect = CreateShineButtonOverlay(retryBtnObj.transform, new Vector2(384f, 120f), new Vector2(120f, 180f), shineSp);
+
+            // 2B. Offer Banner Card
+            GameObject offerCardObj = CreateUIPanel("OfferBannerCard", centerStackObj.transform,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -322f), new Vector2(820f, 312f));
+            _offerCardRect = offerCardObj.GetComponent<RectTransform>();
+            Image offerCardImg = offerCardObj.GetComponent<Image>();
+            offerCardImg.sprite = offerCardSp;
+            offerCardImg.type = Image.Type.Sliced;
+            offerCardImg.color = Color.white;
+            offerCardImg.raycastTarget = true;
+
+            CreateWinImage("WatermarkPlanet", offerCardObj.transform, new Vector2(290f, 68f), new Vector2(160f, 124f),
+                planetRingedSp, new Color(1f, 1f, 1f, 0.16f), preserveAspect: true);
+
+            // Offer Stage 1: ReviveOfferContent (with user's actual 3 boosters!)
+            GameObject reviveOfferObj = CreateUIContainer("ReviveOfferContent", offerCardObj.transform,
+                Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            _reviveOfferRoot = reviveOfferObj;
+
+            GameObject revCoinsObj = CreateUIContainer("CoinsBundle", reviveOfferObj.transform,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-258f, 52f), new Vector2(210f, 170f));
+            CreateWinImage("CoinsImg", revCoinsObj.transform, new Vector2(0f, 18f), new Vector2(148f, 124f),
+                coinsSp, Color.white, preserveAspect: true);
+            _reviveOfferCoinsText = CreateOutlinedText("CoinsText", revCoinsObj.transform, _reviveBundleCoins.ToString(), font, 42,
+                new Color(1.00f, 0.965f, 0.722f), new Vector2(0f, -54f), new Vector2(180f, 56f),
+                new Color(0.114f, 0.039f, 0.231f, 0.98f), new Vector2(2.5f, -2.5f), TextAnchor.MiddleCenter);
+
+            CreateOfferBoosterCluster(reviveOfferObj.transform, new Vector2(-10f, 52f), new Vector2(260f, 174f), 72f,
+                wandSp, freezeSp, magnetSp, font);
+
+            GameObject wingsItemObj = CreateUIContainer("ReviveWingsItem", reviveOfferObj.transform,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(255f, 52f), new Vector2(210f, 170f));
+            CreateWinImage("WingsImg", wingsItemObj.transform, new Vector2(0f, 18f), new Vector2(166f, 124f),
+                wingsSp, Color.white, preserveAspect: true);
+            CreateOutlinedText("ReviveLabel", wingsItemObj.transform, "Revive", font, 34,
+                new Color(0.949f, 0.910f, 1.00f), new Vector2(0f, -54f), new Vector2(180f, 50f),
+                new Color(0.114f, 0.039f, 0.231f, 0.98f), new Vector2(2.5f, -2.5f), TextAnchor.MiddleCenter);
+
+            GameObject revFooterObj = CreateUIContainer("FooterRow", reviveOfferObj.transform,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -98f), new Vector2(780f, 96f));
+            CreateOutlinedText("OfferTitle", revFooterObj.transform, "Revive!", font, 48,
+                Color.white, new Vector2(-205f, 0f), new Vector2(320f, 74f),
+                new Color(0.102f, 0.031f, 0.212f, 0.98f), new Vector2(3f, -3f), TextAnchor.MiddleLeft);
+
+            GameObject buyReviveObj = CreateUIPanel("Btn_BuyRevivePack", revFooterObj.transform,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(198f, 0f), new Vector2(334f, 84f));
+            _buyRevivePackBtnRect = buyReviveObj.GetComponent<RectTransform>();
+            Image buyReviveImg = buyReviveObj.GetComponent<Image>();
+            buyReviveImg.sprite = greenBtnSp;
+            buyReviveImg.type = Image.Type.Sliced;
+            buyReviveImg.color = Color.white;
+            _buyRevivePackBtn = buyReviveObj.AddComponent<Button>();
+            _buyRevivePackBtn.targetGraphic = buyReviveImg;
+            _buyRevivePackBtn.onClick.AddListener(OnBuyReviveBundleClicked);
+
+            _buyRevivePackPriceText = CreateOutlinedText("PriceText", buyReviveObj.transform, _reviveBundlePrice, font, 38,
+                Color.white, Vector2.zero, new Vector2(300f, 64f),
+                new Color(0.039f, 0.180f, 0.102f, 0.98f), new Vector2(2.5f, -2.5f), TextAnchor.MiddleCenter);
+            _buyRevivePackShineRect = CreateShineButtonOverlay(buyReviveObj.transform, new Vector2(306f, 68f), new Vector2(96f, 120f), shineSp);
+
+            // Offer Stage 2: StarterOfferContent (Best Offer + Cosmic Pack! with user's actual 3 boosters!)
+            GameObject starterOfferObj = CreateUIContainer("StarterOfferContent", offerCardObj.transform,
+                Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            _starterOfferRoot = starterOfferObj;
+
+            GameObject ribbonObj = CreateUIPanel("BestOfferRibbon", starterOfferObj.transform,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-272f, 148f), new Vector2(276f, 62f));
+            _bestOfferRibbonRect = ribbonObj.GetComponent<RectTransform>();
+            Image ribbonImg = ribbonObj.GetComponent<Image>();
+            ribbonImg.sprite = ribbonSp;
+            ribbonImg.type = Image.Type.Sliced;
+            ribbonImg.color = Color.white;
+            ribbonImg.raycastTarget = false;
+            CreateOutlinedText("RibbonText", ribbonObj.transform, "Best Offer", font, 30,
+                Color.white, new Vector2(-8f, 1f), new Vector2(240f, 48f),
+                new Color(0.227f, 0.031f, 0.212f, 0.98f), new Vector2(2f, -2f), TextAnchor.MiddleCenter);
+
+            GameObject stCoinsObj = CreateUIContainer("CoinsBundle", starterOfferObj.transform,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-248f, 48f), new Vector2(200f, 168f));
+            CreateWinImage("CoinsImg", stCoinsObj.transform, new Vector2(0f, 16f), new Vector2(140f, 116f),
+                coinsSp, Color.white, preserveAspect: true);
+            _starterOfferCoinsText = CreateOutlinedText("CoinsText", stCoinsObj.transform, _starterBundleCoins.ToString(), font, 42,
+                new Color(1.00f, 0.965f, 0.722f), new Vector2(0f, -54f), new Vector2(180f, 56f),
+                new Color(0.114f, 0.039f, 0.231f, 0.98f), new Vector2(2.5f, -2.5f), TextAnchor.MiddleCenter);
+
+            CreateOutlinedText("PlusSymbol", starterOfferObj.transform, "+", font, 58,
+                new Color(0.957f, 0.808f, 1.00f), new Vector2(-88f, 46f), new Vector2(70f, 70f),
+                new Color(0.149f, 0.047f, 0.290f, 0.98f), new Vector2(2.5f, -2.5f), TextAnchor.MiddleCenter);
+
+            CreateOfferBoosterCluster(starterOfferObj.transform, new Vector2(148f, 52f), new Vector2(280f, 174f), 76f,
+                wandSp, freezeSp, magnetSp, font);
+
+            GameObject stFooterObj = CreateUIContainer("FooterRow", starterOfferObj.transform,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -98f), new Vector2(780f, 96f));
+            CreateOutlinedText("OfferTitle", stFooterObj.transform, "Cosmic Pack!", font, 44,
+                Color.white, new Vector2(-190f, 0f), new Vector2(350f, 74f),
+                new Color(0.102f, 0.031f, 0.212f, 0.98f), new Vector2(3f, -3f), TextAnchor.MiddleLeft);
+
+            GameObject buyStarterObj = CreateUIPanel("Btn_BuyStarterPack", stFooterObj.transform,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(198f, 0f), new Vector2(334f, 84f));
+            _buyStarterPackBtnRect = buyStarterObj.GetComponent<RectTransform>();
+            Image buyStarterImg = buyStarterObj.GetComponent<Image>();
+            buyStarterImg.sprite = greenBtnSp;
+            buyStarterImg.type = Image.Type.Sliced;
+            buyStarterImg.color = Color.white;
+            _buyStarterPackBtn = buyStarterObj.AddComponent<Button>();
+            _buyStarterPackBtn.targetGraphic = buyStarterImg;
+            _buyStarterPackBtn.onClick.AddListener(OnBuyStarterBundleClicked);
+
+            _buyStarterPackPriceText = CreateOutlinedText("PriceText", buyStarterObj.transform, _starterBundlePrice, font, 38,
+                Color.white, Vector2.zero, new Vector2(300f, 64f),
+                new Color(0.039f, 0.180f, 0.102f, 0.98f), new Vector2(2.5f, -2.5f), TextAnchor.MiddleCenter);
+            _buyStarterPackShineRect = CreateShineButtonOverlay(buyStarterObj.transform, new Vector2(306f, 68f), new Vector2(96f, 120f), shineSp);
+
+            // 2C. Tap To Continue
+            GameObject tapObj = CreateUIPanel("Btn_TapToContinue", centerStackObj.transform,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -612f), new Vector2(640f, 96f));
+            _tapToContinueRect = tapObj.GetComponent<RectTransform>();
+            Image tapBg = tapObj.GetComponent<Image>();
+            tapBg.color = new Color(1f, 1f, 1f, 0.001f); // Transparent raycast target
+            _tapToContinueCanvasGroup = tapObj.AddComponent<CanvasGroup>();
+            _tapToContinueCanvasGroup.alpha = 1f;
+            _tapToContinueBtn = tapObj.AddComponent<Button>();
+            _tapToContinueBtn.transition = Selectable.Transition.None;
+            _tapToContinueBtn.onClick.AddListener(OnTimeOutContinueClicked);
+
+            CreateOutlinedText("ContinueText", tapObj.transform, "TAP TO CONTINUE", font, 40,
+                new Color(0.918f, 0.878f, 1.00f), Vector2.zero, new Vector2(600f, 70f),
+                new Color(0.086f, 0.027f, 0.188f, 0.98f), new Vector2(2.5f, -2.5f), TextAnchor.MiddleCenter);
+
+            SyncTimeOutResourceTexts();
+            ApplyTimeOutVisualState(showFailed: false);
+            _timeOutPanel.SetActive(false);
+        }
+
+        private Text CreateOutlinedText(string name, Transform parent, string content, Font font, int fontSize,
+            Color color, Vector2 anchoredPos, Vector2 sizeDelta, Color outlineColor, Vector2 outlineDist, TextAnchor alignment)
+        {
+            Text txt = CreateStyledText(name, parent, content, font, fontSize, color, anchoredPos, sizeDelta, true,
+                new Color(outlineColor.r * 0.5f, outlineColor.g * 0.5f, outlineColor.b * 0.5f, 0.90f),
+                new Vector2(0f, -Mathf.Max(2f, Mathf.Abs(outlineDist.y) * 1.4f)));
+            txt.alignment = alignment;
+
+            Outline outline = txt.gameObject.AddComponent<Outline>();
+            outline.effectColor = outlineColor;
+            outline.effectDistance = outlineDist;
+            return txt;
+        }
+
+        private RectTransform CreateShineButtonOverlay(Transform parent, Vector2 clipSize, Vector2 sweepSize, Sprite shineSp)
+        {
+            GameObject shineClip = CreateUIContainer("ShineClip", parent,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, clipSize);
+            shineClip.AddComponent<RectMask2D>();
+            Image shineImg = CreateWinImage("ShineSweep", shineClip.transform, new Vector2(-260f, 0f), sweepSize,
+                shineSp, new Color(1f, 1f, 1f, 0.40f), preserveAspect: false);
+            return shineImg.GetComponent<RectTransform>();
+        }
+
+        private void CreateOfferBoosterCluster(Transform parent, Vector2 anchoredPos, Vector2 sizeDelta, float spreadX,
+            Sprite wandSp, Sprite freezeSp, Sprite magnetSp, Font font)
+        {
+            GameObject cluster = CreateUIContainer("BoostersCluster", parent,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), anchoredPos, sizeDelta);
+
+            CreateOfferBoosterItem("BoosterWand", cluster.transform, new Vector2(0f, 46f), 90f, 8f, wandSp,
+                new Vector2(38f, -26f), font);
+            CreateOfferBoosterItem("BoosterFreeze", cluster.transform, new Vector2(-spreadX, -24f), 94f, -8f, freezeSp,
+                new Vector2(36f, -32f), font);
+            CreateOfferBoosterItem("BoosterMagnet", cluster.transform, new Vector2(spreadX, -24f), 92f, 10f, magnetSp,
+                new Vector2(36f, -32f), font);
+        }
+
+        private void CreateOfferBoosterItem(string name, Transform parent, Vector2 anchoredPos, float size, float rotZ,
+            Sprite sprite, Vector2 badgePos, Font font)
+        {
+            Image icon = CreateWinImage(name, parent, anchoredPos, new Vector2(size, size), sprite, Color.white, preserveAspect: true);
+            icon.rectTransform.localEulerAngles = new Vector3(0f, 0f, rotZ);
+
+            Text badge = CreateOutlinedText("QtyBadge", icon.transform, "x1", font, 26,
+                new Color(1.00f, 0.957f, 0.651f), badgePos, new Vector2(64f, 40f),
+                new Color(0.102f, 0.031f, 0.212f, 0.98f), new Vector2(2.2f, -2.2f), TextAnchor.MiddleCenter);
+            badge.rectTransform.localEulerAngles = new Vector3(0f, 0f, -rotZ);
+        }
+
+        private void SyncTimeOutResourceTexts()
+        {
+            int lives = PlayerPrefs.HasKey(PrefLivesKey) ? PlayerPrefs.GetInt(PrefLivesKey, DefaultLives) : DefaultLives;
+            int coins = PlayerPrefs.HasKey(PrefCoinsKey) ? PlayerPrefs.GetInt(PrefCoinsKey, DefaultStartingCoinsIfUnset) : DefaultStartingCoinsIfUnset;
+
+            if (_timeOutLivesCountText != null) _timeOutLivesCountText.text = Mathf.Clamp(lives, 0, MaxLives).ToString();
+            if (_timeOutLivesTimerText != null) _timeOutLivesTimerText.text = FormatTimeMMSS(_timeOutLifeRegenSeconds);
+            if (_timeOutCoinsCountText != null) _timeOutCoinsCountText.text = coins.ToString();
+
+            if (_timeOutExtraText != null) _timeOutExtraText.text = "+" + Mathf.RoundToInt(_reviveExtraSeconds) + "s";
+            if (_timeOutSubtitleText != null) _timeOutSubtitleText.text = $"Add {Mathf.RoundToInt(_reviveExtraSeconds)} more seconds to keep merging!";
+            if (_buyTimeCostText != null) _buyTimeCostText.text = _reviveCoinCost.ToString();
+            if (_adTimeLabelText != null) _adTimeLabelText.text = "+" + Mathf.RoundToInt(_reviveExtraSeconds) + "s";
+
+            if (_reviveOfferCoinsText != null) _reviveOfferCoinsText.text = _reviveBundleCoins.ToString();
+            if (_buyRevivePackPriceText != null) _buyRevivePackPriceText.text = _reviveBundlePrice;
+            if (_starterOfferCoinsText != null) _starterOfferCoinsText.text = _starterBundleCoins.ToString();
+            if (_buyStarterPackPriceText != null) _buyStarterPackPriceText.text = _starterBundlePrice;
+        }
+
+        private void ApplyTimeOutVisualState(bool showFailed)
+        {
+            _isInLevelFailedState = showFailed;
+
+            if (_timeOutStageRoot != null) _timeOutStageRoot.SetActive(!showFailed);
+            if (_levelFailedStageRoot != null) _levelFailedStageRoot.SetActive(showFailed);
+            if (_reviveOfferRoot != null) _reviveOfferRoot.SetActive(!showFailed);
+            if (_starterOfferRoot != null) _starterOfferRoot.SetActive(showFailed);
+
+            if (_timeOutHeaderText != null) _timeOutHeaderText.text = showFailed ? "Level Failed" : "Time Out!";
+            if (_timeOutHeaderImg != null) _timeOutHeaderImg.color = showFailed ? FailedHeaderTint : TimeOutHeaderTint;
+
+            if (_timeOutTopBarRect != null) _timeOutTopBarRect.anchoredPosition = new Vector2(0f, -145f);
+            if (_timeOutMainCardRect != null) _timeOutMainCardRect.localScale = Vector3.one;
+            if (_offerCardRect != null)
+            {
+                _offerCardRect.anchoredPosition = new Vector2(0f, -322f);
+                _offerCardRect.localScale = Vector3.one;
+            }
+            if (_timeOutPlanetRingedRect != null)
+            {
+                _timeOutPlanetRingedRect.anchoredPosition = new Vector2(386f, 260f);
+                _timeOutPlanetRingedRect.localScale = Vector3.one;
+                _timeOutPlanetRingedRect.localEulerAngles = new Vector3(0f, 0f, -10f);
+            }
+            if (_timeOutPlanetMiniRect != null)
+            {
+                _timeOutPlanetMiniRect.anchoredPosition = new Vector2(-368f, -284f);
+                _timeOutPlanetMiniRect.localScale = Vector3.one;
+            }
+
+            if (_timeOutStopwatchRoot != null) _timeOutStopwatchRoot.localScale = Vector3.one;
+            if (_timeOutStopwatchIconRect != null)
+            {
+                _timeOutStopwatchIconRect.localScale = Vector3.one;
+                _timeOutStopwatchIconRect.localRotation = Quaternion.identity;
+            }
+            if (_buyTimeBtnRect != null) _buyTimeBtnRect.localScale = Vector3.one;
+            if (_adTimeBtnRect != null) _adTimeBtnRect.localScale = Vector3.one;
+            if (_adTimeShineRect != null) _adTimeShineRect.anchoredPosition = new Vector2(-260f, 0f);
+
+            if (_failedHeartRoot != null) _failedHeartRoot.localScale = Vector3.one;
+            if (_failedHeartLeftRect != null)
+            {
+                _failedHeartLeftRect.anchoredPosition = showFailed ? new Vector2(-12f, -3f) : Vector2.zero;
+                _failedHeartLeftRect.localEulerAngles = new Vector3(0f, 0f, showFailed ? 9f : 0f);
+            }
+            if (_failedHeartRightRect != null)
+            {
+                _failedHeartRightRect.anchoredPosition = showFailed ? new Vector2(12f, -3f) : Vector2.zero;
+                _failedHeartRightRect.localEulerAngles = new Vector3(0f, 0f, showFailed ? -9f : 0f);
+            }
+            if (_failedCrackGlowRect != null) _failedCrackGlowRect.localScale = Vector3.one;
+            if (_failedCrackGlowImg != null) _failedCrackGlowImg.color = new Color(1.0f, 0.72f, 0.90f, 0f);
+            if (_failedMinusOneText != null) _failedMinusOneText.rectTransform.localScale = Vector3.one;
+            if (_retryBtnRect != null) _retryBtnRect.localScale = Vector3.one;
+            if (_retryShineRect != null) _retryShineRect.anchoredPosition = new Vector2(-260f, 0f);
+
+            if (_bestOfferRibbonRect != null) _bestOfferRibbonRect.localScale = Vector3.one;
+            if (_buyRevivePackShineRect != null) _buyRevivePackShineRect.anchoredPosition = new Vector2(-260f, 0f);
+            if (_buyStarterPackShineRect != null) _buyStarterPackShineRect.anchoredPosition = new Vector2(-260f, 0f);
+            if (_tapToContinueCanvasGroup != null) _tapToContinueCanvasGroup.alpha = 1f;
+        }
+
+        private void CleanupTimeOutEffects()
+        {
+            if (_timeOutAnimCoroutine != null)
+            {
+                StopCoroutine(_timeOutAnimCoroutine);
+                _timeOutAnimCoroutine = null;
+            }
+            if (_timeOutTransitionCoroutine != null)
+            {
+                StopCoroutine(_timeOutTransitionCoroutine);
+                _timeOutTransitionCoroutine = null;
+            }
+            if (_timeOutReviveCoroutine != null)
+            {
+                StopCoroutine(_timeOutReviveCoroutine);
+                _timeOutReviveCoroutine = null;
+            }
+            _timeOutIntroComplete = false;
+            _timeOutAllowContinue = false;
+            if (_timeOutEffectsLayer != null)
+            {
+                if (Application.isPlaying) Destroy(_timeOutEffectsLayer.gameObject);
+                else DestroyImmediate(_timeOutEffectsLayer.gameObject);
+                _timeOutEffectsLayer = null;
+            }
+        }
+
+        public void ShowTimeOutPopup()
+        {
+            if (_timeOutPanel == null)
+            {
+                RebuildTimeOutPanel();
+            }
+            if (_timeOutPanel == null || IsVictoryShowing || IsTimeOutShowing) return;
+
+            StopTimer();
+            _freezeTimerRemaining = 0f;
+            _freezeEffectController?.StopImmediate();
+            _magnetController?.StopImmediate();
+            _wandController?.StopImmediate();
+            _isPaused = false;
+            Time.timeScale = 1f;
+            if (_pausePanel != null) _pausePanel.SetActive(false);
+
+            Gameplay.PlayerPieceController.Instance?.CancelActiveDragIfNeeded();
+
+            if (!PlayerPrefs.HasKey(PrefLivesKey))
+            {
+                PlayerPrefs.SetInt(PrefLivesKey, DefaultLives);
+            }
+            if (!PlayerPrefs.HasKey(PrefCoinsKey))
+            {
+                PlayerPrefs.SetInt(PrefCoinsKey, DefaultStartingCoinsIfUnset);
+            }
+            PlayerPrefs.Save();
+
+            EnsureTimeOutSprites();
+            SyncTimeOutResourceTexts();
+            ApplyTimeOutVisualState(showFailed: false);
+
+            _timeOutPanel.transform.SetAsLastSibling();
+            Transform feedbackTr = transform.Find("FeedbackBanner");
+            if (feedbackTr != null) feedbackTr.SetAsLastSibling();
+
+            _timeOutPanel.SetActive(true);
+            SoundManager.Instance?.PlayTimeOut();
+
+            if (Application.isPlaying)
+            {
+                CleanupTimeOutEffects();
+                _timeOutAnimCoroutine = StartCoroutine(CoAnimateTimeOutIntro());
+            }
+            else
+            {
+                if (_timeOutCanvasGroup != null) _timeOutCanvasGroup.alpha = 1f;
+            }
+        }
+
+        public void HideTimeOutPopup()
+        {
+            CleanupTimeOutEffects();
+            _isInLevelFailedState = false;
+            if (_timeOutPanel != null)
+            {
+                _timeOutPanel.SetActive(false);
+            }
+        }
+
+        public void SetTimeOutPreviewActive(bool active, bool showFailedState = false)
+        {
+            if (active)
+            {
+                if (_timeOutPanel == null ||
+                    _timeOutPanel.transform.Find("CenterStack/MainCard/TimeOutContent") == null ||
+                    _timeOutPanel.transform.Find("CenterStack/OfferBannerCard/StarterOfferContent") == null)
+                {
+                    RebuildTimeOutPanel();
+                }
+                if (_timeOutPanel == null) return;
+
+                CleanupTimeOutEffects();
+                EnsureTimeOutSprites();
+                SyncTimeOutResourceTexts();
+                ApplyTimeOutVisualState(showFailedState);
+
+                _timeOutPanel.transform.SetAsLastSibling();
+                Transform feedbackTr = transform.Find("FeedbackBanner");
+                if (feedbackTr != null) feedbackTr.SetAsLastSibling();
+
+                if (_timeOutCanvasGroup != null) _timeOutCanvasGroup.alpha = 1f;
+                _timeOutPanel.SetActive(true);
+            }
+            else
+            {
+                HideTimeOutPopup();
+            }
+        }
+
+        public void ReplayTimeOutFlow()
+        {
+            HideGameOver();
+            HideTimeOutPopup();
+            ShowTimeOutPopup();
+        }
+
+        public void OnTimeOutContinueClicked()
+        {
+            if (!IsTimeOutShowing || !_timeOutAllowContinue ||
+                _timeOutTransitionCoroutine != null || _timeOutReviveCoroutine != null)
+            {
+                return;
+            }
+
+            if (!_isInLevelFailedState)
+            {
+                SoundManager.Instance?.PlayButton();
+                _timeOutTransitionCoroutine = StartCoroutine(CoTransitionToLevelFailed());
+            }
+            else
+            {
+                SoundManager.Instance?.PlayButton();
+                HideTimeOutPopup();
+                if (!CustomLevelRepository.IsEditorPlayTestActive && Application.CanStreamedLevelBeLoaded("HomeScene"))
+                {
+                    SceneManager.LoadScene("HomeScene");
+                }
+                else
+                {
+                    RestartLevel();
+                }
+            }
+        }
+
+        public void OnBuyExtraTimeClicked()
+        {
+            if (!IsTimeOutShowing || _isInLevelFailedState ||
+                _timeOutTransitionCoroutine != null || _timeOutReviveCoroutine != null)
+            {
+                return;
+            }
+
+            int coins = PlayerPrefs.GetInt(PrefCoinsKey, DefaultStartingCoinsIfUnset);
+            if (coins < _reviveCoinCost)
+            {
+                SoundManager.Instance?.PlayError();
+                if (_buyTimeBtnRect != null) StartCoroutine(CoButtonShake(_buyTimeBtnRect));
+                ShowFeedbackError($"Không đủ xu! Cần {_reviveCoinCost} xu");
+                return;
+            }
+
+            coins -= _reviveCoinCost;
+            PlayerPrefs.SetInt(PrefCoinsKey, coins);
+            PlayerPrefs.Save();
+            if (_timeOutCoinsCountText != null) _timeOutCoinsCountText.text = coins.ToString();
+
+            _timeOutReviveCoroutine = StartCoroutine(CoReviveWithExtraTime(_reviveExtraSeconds, _buyTimeBtnRect));
+        }
+
+        public void OnWatchAdExtraTimeClicked()
+        {
+            if (!IsTimeOutShowing || _isInLevelFailedState ||
+                _timeOutTransitionCoroutine != null || _timeOutReviveCoroutine != null)
+            {
+                return;
+            }
+
+            _timeOutReviveCoroutine = StartCoroutine(CoReviveWithExtraTime(_reviveExtraSeconds, _adTimeBtnRect));
+        }
+
+        public void OnBuyReviveBundleClicked()
+        {
+            if (!IsTimeOutShowing || _isInLevelFailedState ||
+                _timeOutTransitionCoroutine != null || _timeOutReviveCoroutine != null)
+            {
+                return;
+            }
+
+            int coins = PlayerPrefs.GetInt(PrefCoinsKey, DefaultStartingCoinsIfUnset) + _reviveBundleCoins;
+            PlayerPrefs.SetInt(PrefCoinsKey, coins);
+            PlayerPrefs.Save();
+
+            _freezeCount++;
+            _magnetCount++;
+            _wandCount++;
+            SaveBoosterCounts();
+            UpdateBoosterUnlockStates();
+            if (_timeOutCoinsCountText != null) _timeOutCoinsCountText.text = coins.ToString();
+
+            _timeOutReviveCoroutine = StartCoroutine(CoReviveWithExtraTime(_reviveExtraSeconds, _buyRevivePackBtnRect));
+        }
+
+        public void OnBuyStarterBundleClicked()
+        {
+            if (!IsTimeOutShowing || _timeOutReviveCoroutine != null) return;
+
+            if (_buyStarterPackBtnRect != null) StartCoroutine(CoButtonPunch(_buyStarterPackBtnRect));
+            SoundManager.Instance?.PlayRevive();
+
+            int coins = PlayerPrefs.GetInt(PrefCoinsKey, DefaultStartingCoinsIfUnset) + _starterBundleCoins;
+            PlayerPrefs.SetInt(PrefCoinsKey, coins);
+            PlayerPrefs.Save();
+
+            _freezeCount++;
+            _magnetCount++;
+            _wandCount++;
+            SaveBoosterCounts();
+            UpdateBoosterUnlockStates();
+            if (_timeOutCoinsCountText != null) _timeOutCoinsCountText.text = coins.ToString();
+            if (_timeOutCoinsPillRect != null) StartCoroutine(CoPulseTransform(_timeOutCoinsPillRect, 1.14f, 0.28f));
+
+            ShowFloatingText($"+{_starterBundleCoins} XU & +1 BOOSTER!", Vector3.zero, new Color(1.0f, 0.88f, 0.35f));
+        }
+
+        public void OnRetryLevelClicked()
+        {
+            if (!IsTimeOutShowing || _timeOutTransitionCoroutine != null || _timeOutReviveCoroutine != null) return;
+            SoundManager.Instance?.PlayButton();
+            if (_retryBtnRect != null) StartCoroutine(CoButtonPunch(_retryBtnRect));
+            HideTimeOutPopup();
+            RestartLevel();
+        }
+
+        private void OnTimeOutAddLivesClicked()
+        {
+            SoundManager.Instance?.PlayButton();
+            if (_timeOutLivesPillRect != null) StartCoroutine(CoPulseTransform(_timeOutLivesPillRect, 1.08f, 0.18f));
+            ShowFeedbackError("Tim tự hồi theo thời gian hoặc mua gói Revive!");
+        }
+
+        private void OnTimeOutAddCoinsClicked()
+        {
+            SoundManager.Instance?.PlayButton();
+            if (_timeOutCoinsPillRect != null) StartCoroutine(CoPulseTransform(_timeOutCoinsPillRect, 1.08f, 0.18f));
+            ShowFeedbackError("Chọn gói ưu đãi bên dưới để nhận thêm Xu!");
+        }
+
+        private RectTransform EnsureTimeOutEffectsLayer()
+        {
+            if (_timeOutEffectsLayer == null && _timeOutPanel != null)
+            {
+                _timeOutEffectsLayer = CreateUIContainer("TimeOutEffectsLayer", _timeOutPanel.transform,
+                    Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero).GetComponent<RectTransform>();
+                _timeOutEffectsLayer.SetAsLastSibling();
+            }
+            return _timeOutEffectsLayer;
+        }
+
+        private IEnumerator CoAnimateTimeOutIntro()
+        {
+            _timeOutIntroComplete = false;
+            _timeOutAllowContinue = false;
+            EnsureTimeOutEffectsLayer();
+
+            Sprite glowSp = GemSpriteManager.GetWinHelperSprite("win_radial_glow") ?? SpriteGenerator.GetRadialGlowSprite();
+            Sprite flareSp = GemSpriteManager.GetWinHelperSprite("win_star_flare") ?? SpriteGenerator.GetStarFlareSprite();
+
+            if (_timeOutCanvasGroup != null) _timeOutCanvasGroup.alpha = 0f;
+            if (_timeOutTopBarRect != null) _timeOutTopBarRect.anchoredPosition = new Vector2(0f, 60f);
+            if (_timeOutMainCardRect != null) _timeOutMainCardRect.localScale = new Vector3(0.70f, 0.70f, 1f);
+            if (_timeOutPlanetRingedRect != null) _timeOutPlanetRingedRect.localScale = Vector3.zero;
+            if (_timeOutPlanetMiniRect != null) _timeOutPlanetMiniRect.localScale = Vector3.zero;
+            if (_timeOutStopwatchRoot != null) _timeOutStopwatchRoot.localScale = Vector3.zero;
+            if (_buyTimeBtnRect != null) _buyTimeBtnRect.localScale = Vector3.zero;
+            if (_adTimeBtnRect != null) _adTimeBtnRect.localScale = Vector3.zero;
+            if (_offerCardRect != null) _offerCardRect.anchoredPosition = new Vector2(0f, -680f);
+            if (_tapToContinueCanvasGroup != null) _tapToContinueCanvasGroup.alpha = 0f;
+
+            bool swBurstFired = false;
+            const float totalDur = 0.78f;
+            float elapsed = 0f;
+
+            while (elapsed < totalDur && IsTimeOutShowing)
+            {
+                float dt = Time.unscaledDeltaTime;
+                elapsed += dt;
+
+                if (_timeOutCanvasGroup != null)
+                {
+                    _timeOutCanvasGroup.alpha = Mathf.Clamp01(elapsed / 0.16f);
+                }
+
+                if (_timeOutTopBarRect != null)
+                {
+                    float bt = Mathf.Clamp01(elapsed / 0.28f);
+                    float ease = 1f - (1f - bt) * (1f - bt);
+                    _timeOutTopBarRect.anchoredPosition = new Vector2(0f, Mathf.Lerp(60f, -145f, ease));
+                }
+
+                if (_timeOutMainCardRect != null)
+                {
+                    float ct = Mathf.Clamp01((elapsed - 0.04f) / 0.34f);
+                    _timeOutMainCardRect.localScale = Vector3.one * EvaluateOvershootScale(ct, 0.70f, 1.07f, 1f, 0.62f);
+                }
+
+                if (elapsed >= 0.16f)
+                {
+                    float pt = Mathf.Clamp01((elapsed - 0.16f) / 0.30f);
+                    float pScale = EvaluateOvershootScale(pt, 0f, 1.18f, 1f, 0.60f);
+                    if (_timeOutPlanetRingedRect != null) _timeOutPlanetRingedRect.localScale = Vector3.one * pScale;
+                    if (_timeOutPlanetMiniRect != null) _timeOutPlanetMiniRect.localScale = Vector3.one * pScale;
+                }
+
+                if (elapsed >= 0.18f)
+                {
+                    if (!swBurstFired)
+                    {
+                        swBurstFired = true;
+                        if (_timeOutStopwatchRoot != null && glowSp != null)
+                        {
+                            StartCoroutine(CoSpawnTimeOutFlashBurst(_timeOutStopwatchRoot, Vector2.zero, glowSp,
+                                new Color(0.84f, 0.45f, 1.0f, 0.90f), 0.35f, 1.95f, 0.26f));
+                        }
+                    }
+                    float st = Mathf.Clamp01((elapsed - 0.18f) / 0.30f);
+                    if (_timeOutStopwatchRoot != null)
+                    {
+                        _timeOutStopwatchRoot.localScale = Vector3.one * EvaluateOvershootScale(st, 0f, 1.18f, 1f, 0.60f);
+                    }
+                }
+
+                if (elapsed >= 0.26f && _buyTimeBtnRect != null)
+                {
+                    float b1 = Mathf.Clamp01((elapsed - 0.26f) / 0.28f);
+                    _buyTimeBtnRect.localScale = Vector3.one * EvaluateOvershootScale(b1, 0f, 1.10f, 1f, 0.62f);
+                }
+                if (elapsed >= 0.34f && _adTimeBtnRect != null)
+                {
+                    float b2 = Mathf.Clamp01((elapsed - 0.34f) / 0.28f);
+                    _adTimeBtnRect.localScale = Vector3.one * EvaluateOvershootScale(b2, 0f, 1.12f, 1f, 0.62f);
+                }
+
+                if (elapsed >= 0.26f && _offerCardRect != null)
+                {
+                    float ot = Mathf.Clamp01((elapsed - 0.26f) / 0.38f);
+                    float easeOut = 1f - Mathf.Pow(1f - ot, 3f);
+                    _offerCardRect.anchoredPosition = new Vector2(0f, Mathf.Lerp(-680f, -322f, easeOut));
+                }
+
+                if (elapsed >= 0.44f && _tapToContinueCanvasGroup != null)
+                {
+                    _tapToContinueCanvasGroup.alpha = Mathf.Clamp01((elapsed - 0.44f) / 0.24f);
+                    if (!_timeOutAllowContinue) _timeOutAllowContinue = true;
+                }
+
+                if (_timeOutStopwatchSunburstRect != null)
+                {
+                    _timeOutStopwatchSunburstRect.Rotate(0f, 0f, -22f * dt);
+                }
+
+                yield return null;
+            }
+
+            if (IsTimeOutShowing)
+            {
+                if (_timeOutCanvasGroup != null) _timeOutCanvasGroup.alpha = 1f;
+                ApplyTimeOutVisualState(showFailed: false);
+                _timeOutAllowContinue = true;
+                _timeOutIntroComplete = true;
+                _timeOutIdleTime = 0f;
+            }
+            _timeOutAnimCoroutine = null;
+        }
+
+        private IEnumerator CoTransitionToLevelFailed()
+        {
+            _timeOutAllowContinue = false;
+            _timeOutIntroComplete = false;
+            EnsureTimeOutEffectsLayer();
+
+            Sprite glowSp = GemSpriteManager.GetWinHelperSprite("win_radial_glow") ?? SpriteGenerator.GetRadialGlowSprite();
+
+            // 1. Deduct 1 life immediately with visual punch on top-left Lives pill
+            int lives = PlayerPrefs.HasKey(PrefLivesKey) ? PlayerPrefs.GetInt(PrefLivesKey, DefaultLives) : DefaultLives;
+            lives = Mathf.Max(0, lives - 1);
+            PlayerPrefs.SetInt(PrefLivesKey, lives);
+            PlayerPrefs.Save();
+            if (_timeOutLivesCountText != null) _timeOutLivesCountText.text = lives.ToString();
+
+            if (_timeOutLivesPillRect != null)
+            {
+                StartCoroutine(CoPulseTransform(_timeOutLivesPillRect, 1.18f, 0.28f));
+                StartCoroutine(CoFloatingLoseBadge(_timeOutLivesPillRect, "-1",
+                    new Vector2(-146f, -18f), new Vector2(-146f, -72f), new Color(1.0f, 0.32f, 0.56f), 32, 0.65f));
+            }
+            if (_timeOutLivesPillImg != null)
+            {
+                StartCoroutine(CoFlashImageColor(_timeOutLivesPillImg, new Color(1.0f, 0.45f, 0.68f, 1f), Color.white, 0.32f));
+            }
+
+            // 2. Morph MainCard & OfferBannerCard into Level Failed
+            float morphElapsed = 0f;
+            const float shrinkDur = 0.14f;
+            while (morphElapsed < shrinkDur && IsTimeOutShowing)
+            {
+                morphElapsed += Time.unscaledDeltaTime;
+                float t = Mathf.Clamp01(morphElapsed / shrinkDur);
+                if (_timeOutMainCardRect != null) _timeOutMainCardRect.localScale = Vector3.Lerp(Vector3.one, new Vector3(1.04f, 0.90f, 1f), t);
+                if (_offerCardRect != null) _offerCardRect.localScale = new Vector3(1f, Mathf.Lerp(1f, 0.06f, t), 1f);
+                yield return null;
+            }
+
+            // Swap to Level Failed content while heart starts intact & joined at center
+            ApplyTimeOutVisualState(showFailed: true);
+            if (_failedHeartRoot != null) _failedHeartRoot.localScale = Vector3.zero;
+            if (_failedHeartLeftRect != null)
+            {
+                _failedHeartLeftRect.anchoredPosition = Vector2.zero;
+                _failedHeartLeftRect.localRotation = Quaternion.identity;
+            }
+            if (_failedHeartRightRect != null)
+            {
+                _failedHeartRightRect.anchoredPosition = Vector2.zero;
+                _failedHeartRightRect.localRotation = Quaternion.identity;
+            }
+            if (_failedMinusOneText != null) _failedMinusOneText.rectTransform.localScale = Vector3.zero;
+            if (_retryBtnRect != null) _retryBtnRect.localScale = Vector3.zero;
+            if (_bestOfferRibbonRect != null) _bestOfferRibbonRect.localScale = Vector3.zero;
+            if (_tapToContinueCanvasGroup != null) _tapToContinueCanvasGroup.alpha = 0f;
+
+            // Expand MainCard & OfferCard back
+            float expandElapsed = 0f;
+            const float expandDur = 0.22f;
+            while (expandElapsed < expandDur && IsTimeOutShowing)
+            {
+                expandElapsed += Time.unscaledDeltaTime;
+                float t = Mathf.Clamp01(expandElapsed / expandDur);
+                if (_timeOutMainCardRect != null)
+                {
+                    _timeOutMainCardRect.localScale = Vector3.one * EvaluateOvershootScale(t, 0.94f, 1.05f, 1f, 0.55f);
+                }
+                if (_offerCardRect != null)
+                {
+                    _offerCardRect.localScale = new Vector3(1f, EvaluateOvershootScale(t, 0.06f, 1.06f, 1f, 0.60f), 1f);
+                }
+                if (_bestOfferRibbonRect != null)
+                {
+                    _bestOfferRibbonRect.localScale = Vector3.one * EvaluateOvershootScale(t, 0f, 1.24f, 1f, 0.62f);
+                }
+                if (_failedHeartRoot != null)
+                {
+                    _failedHeartRoot.localScale = Vector3.one * EvaluateOvershootScale(t, 0f, 1.18f, 1f, 0.62f);
+                }
+                yield return null;
+            }
+
+            if (_timeOutMainCardRect != null) _timeOutMainCardRect.localScale = Vector3.one;
+            if (_offerCardRect != null) _offerCardRect.localScale = Vector3.one;
+            if (_bestOfferRibbonRect != null) _bestOfferRibbonRect.localScale = Vector3.one;
+            if (_failedHeartRoot != null) _failedHeartRoot.localScale = Vector3.one;
+
+            // 3. Rapid heart tremor before crack
+            float shakeElapsed = 0f;
+            const float shakeDur = 0.14f;
+            while (shakeElapsed < shakeDur && IsTimeOutShowing)
+            {
+                shakeElapsed += Time.unscaledDeltaTime;
+                float amp = 8f * (1f - shakeElapsed / shakeDur);
+                if (_failedHeartRoot != null)
+                {
+                    _failedHeartRoot.anchoredPosition = new Vector2(Mathf.Sin(shakeElapsed * 90f) * amp, 116f + Mathf.Cos(shakeElapsed * 70f) * amp * 0.4f);
+                }
+                yield return null;
+            }
+            if (_failedHeartRoot != null) _failedHeartRoot.anchoredPosition = new Vector2(0f, 116f);
+
+            // 4. Crack & split animation!
+            SoundManager.Instance?.PlayHeartBreak();
+            if (_failedHeartRoot != null)
+            {
+                if (glowSp != null)
+                {
+                    StartCoroutine(CoSpawnTimeOutFlashBurst(_failedHeartRoot, Vector2.zero, glowSp,
+                        new Color(1.0f, 0.35f, 0.65f, 0.92f), 0.25f, 1.85f, 0.26f));
+                }
+                StartCoroutine(CoSpawnLoseShards(_failedHeartRoot, Vector2.zero, 14, LoseHeartShardPalette));
+            }
+
+            float crackElapsed = 0f;
+            const float crackDur = 0.42f;
+            while (crackElapsed < crackDur && IsTimeOutShowing)
+            {
+                crackElapsed += Time.unscaledDeltaTime;
+                float t = Mathf.Clamp01(crackElapsed / crackDur);
+                float easeOut = 1f - Mathf.Pow(1f - t, 3f);
+
+                if (_failedHeartLeftRect != null)
+                {
+                    _failedHeartLeftRect.anchoredPosition = Vector2.Lerp(Vector2.zero, new Vector2(-12f, -3f), easeOut);
+                    _failedHeartLeftRect.localEulerAngles = new Vector3(0f, 0f, Mathf.Lerp(0f, 9f, easeOut));
+                }
+                if (_failedHeartRightRect != null)
+                {
+                    _failedHeartRightRect.anchoredPosition = Vector2.Lerp(Vector2.zero, new Vector2(12f, -3f), easeOut);
+                    _failedHeartRightRect.localEulerAngles = new Vector3(0f, 0f, Mathf.Lerp(0f, -9f, easeOut));
+                }
+
+                if (_failedCrackGlowImg != null && _failedCrackGlowRect != null)
+                {
+                    float flashA = t < 0.25f ? (t / 0.25f) : (1f - (t - 0.25f) / 0.75f);
+                    _failedCrackGlowImg.color = new Color(1.0f, 0.72f, 0.90f, Mathf.Clamp01(flashA) * 0.90f);
+                    _failedCrackGlowRect.localScale = Vector3.one * Mathf.Lerp(0.6f, 1.45f, easeOut);
+                }
+
+                if (t >= 0.16f && _failedMinusOneText != null)
+                {
+                    float mt = Mathf.Clamp01((t - 0.16f) / 0.65f);
+                    float mScale = mt < 0.4f
+                        ? Mathf.Lerp(1.65f, 0.90f, mt / 0.4f)
+                        : Mathf.Lerp(0.90f, 1.0f, (mt - 0.4f) / 0.6f);
+                    _failedMinusOneText.rectTransform.localScale = Vector3.one * mScale;
+                }
+
+                if (t >= 0.26f && _retryBtnRect != null)
+                {
+                    float rt = Mathf.Clamp01((t - 0.26f) / 0.74f);
+                    _retryBtnRect.localScale = Vector3.one * EvaluateOvershootScale(rt, 0f, 1.14f, 1f, 0.60f);
+                }
+
+                if (t >= 0.50f && _tapToContinueCanvasGroup != null)
+                {
+                    _tapToContinueCanvasGroup.alpha = Mathf.Clamp01((t - 0.50f) / 0.50f);
+                }
+
+                yield return null;
+            }
+
+            if (IsTimeOutShowing)
+            {
+                ApplyTimeOutVisualState(showFailed: true);
+                _timeOutAllowContinue = true;
+                _timeOutIntroComplete = true;
+                _timeOutIdleTime = 0f;
+            }
+            _timeOutTransitionCoroutine = null;
+        }
+
+        private IEnumerator CoReviveWithExtraTime(float extraSec, RectTransform clickedBtnRect)
+        {
+            _timeOutAllowContinue = false;
+            _timeOutIntroComplete = false;
+            if (clickedBtnRect != null) StartCoroutine(CoButtonPunch(clickedBtnRect));
+            SoundManager.Instance?.PlayRevive();
+
+            RectTransform fxLayer = EnsureTimeOutEffectsLayer();
+            Sprite glowSp = GemSpriteManager.GetWinHelperSprite("win_radial_glow") ?? SpriteGenerator.GetRadialGlowSprite();
+            if (fxLayer != null)
+            {
+                if (glowSp != null)
+                {
+                    StartCoroutine(CoSpawnTimeOutFlashBurst(fxLayer, new Vector2(0f, 190f), glowSp,
+                        new Color(0.55f, 0.96f, 1.0f, 0.92f), 0.35f, 2.3f, 0.30f));
+                }
+                StartCoroutine(CoFloatingLoseBadge(fxLayer, "+" + Mathf.RoundToInt(extraSec) + "s",
+                    new Vector2(0f, 220f), new Vector2(0f, 780f), new Color(0.99f, 0.96f, 0.62f), 64, 0.42f));
+            }
+
+            float elapsed = 0f;
+            const float closeDur = 0.28f;
+            while (elapsed < closeDur && IsTimeOutShowing)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                float t = Mathf.Clamp01(elapsed / closeDur);
+                if (_timeOutCanvasGroup != null) _timeOutCanvasGroup.alpha = 1f - t;
+                if (_timeOutCenterStackRect != null) _timeOutCenterStackRect.localScale = Vector3.one * Mathf.Lerp(1f, 0.88f, t);
+                yield return null;
+            }
+
+            HideTimeOutPopup();
+            if (_timeOutCenterStackRect != null) _timeOutCenterStackRect.localScale = Vector3.one;
+            if (_timeOutCanvasGroup != null) _timeOutCanvasGroup.alpha = 1f;
+
+            _timeRemaining = Mathf.Max(0f, _timeRemaining) + extraSec;
+            _timeOutLastTickSecond = -1;
+            _hasTimerStartedByInput = true;
+            _isTimerRunning = true;
+            _isPaused = false;
+            UpdateTimeDisplay();
+
+            if (_timeBannerImg != null)
+            {
+                StartCoroutine(CoPulseTransform(_timeBannerImg.transform, 1.18f, 0.30f));
+            }
+            ShowFloatingText($"+{Mathf.RoundToInt(extraSec)} GIÂY!", Vector3.zero, new Color(0.35f, 0.95f, 1.0f));
+            _timeOutReviveCoroutine = null;
+        }
+
+        private void UpdateTimeOutIdleAnimations(float t, float dt)
+        {
+            if (_timeOutPlanetRingedRect != null)
+            {
+                _timeOutPlanetRingedRect.anchoredPosition = new Vector2(386f, 260f + Mathf.Sin(t * 1.9f) * 5.5f);
+                _timeOutPlanetRingedRect.localEulerAngles = new Vector3(0f, 0f, -10f + Mathf.Sin(t * 1.4f) * 3.0f);
+            }
+            if (_timeOutPlanetMiniRect != null)
+            {
+                _timeOutPlanetMiniRect.anchoredPosition = new Vector2(-368f, -284f + Mathf.Cos(t * 2.1f) * 4.5f);
+            }
+            if (_timeOutCardSparklesRoot != null)
+            {
+                for (int i = 0; i < _timeOutCardSparklesRoot.childCount; i++)
+                {
+                    Transform ch = _timeOutCardSparklesRoot.GetChild(i);
+                    if (ch == null) continue;
+                    float s = 0.72f + 0.34f * Mathf.Sin(t * 3.8f + i * 1.15f);
+                    ch.localScale = new Vector3(s, s, 1f);
+                }
+            }
+            if (_tapToContinueCanvasGroup != null)
+            {
+                _tapToContinueCanvasGroup.alpha = 0.55f + 0.45f * (0.5f + 0.5f * Mathf.Sin(t * 3.2f));
+            }
+
+            if (!_isInLevelFailedState)
+            {
+                if (_timeOutStopwatchSunburstRect != null)
+                {
+                    _timeOutStopwatchSunburstRect.Rotate(0f, 0f, -22f * dt);
+                }
+                if (_timeOutStopwatchAuraRect != null)
+                {
+                    float pulse = 1f + Mathf.Sin(t * 2.6f) * 0.06f;
+                    _timeOutStopwatchAuraRect.localScale = new Vector3(pulse, pulse, 1f);
+                }
+                if (_timeOutStopwatchIconRect != null)
+                {
+                    float cycle = t % 2.1f;
+                    float rotZ = cycle < 0.42f ? Mathf.Sin(cycle * 36f) * 8.5f * (1f - cycle / 0.42f) : 0f;
+                    _timeOutStopwatchIconRect.localEulerAngles = new Vector3(0f, 0f, rotZ);
+                }
+                if (_adTimeBtnRect != null)
+                {
+                    float p = Mathf.Pow(Mathf.Max(0f, Mathf.Sin(t * 2.4f)), 6f);
+                    _adTimeBtnRect.localScale = Vector3.one * (1f + 0.040f * p);
+                }
+                if (_adTimeShineRect != null)
+                {
+                    float cycle = t % 2.5f;
+                    float sx = cycle < 0.62f ? Mathf.Lerp(-260f, 260f, cycle / 0.62f) : -260f;
+                    _adTimeShineRect.anchoredPosition = new Vector2(sx, 0f);
+                }
+                if (_buyRevivePackShineRect != null)
+                {
+                    float cycle = (t + 0.8f) % 2.8f;
+                    float sx = cycle < 0.62f ? Mathf.Lerp(-260f, 260f, cycle / 0.62f) : -260f;
+                    _buyRevivePackShineRect.anchoredPosition = new Vector2(sx, 0f);
+                }
+            }
+            else
+            {
+                float bob = Mathf.Sin(t * 2.0f) * 3.5f;
+                if (_failedHeartLeftRect != null) _failedHeartLeftRect.anchoredPosition = new Vector2(-12f, -3f + bob);
+                if (_failedHeartRightRect != null) _failedHeartRightRect.anchoredPosition = new Vector2(12f, -3f - bob * 0.6f);
+                if (_failedAuraRect != null)
+                {
+                    float pulse = 1f + Mathf.Sin(t * 2.2f) * 0.05f;
+                    _failedAuraRect.localScale = new Vector3(pulse, pulse, 1f);
+                }
+                if (_retryBtnRect != null)
+                {
+                    float p = Mathf.Pow(Mathf.Max(0f, Mathf.Sin(t * 2.4f)), 6f);
+                    _retryBtnRect.localScale = Vector3.one * (1f + 0.038f * p);
+                }
+                if (_retryShineRect != null)
+                {
+                    float cycle = t % 2.5f;
+                    float sx = cycle < 0.62f ? Mathf.Lerp(-260f, 260f, cycle / 0.62f) : -260f;
+                    _retryShineRect.anchoredPosition = new Vector2(sx, 0f);
+                }
+                if (_buyStarterPackShineRect != null)
+                {
+                    float cycle = (t + 0.8f) % 2.8f;
+                    float sx = cycle < 0.62f ? Mathf.Lerp(-260f, 260f, cycle / 0.62f) : -260f;
+                    _buyStarterPackShineRect.anchoredPosition = new Vector2(sx, 0f);
+                }
+            }
+        }
+
+        private IEnumerator CoButtonShake(RectTransform rt)
+        {
+            if (rt == null) yield break;
+            Vector2 orig = rt.anchoredPosition;
+            float elapsed = 0f;
+            const float dur = 0.28f;
+            while (elapsed < dur && rt != null)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                float t = elapsed / dur;
+                float offsetX = Mathf.Sin(t * Mathf.PI * 6f) * 14f * (1f - t);
+                rt.anchoredPosition = orig + new Vector2(offsetX, 0f);
+                yield return null;
+            }
+            if (rt != null) rt.anchoredPosition = orig;
+        }
+
+        private IEnumerator CoPulseTransform(Transform tr, float peakScale, float dur)
+        {
+            if (tr == null) yield break;
+            float elapsed = 0f;
+            while (elapsed < dur && tr != null)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                float t = Mathf.Clamp01(elapsed / dur);
+                float s = Mathf.Lerp(1f, peakScale, Mathf.Sin(t * Mathf.PI));
+                tr.localScale = Vector3.one * s;
+                yield return null;
+            }
+            if (tr != null) tr.localScale = Vector3.one;
+        }
+
+        private IEnumerator CoFlashImageColor(Image img, Color flashCol, Color restCol, float dur)
+        {
+            if (img == null) yield break;
+            float elapsed = 0f;
+            while (elapsed < dur && img != null)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                float t = Mathf.Clamp01(elapsed / dur);
+                img.color = Color.Lerp(flashCol, restCol, t);
+                yield return null;
+            }
+            if (img != null) img.color = restCol;
+        }
+
+        private IEnumerator CoSpawnTimeOutFlashBurst(RectTransform parent, Vector2 pos, Sprite sprite, Color color,
+            float startScale, float endScale, float duration)
+        {
+            if (parent == null || sprite == null) yield break;
+            RectTransform rt = SpawnFloatingEffectImage("TimeOutFlashBurst", parent, sprite, pos, new Vector2(220f, 220f), color, false);
+            Image img = rt.GetComponent<Image>();
+
+            float elapsed = 0f;
+            while (elapsed < duration && rt != null && IsTimeOutShowing)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                float t = Mathf.Clamp01(elapsed / duration);
+                float ease = 1f - (1f - t) * (1f - t);
+                rt.localScale = Vector3.one * Mathf.Lerp(startScale, endScale, ease);
+                if (img != null)
+                {
+                    img.color = new Color(color.r, color.g, color.b, color.a * (1f - t * t));
+                }
+                yield return null;
+            }
+
+            if (rt != null) Destroy(rt.gameObject);
+        }
+
+        private IEnumerator CoSpawnLoseShards(RectTransform anchor, Vector2 origin, int count, Color[] palette)
+        {
+            if (anchor == null) yield break;
+            Sprite shardSp = GemSpriteManager.GetWinHelperSprite("win_shard") ?? SpriteGenerator.GetShardSprite();
+            List<ConfettiParticle> shards = new List<ConfettiParticle>(count);
+
+            for (int i = 0; i < count; i++)
+            {
+                float ang = UnityEngine.Random.Range(0f, Mathf.PI * 2f);
+                float spd = UnityEngine.Random.Range(180f, 480f);
+                Vector2 vel = new Vector2(Mathf.Cos(ang) * spd, Mathf.Sin(ang) * spd + 110f);
+                float sz = UnityEngine.Random.Range(12f, 22f);
+                Color col = palette[i % palette.Length];
+
+                RectTransform rt = SpawnFloatingEffectImage("HeartShard_" + i, anchor, shardSp, origin, new Vector2(sz, sz), col, false);
+                rt.localEulerAngles = new Vector3(0f, 0f, UnityEngine.Random.Range(0f, 360f));
+
+                shards.Add(new ConfettiParticle
+                {
+                    Rect = rt,
+                    Img = rt.GetComponent<Image>(),
+                    Vel = vel,
+                    Spin = UnityEngine.Random.Range(-480f, 480f),
+                    Lifetime = UnityEngine.Random.Range(0.45f, 0.72f),
+                    Age = 0f,
+                    BaseColor = col
+                });
+            }
+
+            while (shards.Count > 0 && anchor != null && IsTimeOutShowing)
+            {
+                float dt = Time.unscaledDeltaTime;
+                for (int i = shards.Count - 1; i >= 0; i--)
+                {
+                    ConfettiParticle p = shards[i];
+                    p.Age += dt;
+                    if (p.Age >= p.Lifetime || p.Rect == null)
+                    {
+                        if (p.Rect != null) Destroy(p.Rect.gameObject);
+                        shards.RemoveAt(i);
+                        continue;
+                    }
+                    p.Vel.y -= 720f * dt;
+                    p.Rect.anchoredPosition += p.Vel * dt;
+                    p.Rect.Rotate(0f, 0f, p.Spin * dt);
+                    float t = p.Age / p.Lifetime;
+                    p.Rect.localScale = Vector3.one * (1f - t * 0.5f);
+                    if (p.Img != null)
+                    {
+                        p.Img.color = new Color(p.BaseColor.r, p.BaseColor.g, p.BaseColor.b, 1f - t * t);
+                    }
+                    shards[i] = p;
+                }
+                yield return null;
+            }
+
+            for (int i = 0; i < shards.Count; i++)
+            {
+                if (shards[i].Rect != null) Destroy(shards[i].Rect.gameObject);
+            }
+        }
+
+        private IEnumerator CoFloatingLoseBadge(RectTransform anchor, string text, Vector2 startPos, Vector2 endPos,
+            Color color, int fontSize, float duration)
+        {
+            if (anchor == null) yield break;
+            Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            if (font == null) font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+
+            Text badge = CreateOutlinedText("FloatingBadge", anchor, text, font, fontSize, color, startPos,
+                new Vector2(220f, 84f), new Color(0.12f, 0.02f, 0.22f, 0.98f), new Vector2(2.5f, -2.5f), TextAnchor.MiddleCenter);
+            RectTransform rt = badge.rectTransform;
+
+            float elapsed = 0f;
+            while (elapsed < duration && rt != null)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                float t = Mathf.Clamp01(elapsed / duration);
+                float ease = 1f - (1f - t) * (1f - t);
+                rt.anchoredPosition = Vector2.Lerp(startPos, endPos, ease);
+                rt.localScale = Vector3.one * Mathf.Lerp(0.85f, 1.15f, Mathf.Sin(t * Mathf.PI));
+                badge.color = new Color(color.r, color.g, color.b, t > 0.65f ? Mathf.Clamp01((1f - t) / 0.35f) : 1f);
+                yield return null;
+            }
+
+            if (rt != null) Destroy(rt.gameObject);
         }
     }
 }

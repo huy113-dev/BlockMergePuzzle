@@ -15,8 +15,10 @@ namespace BlockMergePuzzle.Gameplay
         [field: SerializeField] public int Value { get; private set; }
         [field: Tooltip("Giá trị số trên lớp băng (0 = không đóng băng; > 0 = số khối khác cần thoát cổng để phá băng).")]
         [field: SerializeField] public int IceCount { get; private set; }
+        [field: SerializeField] public MoveAxisConstraint MoveAxis { get; private set; } = MoveAxisConstraint.None;
+        [field: SerializeField] public bool IsStone { get; private set; } = false;
 
-        public bool IsFrozen => IceCount > 0;
+        public bool IsFrozen => !IsStone && IceCount > 0;
 
         [field: SerializeField] public Vector2Int GridOrigin { get; private set; }
         [field: SerializeField] public List<Vector2Int> ShapeOffsets { get; private set; } = new List<Vector2Int>();
@@ -28,10 +30,12 @@ namespace BlockMergePuzzle.Gameplay
 
         private Transform _visualRoot;
         private Transform _iceOverlayRoot;
+        private Transform _axisOverlayRoot;
         private SpriteRenderer _iceRenderer;
         private List<TextMesh> _iceTextLayers = new List<TextMesh>();
         private string _lastSyncedIceString = "";
         private List<SpriteRenderer> _renderers = new List<SpriteRenderer>();
+        private List<SpriteRenderer> _axisRenderers = new List<SpriteRenderer>();
         private List<TextMesh> _textLayers = new List<TextMesh>();
         private List<MeshRenderer> _textMeshLayers = new List<MeshRenderer>();
         private TextMesh _numberLabel;
@@ -119,12 +123,19 @@ namespace BlockMergePuzzle.Gameplay
                     _iceTextLayers = new List<TextMesh>(_iceOverlayRoot.GetComponentsInChildren<TextMesh>(true));
                 }
 
+                _axisOverlayRoot = _visualRoot.Find("AxisOverlayRoot");
+                if (_axisOverlayRoot != null && (_axisRenderers == null || _axisRenderers.Count == 0))
+                {
+                    _axisRenderers = new List<SpriteRenderer>(_axisOverlayRoot.GetComponentsInChildren<SpriteRenderer>(true));
+                }
+
                 if (_renderers == null || _renderers.Count == 0)
                 {
                     _renderers = new List<SpriteRenderer>();
                     foreach (var sr in _visualRoot.GetComponentsInChildren<SpriteRenderer>(true))
                     {
                         if (_iceOverlayRoot != null && sr.transform.IsChildOf(_iceOverlayRoot)) continue;
+                        if (_axisOverlayRoot != null && sr.transform.IsChildOf(_axisOverlayRoot)) continue;
                         _renderers.Add(sr);
                     }
                 }
@@ -184,13 +195,19 @@ namespace BlockMergePuzzle.Gameplay
             BuildVisuals(cellSize);
             BuildColliders(cellSize);
             BuildNumberLabel();
+            if (MoveAxis != MoveAxisConstraint.None && !IsStone) BuildAxisOverlay();
         }
 
         public void SetShape(PieceShape newShape)
         {
             if (Shape == newShape) return;
             Shape = newShape;
-            SetupShapeOffsets(newShape);
+            RebuildAllGeometry();
+        }
+
+        private void RebuildAllGeometry()
+        {
+            SetupShapeOffsets(Shape);
 
             EnsureVisualReferences();
             Vector2 cellSize = (_cellSize.x > 0.01f && _cellSize.y > 0.01f)
@@ -209,8 +226,12 @@ namespace BlockMergePuzzle.Gameplay
                 }
             }
             _renderers.Clear();
+            _axisRenderers.Clear();
             _textLayers.Clear();
             _textMeshLayers.Clear();
+            _iceOverlayRoot = null;
+            _axisOverlayRoot = null;
+            _iceTextLayers.Clear();
 
             foreach (var col in GetComponents<Collider2D>())
             {
@@ -222,66 +243,15 @@ namespace BlockMergePuzzle.Gameplay
             BuildVisuals(cellSize);
             BuildColliders(cellSize);
             BuildNumberLabel();
+            if (IceCount > 0 && !IsStone) BuildIceOverlay();
+            if (MoveAxis != MoveAxisConstraint.None && !IsStone) BuildAxisOverlay();
+            RefreshIceStateVisuals();
         }
 
         private void SetupShapeOffsets(PieceShape shape)
         {
             ShapeOffsets.Clear();
-            switch (shape)
-            {
-                case PieceShape.Single_1x1:
-                    ShapeOffsets.Add(new Vector2Int(0, 0));
-                    break;
-
-                case PieceShape.Vertical_1x2:
-                    ShapeOffsets.Add(new Vector2Int(0, 0));
-                    ShapeOffsets.Add(new Vector2Int(0, 1));
-                    break;
-
-                case PieceShape.Horizontal_2x1:
-                    ShapeOffsets.Add(new Vector2Int(0, 0));
-                    ShapeOffsets.Add(new Vector2Int(1, 0));
-                    break;
-
-                case PieceShape.ShapeL_TopRight:
-                    // Top-right L (like green L in designer screenshot)
-                    // [(0, 0), (1, 0), (1, 1)]
-                    ShapeOffsets.Add(new Vector2Int(0, 0));
-                    ShapeOffsets.Add(new Vector2Int(1, 0));
-                    ShapeOffsets.Add(new Vector2Int(1, 1));
-                    break;
-
-                case PieceShape.ShapeL_TopLeft:
-                    // Top-left L (2 cells top, 1 cell bottom-left)
-                    // [(0, 0), (1, 0), (0, 1)]
-                    ShapeOffsets.Add(new Vector2Int(0, 0));
-                    ShapeOffsets.Add(new Vector2Int(1, 0));
-                    ShapeOffsets.Add(new Vector2Int(0, 1));
-                    break;
-
-                case PieceShape.ShapeL_BottomLeft:
-                    // Bottom-left L (like orange L in designer screenshot)
-                    // [(0, 0), (0, 1), (1, 1)]
-                    ShapeOffsets.Add(new Vector2Int(0, 0));
-                    ShapeOffsets.Add(new Vector2Int(0, 1));
-                    ShapeOffsets.Add(new Vector2Int(1, 1));
-                    break;
-
-                case PieceShape.Square_2x2:
-                    ShapeOffsets.Add(new Vector2Int(0, 0));
-                    ShapeOffsets.Add(new Vector2Int(1, 0));
-                    ShapeOffsets.Add(new Vector2Int(0, 1));
-                    ShapeOffsets.Add(new Vector2Int(1, 1));
-                    break;
-
-                case PieceShape.Cross_3x3:
-                    ShapeOffsets.Add(new Vector2Int(1, 0));
-                    ShapeOffsets.Add(new Vector2Int(0, 1));
-                    ShapeOffsets.Add(new Vector2Int(1, 1));
-                    ShapeOffsets.Add(new Vector2Int(2, 1));
-                    ShapeOffsets.Add(new Vector2Int(1, 2));
-                    break;
-            }
+            ShapeOffsets.AddRange(GameConfig.GetShapeOffsets(shape));
         }
 
         public List<Vector2Int> GetOccupiedCellsForOrigin(Vector2Int origin)
@@ -294,48 +264,56 @@ namespace BlockMergePuzzle.Gameplay
             return cells;
         }
 
+        private Vector3 GetOffsetLocalCenter(Vector2Int cellOffset, Vector2 cellSize)
+        {
+            Vector2Int b = GameConfig.GetShapeBoundingSize(Shape);
+            float centerX = (b.x - 1) * 0.5f;
+            float centerY = (b.y - 1) * 0.5f;
+            float cw = cellSize.x > 0.01f ? cellSize.x : GameConfig.CellWidth;
+            float ch = cellSize.y > 0.01f ? cellSize.y : GameConfig.CellHeight;
+            return new Vector3((cellOffset.x - centerX) * cw, -(cellOffset.y - centerY) * ch, 0f);
+        }
+
         private void BuildVisuals(Vector2 cellSize)
         {
             float cw = cellSize.x;
             float ch = cellSize.y;
-            Sprite sprite = GemSpriteManager.GetPieceSprite(PieceColor, Shape);
 
+            if (IsStone)
+            {
+                Sprite stoneSprite = SpriteGenerator.GetStoneObstacleSprite();
+                bool isRect = Shape == PieceShape.Single_1x1 || Shape == PieceShape.Vertical_1x2 ||
+                              Shape == PieceShape.Horizontal_2x1 || Shape == PieceShape.Square_2x2 ||
+                              Shape == PieceShape.Vertical_1x3 || Shape == PieceShape.Horizontal_3x1;
+                if (isRect)
+                {
+                    CreateSubRenderer($"Cell_{Shape}_Stone", stoneSprite, Vector3.zero, GetShapeVisualSize(cellSize));
+                }
+                else
+                {
+                    for (int i = 0; i < ShapeOffsets.Count; i++)
+                    {
+                        CreateSubRenderer($"StoneCell_{i}", stoneSprite, GetOffsetLocalCenter(ShapeOffsets[i], cellSize), new Vector2(cw * 0.96f, ch * 0.96f));
+                    }
+                }
+                return;
+            }
+
+            Sprite sprite = GemSpriteManager.GetPieceSprite(PieceColor, Shape);
+            string subName;
             switch (Shape)
             {
-                case PieceShape.Single_1x1:
-                    CreateSubRenderer("Cell_1x1", sprite, Vector3.zero, new Vector2(cw * 0.96f, ch * 0.96f));
-                    break;
-
-                case PieceShape.Vertical_1x2:
-                    CreateSubRenderer("Cell_1x2", sprite, Vector3.zero, new Vector2(cw * 0.96f, ch * 1.96f));
-                    break;
-
-                case PieceShape.Horizontal_2x1:
-                    CreateSubRenderer("Cell_2x1", sprite, Vector3.zero, new Vector2(cw * 1.96f, ch * 0.96f));
-                    break;
-
-                case PieceShape.ShapeL_TopRight:
-                    // Uses exact Vector 114 from designer (288x270 L-shape)
-                    CreateSubRenderer("ShapeL_TopRight", sprite, Vector3.zero, new Vector2(cw * 1.96f, ch * 1.96f));
-                    break;
-
-                case PieceShape.ShapeL_TopLeft:
-                    CreateSubRenderer("ShapeL_TopLeft", sprite, Vector3.zero, new Vector2(cw * 1.96f, ch * 1.96f));
-                    break;
-
-                case PieceShape.ShapeL_BottomLeft:
-                    // Uses exact Vector 115 from designer (288x265 L-shape)
-                    CreateSubRenderer("ShapeL_BottomLeft", sprite, Vector3.zero, new Vector2(cw * 1.96f, ch * 1.96f));
-                    break;
-
-                case PieceShape.Square_2x2:
-                    CreateSubRenderer("Cell_2x2", sprite, Vector3.zero, new Vector2(cw * 1.96f, ch * 1.96f));
-                    break;
-
-                case PieceShape.Cross_3x3:
-                    CreateSubRenderer("Cell_Cross_3x3", sprite, Vector3.zero, new Vector2(cw * 2.96f, ch * 2.96f));
-                    break;
+                case PieceShape.Single_1x1: subName = "Cell_1x1"; break;
+                case PieceShape.Vertical_1x2: subName = "Cell_1x2"; break;
+                case PieceShape.Horizontal_2x1: subName = "Cell_2x1"; break;
+                case PieceShape.ShapeL_TopRight: subName = "ShapeL_TopRight"; break;
+                case PieceShape.ShapeL_TopLeft: subName = "ShapeL_TopLeft"; break;
+                case PieceShape.ShapeL_BottomLeft: subName = "ShapeL_BottomLeft"; break;
+                case PieceShape.Square_2x2: subName = "Cell_2x2"; break;
+                case PieceShape.Cross_3x3: subName = "Cell_Cross_3x3"; break;
+                default: subName = $"Cell_{Shape}"; break;
             }
+            CreateSubRenderer(subName, sprite, Vector3.zero, GetShapeVisualSize(cellSize));
         }
 
         private SpriteRenderer CreateSubRenderer(string subName, Sprite sprite, Vector3 localPos, Vector2 targetSize)
@@ -349,8 +327,8 @@ namespace BlockMergePuzzle.Gameplay
             sr.sortingOrder = _baseSortingOrder;
 
             // Only tint uncolored procedural sprites; pre-colored assets (Vector*, Group*, gem_*, block_*) stay true to artwork
-            bool isPreColored = sprite != null &&
-                (sprite.name.StartsWith("Vector") || sprite.name.StartsWith("Group") || sprite.name.StartsWith("gem_") || sprite.name.StartsWith("block_"));
+            bool isPreColored = IsStone || (sprite != null &&
+                (sprite.name.StartsWith("Vector") || sprite.name.StartsWith("Group") || sprite.name.StartsWith("gem_") || sprite.name.StartsWith("block_")));
             sr.color = isPreColored ? UnityEngine.Color.white : GameConfig.GetColorRGB(PieceColor);
 
             if (sprite != null && sprite.rect.width > 0 && sprite.rect.height > 0)
@@ -372,21 +350,14 @@ namespace BlockMergePuzzle.Gameplay
             switch (Shape)
             {
                 case PieceShape.Single_1x1:
-                    BoxCollider2D box1 = gameObject.AddComponent<BoxCollider2D>();
-                    box1.size = new Vector2(cw * 0.96f, ch * 0.96f);
-                    _colliders.Add(box1);
-                    break;
-
                 case PieceShape.Vertical_1x2:
-                    BoxCollider2D boxV = gameObject.AddComponent<BoxCollider2D>();
-                    boxV.size = new Vector2(cw * 0.96f, ch * 1.96f);
-                    _colliders.Add(boxV);
-                    break;
-
                 case PieceShape.Horizontal_2x1:
-                    BoxCollider2D boxH = gameObject.AddComponent<BoxCollider2D>();
-                    boxH.size = new Vector2(cw * 1.96f, ch * 0.96f);
-                    _colliders.Add(boxH);
+                case PieceShape.Square_2x2:
+                case PieceShape.Vertical_1x3:
+                case PieceShape.Horizontal_3x1:
+                    BoxCollider2D boxRect = gameObject.AddComponent<BoxCollider2D>();
+                    boxRect.size = GetShapeVisualSize(cellSize);
+                    _colliders.Add(boxRect);
                     break;
 
                 case PieceShape.ShapeL_TopRight:
@@ -425,10 +396,64 @@ namespace BlockMergePuzzle.Gameplay
                     _colliders.Add(boxBot);
                     break;
 
-                case PieceShape.Square_2x2:
-                    BoxCollider2D box2x2 = gameObject.AddComponent<BoxCollider2D>();
-                    box2x2.size = new Vector2(cw * 1.96f, ch * 1.96f);
-                    _colliders.Add(box2x2);
+                case PieceShape.ShapeL_BottomRight:
+                    BoxCollider2D boxTR = gameObject.AddComponent<BoxCollider2D>();
+                    boxTR.offset = new Vector2(cw * 0.5f, ch * 0.5f);
+                    boxTR.size = new Vector2(cw * 0.96f, ch * 0.96f);
+                    _colliders.Add(boxTR);
+
+                    BoxCollider2D boxBotR = gameObject.AddComponent<BoxCollider2D>();
+                    boxBotR.offset = new Vector2(0f, -ch * 0.5f);
+                    boxBotR.size = new Vector2(cw * 1.96f, ch * 0.96f);
+                    _colliders.Add(boxBotR);
+                    break;
+
+                case PieceShape.ShapeT_Up:
+                    BoxCollider2D tUpStem = gameObject.AddComponent<BoxCollider2D>();
+                    tUpStem.offset = new Vector2(0f, ch * 0.5f);
+                    tUpStem.size = new Vector2(cw * 0.96f, ch * 0.96f);
+                    _colliders.Add(tUpStem);
+
+                    BoxCollider2D tUpBar = gameObject.AddComponent<BoxCollider2D>();
+                    tUpBar.offset = new Vector2(0f, -ch * 0.5f);
+                    tUpBar.size = new Vector2(cw * 2.96f, ch * 0.96f);
+                    _colliders.Add(tUpBar);
+                    break;
+
+                case PieceShape.ShapeT_Down:
+                    BoxCollider2D tDownBar = gameObject.AddComponent<BoxCollider2D>();
+                    tDownBar.offset = new Vector2(0f, ch * 0.5f);
+                    tDownBar.size = new Vector2(cw * 2.96f, ch * 0.96f);
+                    _colliders.Add(tDownBar);
+
+                    BoxCollider2D tDownStem = gameObject.AddComponent<BoxCollider2D>();
+                    tDownStem.offset = new Vector2(0f, -ch * 0.5f);
+                    tDownStem.size = new Vector2(cw * 0.96f, ch * 0.96f);
+                    _colliders.Add(tDownStem);
+                    break;
+
+                case PieceShape.ShapeT_Left:
+                    BoxCollider2D tLeftStem = gameObject.AddComponent<BoxCollider2D>();
+                    tLeftStem.offset = new Vector2(-cw * 0.5f, 0f);
+                    tLeftStem.size = new Vector2(cw * 0.96f, ch * 0.96f);
+                    _colliders.Add(tLeftStem);
+
+                    BoxCollider2D tLeftBar = gameObject.AddComponent<BoxCollider2D>();
+                    tLeftBar.offset = new Vector2(cw * 0.5f, 0f);
+                    tLeftBar.size = new Vector2(cw * 0.96f, ch * 2.96f);
+                    _colliders.Add(tLeftBar);
+                    break;
+
+                case PieceShape.ShapeT_Right:
+                    BoxCollider2D tRightBar = gameObject.AddComponent<BoxCollider2D>();
+                    tRightBar.offset = new Vector2(-cw * 0.5f, 0f);
+                    tRightBar.size = new Vector2(cw * 0.96f, ch * 2.96f);
+                    _colliders.Add(tRightBar);
+
+                    BoxCollider2D tRightStem = gameObject.AddComponent<BoxCollider2D>();
+                    tRightStem.offset = new Vector2(cw * 0.5f, 0f);
+                    tRightStem.size = new Vector2(cw * 0.96f, ch * 0.96f);
+                    _colliders.Add(tRightStem);
                     break;
 
                 case PieceShape.Cross_3x3:
@@ -483,27 +508,33 @@ namespace BlockMergePuzzle.Gameplay
             return tm;
         }
 
+        private Vector3 GetDigitLocalOffset(Vector2 cellSize)
+        {
+            float cw = cellSize.x > 0.01f ? cellSize.x : GameConfig.CellWidth;
+            float ch = cellSize.y > 0.01f ? cellSize.y : GameConfig.CellHeight;
+
+            switch (Shape)
+            {
+                case PieceShape.ShapeL_TopRight:    return new Vector3(cw * 0.42f, ch * 0.44f, 0f);
+                case PieceShape.ShapeL_TopLeft:     return new Vector3(-cw * 0.42f, ch * 0.44f, 0f);
+                case PieceShape.ShapeL_BottomLeft:  return new Vector3(-cw * 0.40f, -ch * 0.45f, 0f);
+                case PieceShape.ShapeL_BottomRight: return new Vector3(cw * 0.40f, -ch * 0.45f, 0f);
+                case PieceShape.ShapeT_Up:          return new Vector3(0f, -ch * 0.45f, 0f);
+                case PieceShape.ShapeT_Down:        return new Vector3(0f, ch * 0.45f, 0f);
+                case PieceShape.ShapeT_Left:        return new Vector3(cw * 0.45f, 0f, 0f);
+                case PieceShape.ShapeT_Right:       return new Vector3(-cw * 0.45f, 0f, 0f);
+                default:                            return Vector3.zero;
+            }
+        }
+
         private void BuildNumberLabel()
         {
-            Vector3 textOffset = Vector3.zero;
-            float cw = _cellSize.x > 0.01f ? _cellSize.x : GameConfig.CellWidth;
-            float ch = _cellSize.y > 0.01f ? _cellSize.y : GameConfig.CellHeight;
-
-            if (Shape == PieceShape.ShapeL_TopRight)
-            {
-                textOffset = new Vector3(cw * 0.42f, ch * 0.44f, 0f);
-            }
-            else if (Shape == PieceShape.ShapeL_TopLeft)
-            {
-                textOffset = new Vector3(-cw * 0.42f, ch * 0.44f, 0f);
-            }
-            else if (Shape == PieceShape.ShapeL_BottomLeft)
-            {
-                textOffset = new Vector3(-cw * 0.40f, -ch * 0.45f, 0f);
-            }
-
             _textLayers.Clear();
             _textMeshLayers.Clear();
+            if (IsStone) return;
+
+            float ch = _cellSize.y > 0.01f ? _cellSize.y : GameConfig.CellHeight;
+            Vector3 textOffset = GetDigitLocalOffset(_cellSize);
 
             const int fs = 140;
             float cs = ch < 0.85f ? 0.028f : 0.036f;
@@ -584,7 +615,7 @@ namespace BlockMergePuzzle.Gameplay
 
         public void SetIceCount(int iceCount)
         {
-            IceCount = Mathf.Max(0, iceCount);
+            IceCount = IsStone ? 0 : Mathf.Max(0, iceCount);
             _lastSyncedIceString = IceCount.ToString();
             EnsureVisualReferences();
 
@@ -600,18 +631,82 @@ namespace BlockMergePuzzle.Gameplay
             RefreshIceStateVisuals();
         }
 
+        public void SetMoveAxis(MoveAxisConstraint axis)
+        {
+            MoveAxis = IsStone ? MoveAxisConstraint.None : axis;
+            EnsureVisualReferences();
+            BuildAxisOverlay();
+            RefreshIceStateVisuals();
+        }
+
+        public void SetStone(bool isStone)
+        {
+            if (IsStone == isStone) return;
+            IsStone = isStone;
+            if (IsStone)
+            {
+                IceCount = 0;
+                MoveAxis = MoveAxisConstraint.None;
+            }
+            RebuildAllGeometry();
+        }
+
+        private void BuildAxisOverlay()
+        {
+            if (_visualRoot == null) return;
+            Transform existing = _visualRoot.Find("AxisOverlayRoot");
+            if (existing != null)
+            {
+                if (Application.isPlaying) Destroy(existing.gameObject);
+                else DestroyImmediate(existing.gameObject);
+            }
+            _axisOverlayRoot = null;
+            _axisRenderers.Clear();
+
+            if (IsStone || MoveAxis == MoveAxisConstraint.None) return;
+
+            bool horizontal = (MoveAxis == MoveAxisConstraint.HorizontalOnly);
+            Sprite arrowSprite = SpriteGenerator.GetAxisArrowSprite(horizontal);
+            if (arrowSprite == null) return;
+
+            _axisOverlayRoot = new GameObject("AxisOverlayRoot").transform;
+            _axisOverlayRoot.SetParent(_visualRoot, false);
+
+            float cw = _cellSize.x > 0.01f ? _cellSize.x : GameConfig.CellWidth;
+            float ch = _cellSize.y > 0.01f ? _cellSize.y : GameConfig.CellHeight;
+            Vector3 digitPos = GetDigitLocalOffset(_cellSize);
+
+            Vector3 arrowLocalPos = horizontal
+                ? digitPos + new Vector3(0f, -ch * 0.29f, -0.09f)
+                : digitPos + new Vector3(cw * 0.29f, 0f, -0.09f);
+            Vector2 targetSize = horizontal
+                ? new Vector2(cw * 0.56f, ch * 0.24f)
+                : new Vector2(cw * 0.24f, ch * 0.56f);
+
+            GameObject arrowObj = new GameObject("AxisArrow");
+            arrowObj.transform.SetParent(_axisOverlayRoot, false);
+            arrowObj.transform.localPosition = arrowLocalPos;
+
+            SpriteRenderer sr = arrowObj.AddComponent<SpriteRenderer>();
+            sr.sprite = arrowSprite;
+            sr.sortingOrder = _baseSortingOrder + 5;
+            sr.color = new UnityEngine.Color(0.92f, 0.99f, 1.0f, 0.92f);
+
+            float nativeW = arrowSprite.rect.width / arrowSprite.pixelsPerUnit;
+            float nativeH = arrowSprite.rect.height / arrowSprite.pixelsPerUnit;
+            if (nativeW > 0.001f && nativeH > 0.001f)
+            {
+                arrowObj.transform.localScale = new Vector3(targetSize.x / nativeW, targetSize.y / nativeH, 1f);
+            }
+            _axisRenderers.Add(sr);
+        }
+
         private Vector2 GetShapeVisualSize(Vector2 cellSize)
         {
             float cw = cellSize.x > 0.01f ? cellSize.x : GameConfig.CellWidth;
             float ch = cellSize.y > 0.01f ? cellSize.y : GameConfig.CellHeight;
-            switch (Shape)
-            {
-                case PieceShape.Single_1x1: return new Vector2(cw * 0.96f, ch * 0.96f);
-                case PieceShape.Vertical_1x2: return new Vector2(cw * 0.96f, ch * 1.96f);
-                case PieceShape.Horizontal_2x1: return new Vector2(cw * 1.96f, ch * 0.96f);
-                case PieceShape.Cross_3x3: return new Vector2(cw * 2.96f, ch * 2.96f);
-                default: return new Vector2(cw * 1.96f, ch * 1.96f);
-            }
+            Vector2Int b = GameConfig.GetShapeBoundingSize(Shape);
+            return new Vector2(cw * (b.x - 0.04f), ch * (b.y - 0.04f));
         }
 
         private void BuildIceOverlay()
@@ -628,29 +723,60 @@ namespace BlockMergePuzzle.Gameplay
             _iceOverlayRoot.SetParent(_visualRoot, false);
             _iceOverlayRoot.localPosition = new Vector3(0f, 0f, -0.10f);
 
-            Vector2 targetSize = GetShapeVisualSize(_cellSize);
+            float cw = _cellSize.x > 0.01f ? _cellSize.x : GameConfig.CellWidth;
+            float ch = _cellSize.y > 0.01f ? _cellSize.y : GameConfig.CellHeight;
             Sprite iceSprite = GemSpriteManager.GetIceOverlaySprite();
 
-            GameObject spriteObj = new GameObject("IceBlockSprite");
-            spriteObj.transform.SetParent(_iceOverlayRoot, false);
-            spriteObj.transform.localPosition = Vector3.zero;
-
-            _iceRenderer = spriteObj.AddComponent<SpriteRenderer>();
-            _iceRenderer.sprite = iceSprite;
-            _iceRenderer.sortingOrder = _baseSortingOrder + 6;
-            _iceRenderer.color = UnityEngine.Color.white;
-
-            if (iceSprite != null && iceSprite.rect.width > 0 && iceSprite.rect.height > 0)
+            bool useSingleOverlay = Shape == PieceShape.Single_1x1 || Shape == PieceShape.Vertical_1x2 ||
+                                    Shape == PieceShape.Horizontal_2x1 || Shape == PieceShape.Square_2x2;
+            if (useSingleOverlay)
             {
-                float nativeW = iceSprite.rect.width / iceSprite.pixelsPerUnit;
-                float nativeH = iceSprite.rect.height / iceSprite.pixelsPerUnit;
-                spriteObj.transform.localScale = new Vector3(targetSize.x / nativeW, targetSize.y / nativeH, 1f);
+                Vector2 targetSize = GetShapeVisualSize(_cellSize);
+                GameObject spriteObj = new GameObject("IceBlockSprite");
+                spriteObj.transform.SetParent(_iceOverlayRoot, false);
+                spriteObj.transform.localPosition = Vector3.zero;
+
+                _iceRenderer = spriteObj.AddComponent<SpriteRenderer>();
+                _iceRenderer.sprite = iceSprite;
+                _iceRenderer.sortingOrder = _baseSortingOrder + 6;
+                _iceRenderer.color = UnityEngine.Color.white;
+
+                if (iceSprite != null && iceSprite.rect.width > 0 && iceSprite.rect.height > 0)
+                {
+                    float nativeW = iceSprite.rect.width / iceSprite.pixelsPerUnit;
+                    float nativeH = iceSprite.rect.height / iceSprite.pixelsPerUnit;
+                    spriteObj.transform.localScale = new Vector3(targetSize.x / nativeW, targetSize.y / nativeH, 1f);
+                }
+            }
+            else
+            {
+                Vector2 cellTarget = new Vector2(cw * 0.96f, ch * 0.96f);
+                for (int i = 0; i < ShapeOffsets.Count; i++)
+                {
+                    GameObject spriteObj = new GameObject(i == 0 ? "IceBlockSprite" : $"IceBlockSprite_{i}");
+                    spriteObj.transform.SetParent(_iceOverlayRoot, false);
+                    spriteObj.transform.localPosition = GetOffsetLocalCenter(ShapeOffsets[i], _cellSize);
+
+                    SpriteRenderer sr = spriteObj.AddComponent<SpriteRenderer>();
+                    sr.sprite = iceSprite;
+                    sr.sortingOrder = _baseSortingOrder + 6;
+                    sr.color = UnityEngine.Color.white;
+                    if (i == 0) _iceRenderer = sr;
+
+                    if (iceSprite != null && iceSprite.rect.width > 0 && iceSprite.rect.height > 0)
+                    {
+                        float nativeW = iceSprite.rect.width / iceSprite.pixelsPerUnit;
+                        float nativeH = iceSprite.rect.height / iceSprite.pixelsPerUnit;
+                        spriteObj.transform.localScale = new Vector3(cellTarget.x / nativeW, cellTarget.y / nativeH, 1f);
+                    }
+                }
             }
 
             _iceTextLayers.Clear();
             const int fs = 140;
             bool isLargeShape = (Shape == PieceShape.Square_2x2 || Shape == PieceShape.Cross_3x3);
             float cs = isLargeShape ? 0.070f : 0.046f;
+            Vector3 digitAnchor = GetDigitLocalOffset(_cellSize);
 
             // 1. Soft icy cyan outer glow around digit
             UnityEngine.Color cyanGlow = new UnityEngine.Color(0.35f, 0.92f, 1.00f, 0.56f);
@@ -662,7 +788,7 @@ namespace BlockMergePuzzle.Gameplay
             };
             for (int i = 0; i < glowDirs.Length; i++)
             {
-                Vector3 off = new Vector3(glowDirs[i].x * 0.052f, glowDirs[i].y * 0.052f, -0.02f);
+                Vector3 off = digitAnchor + new Vector3(glowDirs[i].x * 0.052f, glowDirs[i].y * 0.052f, -0.02f);
                 CreateIceDigitLayer($"IceGlow_{i}", off, fs, cs, cyanGlow, _baseSortingOrder + 7);
             }
 
@@ -680,7 +806,7 @@ namespace BlockMergePuzzle.Gameplay
             };
             for (int i = 0; i < extrudeOffsets.Length; i++)
             {
-                Vector3 off = new Vector3(extrudeOffsets[i].x, extrudeOffsets[i].y, -0.04f);
+                Vector3 off = digitAnchor + new Vector3(extrudeOffsets[i].x, extrudeOffsets[i].y, -0.04f);
                 CreateIceDigitLayer($"IceExtrude_{i}", off, fs, cs, frostRim, _baseSortingOrder + 8);
             }
 
@@ -691,13 +817,13 @@ namespace BlockMergePuzzle.Gameplay
             for (int i = 0; i < ringSteps; i++)
             {
                 float ang = (i * Mathf.PI * 2f) / ringSteps;
-                Vector3 off = new Vector3(Mathf.Cos(ang) * outlineRadius, Mathf.Sin(ang) * outlineRadius, -0.06f);
+                Vector3 off = digitAnchor + new Vector3(Mathf.Cos(ang) * outlineRadius, Mathf.Sin(ang) * outlineRadius, -0.06f);
                 CreateIceDigitLayer($"IceOutline_{i}", off, fs, cs, pureWhite, _baseSortingOrder + 9);
             }
 
             // 4. Vibrant royal-blue main digit face (#0358FA)
             UnityEngine.Color royalBlue = new UnityEngine.Color(0.015f, 0.345f, 0.980f, 1.00f);
-            CreateIceDigitLayer("IceNumberFace", new Vector3(0f, 0f, -0.08f), fs, cs, royalBlue, _baseSortingOrder + 10);
+            CreateIceDigitLayer("IceNumberFace", digitAnchor + new Vector3(0f, 0f, -0.08f), fs, cs, royalBlue, _baseSortingOrder + 10);
         }
 
         private TextMesh CreateIceDigitLayer(string layerName, Vector3 localPos, int fontSize, float charSize, UnityEngine.Color color, int sortOrder)
@@ -753,8 +879,12 @@ namespace BlockMergePuzzle.Gameplay
             {
                 for (int i = 0; i < _textMeshLayers.Count; i++)
                 {
-                    if (_textMeshLayers[i] != null) _textMeshLayers[i].enabled = !frozen;
+                    if (_textMeshLayers[i] != null) _textMeshLayers[i].enabled = !frozen && !IsStone;
                 }
+            }
+            if (_axisOverlayRoot != null)
+            {
+                _axisOverlayRoot.gameObject.SetActive(!frozen && !IsStone && MoveAxis != MoveAxisConstraint.None);
             }
         }
 
@@ -1025,6 +1155,13 @@ namespace BlockMergePuzzle.Gameplay
                     if (_textMeshLayers[i] != null) _textMeshLayers[i].sortingOrder = order + 2 + i;
                 }
             }
+            if (_axisRenderers != null)
+            {
+                for (int i = 0; i < _axisRenderers.Count; i++)
+                {
+                    if (_axisRenderers[i] != null) _axisRenderers[i].sortingOrder = order + 5;
+                }
+            }
         }
 
         public void Apply25DBlockExtrusion()
@@ -1122,12 +1259,12 @@ namespace BlockMergePuzzle.Gameplay
             transform.localScale = new Vector3(perspScaleX, 0.90f, 1f);
         }
 
-        public void SetLifted(bool lifted)
+        public void SetLifted(bool lifted, bool changeSortingOrder = true)
         {
             if (IsSliding || IsEscaping) return;
             EnsureVisualReferences();
             if (_liftCoroutine != null) StopCoroutine(_liftCoroutine);
-            _liftCoroutine = StartCoroutine(CoAnimateLift(lifted));
+            _liftCoroutine = StartCoroutine(CoAnimateLift(lifted, changeSortingOrder));
         }
 
         public void LockForMerge()
@@ -1153,14 +1290,14 @@ namespace BlockMergePuzzle.Gameplay
             }
         }
 
-        private IEnumerator CoAnimateLift(bool lifted)
+        private IEnumerator CoAnimateLift(bool lifted, bool changeSortingOrder = true)
         {
             float startProg = _currentLiftProgress;
             float targetProg = lifted ? 1f : 0f;
             float duration = lifted ? 0.08f : 0.09f;
             float elapsed = 0f;
 
-            if (lifted)
+            if (lifted && changeSortingOrder)
             {
                 SetSortingOrder(50);
             }
@@ -1180,7 +1317,7 @@ namespace BlockMergePuzzle.Gameplay
 
             if (!lifted && !IsSliding && !IsEscaping)
             {
-                SetSortingOrder(_baseSortingOrder);
+                if (changeSortingOrder) SetSortingOrder(_baseSortingOrder);
                 SetTilt(0f);
             }
             _liftCoroutine = null;
@@ -1327,6 +1464,210 @@ namespace BlockMergePuzzle.Gameplay
             IsSliding = false;
             _currentLiftProgress = 0f;
             SetSortingOrder(_baseSortingOrder);
+            _activeTween = null;
+
+            onArrival?.Invoke();
+        }
+
+        public void JumpAndSlamMerge(Vector3 targetWorldPos, Vector2Int targetOrigin, PuzzlePiece targetPiece, Action onImpact, Action onArrival, float jumpDuration = 0.38f)
+        {
+            if (_liftCoroutine != null)
+            {
+                StopCoroutine(_liftCoroutine);
+                _liftCoroutine = null;
+            }
+            if (_activeTween != null) StopCoroutine(_activeTween);
+            _activeTween = StartCoroutine(CoJumpAndSlamMerge(targetWorldPos, targetOrigin, targetPiece, onImpact, onArrival, jumpDuration));
+        }
+
+        private IEnumerator CoJumpAndSlamMerge(Vector3 targetWorldPos, Vector2Int targetOrigin, PuzzlePiece targetPiece, Action onImpact, Action onArrival, float jumpDuration)
+        {
+            IsSliding = true;
+            EnsureVisualReferences();
+
+            SetSortingOrder(85);
+            Vector3 startPos = transform.position;
+            Vector3 startRootPos = _visualRoot != null ? _visualRoot.localPosition : Vector3.zero;
+            Vector3 startRootScale = _visualRoot != null ? _visualRoot.localScale : Vector3.one;
+            Quaternion startRot = _visualRoot != null ? _visualRoot.localRotation : Quaternion.identity;
+
+            float dist = Vector3.Distance(startPos, targetWorldPos);
+            float arcHeight = Mathf.Clamp(dist * 0.45f, 1.45f, 2.75f);
+            float dur = Mathf.Max(0.24f, jumpDuration);
+            float tiltTarget = Mathf.Clamp((targetWorldPos.x - startPos.x) * -4f, -14f, 14f);
+            float elapsed = 0f;
+
+            // Phase 1: High parabolic magnetic arc over the board to hover above target
+            while (elapsed < dur)
+            {
+                elapsed += Time.deltaTime;
+                float t = Mathf.Clamp01(elapsed / dur);
+                float ease = 1f - (1f - t) * (1f - t);
+
+                transform.position = Vector3.Lerp(startPos, targetWorldPos, ease);
+
+                if (_visualRoot != null)
+                {
+                    float baseHoverY = Mathf.Lerp(startRootPos.y, 0.55f, ease);
+                    float arcY = Mathf.Sin(t * Mathf.PI) * arcHeight;
+                    float hoverZ = Mathf.Lerp(startRootPos.z, -0.55f, ease);
+                    _visualRoot.localPosition = new Vector3(0f, baseHoverY + arcY, hoverZ);
+
+                    float scaleVal = Mathf.Lerp(startRootScale.x, 1.22f, ease) + Mathf.Sin(t * Mathf.PI) * 0.12f;
+                    _visualRoot.localScale = Vector3.one * scaleVal;
+
+                    float rotZ = Mathf.Sin(t * Mathf.PI) * tiltTarget;
+                    _visualRoot.localRotation = Quaternion.Slerp(startRot, Quaternion.Euler(0f, 0f, rotZ), Mathf.Clamp01(t * 2f));
+                }
+
+                yield return null;
+            }
+
+            transform.position = targetWorldPos;
+
+            // Phase 2: Fast cubic slam straight down onto target block
+            float slamDur = 0.095f;
+            elapsed = 0f;
+            Vector3 targetInitialScale = (targetPiece != null) ? targetPiece.transform.localScale : Vector3.one;
+
+            while (elapsed < slamDur)
+            {
+                elapsed += Time.deltaTime;
+                float t = Mathf.Clamp01(elapsed / slamDur);
+                float slamEase = t * t * t;
+
+                if (_visualRoot != null)
+                {
+                    float y = Mathf.Lerp(0.55f, 0f, slamEase);
+                    _visualRoot.localPosition = new Vector3(0f, y, -0.55f * (1f - slamEase));
+
+                    float sx = Mathf.Lerp(1.22f, 1.34f, slamEase);
+                    float sy = Mathf.Lerp(1.22f, 0.65f, slamEase);
+                    _visualRoot.localScale = new Vector3(sx, sy, 1f);
+                    _visualRoot.localRotation = Quaternion.identity;
+                }
+
+                if (targetPiece != null)
+                {
+                    float tx = Mathf.Lerp(targetInitialScale.x, 1.20f, slamEase);
+                    float ty = Mathf.Lerp(targetInitialScale.y, 0.28f, slamEase);
+                    targetPiece.transform.localScale = new Vector3(tx, ty, 1f);
+                }
+
+                yield return null;
+            }
+
+            if (_visualRoot != null)
+            {
+                _visualRoot.localPosition = Vector3.zero;
+                _visualRoot.localScale = new Vector3(1.34f, 0.65f, 1f);
+                _visualRoot.localRotation = Quaternion.identity;
+            }
+
+            // Phase 3: Impact callback + flash overlay
+            onImpact?.Invoke();
+            StartCoroutine(CoFlashOverlay(0.18f));
+
+            // Phase 4: Damped elastic rebound back to 1.0
+            float reboundDur = 0.24f;
+            elapsed = 0f;
+
+            while (elapsed < reboundDur)
+            {
+                elapsed += Time.deltaTime;
+                float t = Mathf.Clamp01(elapsed / reboundDur);
+
+                if (_visualRoot != null)
+                {
+                    float d = Mathf.Cos(t * Mathf.PI * 2.5f) * Mathf.Exp(-t * 3.2f) * (1f - t);
+                    float sx = 1.0f + 0.30f * d;
+                    float sy = 1.0f - 0.30f * d;
+                    _visualRoot.localScale = new Vector3(sx, sy, 1f);
+                }
+
+                yield return null;
+            }
+
+            if (_visualRoot != null)
+            {
+                _visualRoot.localScale = Vector3.one;
+                _visualRoot.localPosition = Vector3.zero;
+                _visualRoot.localRotation = Quaternion.identity;
+            }
+
+            GridOrigin = targetOrigin;
+            IsSliding = false;
+            _currentLiftProgress = 0f;
+            SetSortingOrder(_baseSortingOrder);
+            _activeTween = null;
+
+            onArrival?.Invoke();
+        }
+
+        public void JumpToGate(Vector3 gateWorldPos, Action onArrival, float jumpDuration = 0.36f)
+        {
+            if (_liftCoroutine != null)
+            {
+                StopCoroutine(_liftCoroutine);
+                _liftCoroutine = null;
+            }
+            if (_activeTween != null) StopCoroutine(_activeTween);
+            _activeTween = StartCoroutine(CoJumpToGate(gateWorldPos, onArrival, jumpDuration));
+        }
+
+        private IEnumerator CoJumpToGate(Vector3 gateWorldPos, Action onArrival, float jumpDuration)
+        {
+            IsSliding = true;
+            EnsureVisualReferences();
+
+            SetSortingOrder(110);
+            Vector3 startPos = transform.position;
+            Vector3 startRootPos = _visualRoot != null ? _visualRoot.localPosition : Vector3.zero;
+            Vector3 startRootScale = _visualRoot != null ? _visualRoot.localScale : Vector3.one;
+            Quaternion startRot = _visualRoot != null ? _visualRoot.localRotation : Quaternion.identity;
+
+            float dist = Vector3.Distance(startPos, gateWorldPos);
+            float arcHeight = Mathf.Clamp(dist * 0.40f, 1.15f, 2.20f);
+            float dur = Mathf.Max(0.22f, jumpDuration);
+            float tiltTarget = Mathf.Clamp((gateWorldPos.x - startPos.x) * -3.5f, -12f, 12f);
+            float elapsed = 0f;
+
+            while (elapsed < dur)
+            {
+                elapsed += Time.deltaTime;
+                float t = Mathf.Clamp01(elapsed / dur);
+                float ease = 1f - (1f - t) * (1f - t);
+
+                transform.position = Vector3.Lerp(startPos, gateWorldPos, ease);
+
+                if (_visualRoot != null)
+                {
+                    float arcY = Mathf.Sin(t * Mathf.PI) * arcHeight;
+                    float hoverY = Mathf.Lerp(startRootPos.y, 0f, ease) + arcY;
+                    float hoverZ = Mathf.Lerp(startRootPos.z, -0.45f * Mathf.Sin(t * Mathf.PI), ease);
+                    _visualRoot.localPosition = new Vector3(0f, hoverY, hoverZ);
+
+                    float scaleVal = Mathf.Lerp(startRootScale.x, 1.0f, ease) + Mathf.Sin(t * Mathf.PI) * 0.22f;
+                    _visualRoot.localScale = Vector3.one * scaleVal;
+
+                    float rotZ = Mathf.Sin(t * Mathf.PI) * tiltTarget;
+                    _visualRoot.localRotation = Quaternion.Slerp(startRot, Quaternion.Euler(0f, 0f, rotZ), Mathf.Clamp01(t * 2f));
+                }
+
+                yield return null;
+            }
+
+            transform.position = gateWorldPos;
+
+            if (_visualRoot != null)
+            {
+                _visualRoot.localPosition = Vector3.zero;
+                _visualRoot.localScale = Vector3.one;
+                _visualRoot.localRotation = Quaternion.identity;
+            }
+
+            IsSliding = false;
+            _currentLiftProgress = 0f;
             _activeTween = null;
 
             onArrival?.Invoke();
@@ -1621,20 +1962,8 @@ namespace BlockMergePuzzle.Gameplay
                 Sprite sparkSprite = SpriteGenerator.GetCircleSprite();
                 Sprite glowSprite = SpriteGenerator.GetRadialGlowSprite();
 
-                float angle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg + 90f;
                 UnityEngine.Color cyanPortal = new UnityEngine.Color(0.28f, 0.96f, 1.0f, 1.0f);
                 UnityEngine.Color darkFacet = UnityEngine.Color.Lerp(gemColor, new UnityEngine.Color(0.06f, 0.22f, 0.30f, 1f), 0.65f);
-
-                // Portal curtain beam + soft glow along gate contact line
-                GameObject curtainObj = new GameObject("PortalCurtain");
-                curtainObj.transform.SetParent(transform, false);
-                curtainObj.transform.position = new Vector3(planePos.x, planePos.y, -0.35f);
-                curtainObj.transform.rotation = Quaternion.Euler(0f, 0f, angle);
-                curtainObj.transform.localScale = new Vector3(halfPerp * 2.35f + 0.35f, 0.085f, 1f);
-                SpriteRenderer curtainSr = curtainObj.AddComponent<SpriteRenderer>();
-                curtainSr.sprite = shardSprite;
-                curtainSr.sortingOrder = 126;
-                curtainSr.color = new UnityEngine.Color(0.45f, 0.98f, 1.0f, 0.92f);
 
                 GameObject haloObj = new GameObject("PortalHalo");
                 haloObj.transform.SetParent(transform, false);
@@ -1723,14 +2052,7 @@ namespace BlockMergePuzzle.Gameplay
                         }
                     }
 
-                    // Update portal beam & halo fade
-                    if (curtainSr != null)
-                    {
-                        float beamAlpha = elapsed < dissolveDuration
-                            ? 0.85f + Mathf.Sin(elapsed * 40f) * 0.12f
-                            : Mathf.Clamp01(1f - (elapsed - dissolveDuration) / 0.18f) * 0.85f;
-                        curtainSr.color = new UnityEngine.Color(0.45f, 0.98f, 1.0f, beamAlpha);
-                    }
+                    // Update portal halo fade
                     if (haloSr != null)
                     {
                         float haloAlpha = elapsed < dissolveDuration

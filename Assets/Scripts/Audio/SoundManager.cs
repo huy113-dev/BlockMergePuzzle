@@ -39,6 +39,13 @@ namespace BlockMergePuzzle.Audio
         private AudioClip _vanishClip;
         private AudioClip _iceCrackClip;
         private AudioClip _victoryClip;
+        private AudioClip _timeOutClip;
+        private AudioClip _heartBreakClip;
+        private AudioClip _reviveClip;
+        private AudioClip _coinTickClip;
+        private AudioClip _freezeTimeClip;
+        private AudioClip _magnetPullClip;
+        private AudioClip _wandCastClip;
 
         // Combo merge settings: max 4 levels, 1.5s timeout reset
         private int _mergeComboCount = 0;
@@ -186,6 +193,13 @@ namespace BlockMergePuzzle.Audio
             _errorClip = GenerateErrorTone();
             _escapeClip = GenerateEscapeTone();
             _victoryClip = GenerateVictoryFanfare();
+            _timeOutClip = GenerateTimeOutTone();
+            _heartBreakClip = GenerateHeartBreakTone();
+            _reviveClip = GenerateReviveTone();
+            _coinTickClip = GenerateCoinTickTone();
+            _freezeTimeClip = GenerateFreezeTimeTone();
+            _magnetPullClip = GenerateMagnetPullTone();
+            _wandCastClip = GenerateWandCastTone();
         }
 
         public void PlayDrop()
@@ -253,6 +267,47 @@ namespace BlockMergePuzzle.Audio
         public void PlayVictory()
         {
             PlayClip(_victoryClip, 0.85f, 1.0f);
+        }
+
+        public void PlayTimeOut()
+        {
+            PlayClip(_timeOutClip, 0.85f, 1.0f);
+        }
+
+        public void PlayHeartBreak()
+        {
+            if (!SoundEnabled) return;
+            if (_iceCrackClip == null) LoadAudioClips();
+            if (_iceCrackClip != null) PlayClip(_iceCrackClip, 0.55f, 0.85f);
+            PlayClip(_heartBreakClip, 0.85f, 1.0f);
+        }
+
+        public void PlayRevive()
+        {
+            PlayClip(_reviveClip, 0.85f, 1.0f);
+        }
+
+        public void PlayCoinTick(float pitch = 1f)
+        {
+            PlayClip(_coinTickClip, 0.52f, pitch);
+        }
+
+        public void PlayFreezeTime()
+        {
+            if (_freezeTimeClip == null) _freezeTimeClip = GenerateFreezeTimeTone();
+            PlayClip(_freezeTimeClip, 0.85f, 1.0f);
+        }
+
+        public void PlayMagnetPull()
+        {
+            if (_magnetPullClip == null) _magnetPullClip = GenerateMagnetPullTone();
+            PlayClip(_magnetPullClip, 0.85f, 1.0f);
+        }
+
+        public void PlayWandCast()
+        {
+            if (_wandCastClip == null) _wandCastClip = GenerateWandCastTone();
+            PlayClip(_wandCastClip, 0.85f, 1.0f);
         }
 
         public void PlayButton()
@@ -409,6 +464,220 @@ namespace BlockMergePuzzle.Audio
             }
 
             AudioClip clip = AudioClip.Create("VictoryFanfare", samplesCount, 1, sampleRate, false);
+            clip.SetData(data, 0);
+            return clip;
+        }
+
+        private AudioClip GenerateTimeOutTone()
+        {
+            float duration = 0.56f;
+            int sampleRate = 44100;
+            int samplesCount = (int)(duration * sampleRate);
+            float[] data = new float[samplesCount];
+            float[] notes = { 587.33f, 440.00f }; // D5 -> A4 cosmic alert chime
+            float[] starts = { 0.00f, 0.18f };
+
+            for (int i = 0; i < samplesCount; i++)
+            {
+                float t = (float)i / sampleRate;
+                float sample = 0f;
+                for (int n = 0; n < notes.Length; n++)
+                {
+                    float nt = t - starts[n];
+                    if (nt < 0f) continue;
+                    float env = Mathf.Min(1f, nt / 0.015f) * Mathf.Exp(-nt * 6.5f);
+                    float wave = Mathf.Sin(2f * Mathf.PI * notes[n] * nt)
+                               + Mathf.Sin(3f * Mathf.PI * notes[n] * nt) * 0.25f;
+                    sample += wave * env * 0.36f;
+                }
+                data[i] = Mathf.Clamp(sample, -0.95f, 0.95f);
+            }
+
+            AudioClip clip = AudioClip.Create("TimeOutTone", samplesCount, 1, sampleRate, false);
+            clip.SetData(data, 0);
+            return clip;
+        }
+
+        private AudioClip GenerateHeartBreakTone()
+        {
+            float duration = 0.65f;
+            int sampleRate = 44100;
+            int samplesCount = (int)(duration * sampleRate);
+            float[] data = new float[samplesCount];
+
+            for (int i = 0; i < samplesCount; i++)
+            {
+                float t = (float)i / sampleRate;
+                float progress = (float)i / samplesCount;
+                float freq1 = Mathf.Lerp(340f, 155f, progress);
+                float freq2 = Mathf.Lerp(405f, 185f, progress); // minor third descent
+                float env = Mathf.Min(1f, t / 0.012f) * Mathf.Exp(-t * 4.5f);
+                float shatter = Mathf.Sin(2f * Mathf.PI * freq1 * t) * 0.55f
+                              + Mathf.Sin(2f * Mathf.PI * freq2 * t) * 0.40f;
+                data[i] = Mathf.Clamp(shatter * env * 0.55f, -0.95f, 0.95f);
+            }
+
+            AudioClip clip = AudioClip.Create("HeartBreakTone", samplesCount, 1, sampleRate, false);
+            clip.SetData(data, 0);
+            return clip;
+        }
+
+        private AudioClip GenerateReviveTone()
+        {
+            float duration = 0.55f;
+            int sampleRate = 44100;
+            int samplesCount = (int)(duration * sampleRate);
+            float[] data = new float[samplesCount];
+            float[] notes = { 659.25f, 830.61f, 987.77f, 1318.51f }; // E5, G#5, B5, E6
+            float[] starts = { 0.00f, 0.08f, 0.16f, 0.25f };
+
+            for (int i = 0; i < samplesCount; i++)
+            {
+                float t = (float)i / sampleRate;
+                float sample = 0f;
+                for (int n = 0; n < notes.Length; n++)
+                {
+                    float nt = t - starts[n];
+                    if (nt < 0f) continue;
+                    float decay = n == notes.Length - 1 ? 5.5f : 9.0f;
+                    float env = Mathf.Min(1f, nt / 0.010f) * Mathf.Exp(-nt * decay);
+                    float wave = Mathf.Sin(2f * Mathf.PI * notes[n] * nt)
+                               + Mathf.Sin(4f * Mathf.PI * notes[n] * nt) * 0.28f;
+                    sample += wave * env * 0.28f;
+                }
+                data[i] = Mathf.Clamp(sample, -0.95f, 0.95f);
+            }
+
+            AudioClip clip = AudioClip.Create("ReviveTone", samplesCount, 1, sampleRate, false);
+            clip.SetData(data, 0);
+            return clip;
+        }
+
+        private AudioClip GenerateCoinTickTone()
+        {
+            float duration = 0.11f;
+            int sampleRate = 44100;
+            int samplesCount = (int)(duration * sampleRate);
+            float[] data = new float[samplesCount];
+
+            for (int i = 0; i < samplesCount; i++)
+            {
+                float t = (float)i / sampleRate;
+                float sweepT = Mathf.Clamp01(t / 0.035f);
+                float baseFreq = Mathf.Lerp(1318.51f, 1567.98f, sweepT); // E6 -> G6
+                float env = Mathf.Min(1f, t / 0.004f) * Mathf.Exp(-t * 28f);
+                float wave = Mathf.Sin(2f * Mathf.PI * baseFreq * t)
+                           + Mathf.Sin(4f * Mathf.PI * baseFreq * t) * 0.35f; // + E7->G7 harmonic
+                data[i] = Mathf.Clamp(wave * env * 0.42f, -0.95f, 0.95f);
+            }
+
+            AudioClip clip = AudioClip.Create("CoinTickTone", samplesCount, 1, sampleRate, false);
+            clip.SetData(data, 0);
+            return clip;
+        }
+
+        private AudioClip GenerateFreezeTimeTone()
+        {
+            float duration = 0.72f;
+            int sampleRate = 44100;
+            int samplesCount = (int)(duration * sampleRate);
+            float[] data = new float[samplesCount];
+
+            // Ascending crystalline frost chime: C6, E6, G6, B6, D7
+            float[] notes = { 1046.50f, 1318.51f, 1567.98f, 1975.53f, 2349.32f };
+            float[] starts = { 0.00f, 0.06f, 0.13f, 0.21f, 0.30f };
+
+            for (int i = 0; i < samplesCount; i++)
+            {
+                float t = (float)i / sampleRate;
+                float sample = 0f;
+
+                for (int n = 0; n < notes.Length; n++)
+                {
+                    float nt = t - starts[n];
+                    if (nt < 0f) continue;
+                    float decay = n == notes.Length - 1 ? 5.2f : 8.5f;
+                    float env = Mathf.Min(1f, nt / 0.008f) * Mathf.Exp(-nt * decay);
+                    float glass = Mathf.Sin(2f * Mathf.PI * notes[n] * nt) * 0.65f
+                                + Mathf.Sin(4f * Mathf.PI * notes[n] * nt) * 0.25f
+                                + Mathf.Sin(6f * Mathf.PI * notes[n] * nt) * 0.10f;
+                    sample += glass * env * 0.24f;
+                }
+
+                // Subtle icy shimmer tail
+                float shimmerEnv = Mathf.Exp(-t * 4.5f) * Mathf.Min(1f, t / 0.04f);
+                float shimmer = Mathf.Sin(2f * Mathf.PI * 3135.96f * t) * 0.08f
+                              + Mathf.Sin(2f * Mathf.PI * 4186.01f * t) * 0.06f;
+                sample += shimmer * shimmerEnv;
+
+                data[i] = Mathf.Clamp(sample, -0.95f, 0.95f);
+            }
+
+            AudioClip clip = AudioClip.Create("FreezeTimeTone", samplesCount, 1, sampleRate, false);
+            clip.SetData(data, 0);
+            return clip;
+        }
+
+        private AudioClip GenerateMagnetPullTone()
+        {
+            float duration = 0.34f;
+            int sampleRate = 44100;
+            int samplesCount = (int)(duration * sampleRate);
+            float[] data = new float[samplesCount];
+
+            for (int i = 0; i < samplesCount; i++)
+            {
+                float t = (float)i / sampleRate;
+                float norm = (float)i / samplesCount;
+                float freq = Mathf.Lerp(320f, 880f, norm * norm);
+                float env = Mathf.Min(1f, t / 0.015f) * Mathf.Exp(-t * 5.2f);
+                float wave = Mathf.Sin(2f * Mathf.PI * freq * t) * 0.65f
+                           + Mathf.Sin(2f * Mathf.PI * freq * 2.5f * t) * 0.25f;
+                data[i] = Mathf.Clamp(wave * env * 0.55f, -0.95f, 0.95f);
+            }
+
+            AudioClip clip = AudioClip.Create("MagnetPullTone", samplesCount, 1, sampleRate, false);
+            clip.SetData(data, 0);
+            return clip;
+        }
+
+        private AudioClip GenerateWandCastTone()
+        {
+            float duration = 0.68f;
+            int sampleRate = 44100;
+            int samplesCount = (int)(duration * sampleRate);
+            float[] data = new float[samplesCount];
+
+            // Ascending magical harp/chime glissando: A5, C#6, E6, G#6, B6, E7
+            float[] notes = { 880.00f, 1108.73f, 1318.51f, 1661.22f, 1975.53f, 2637.02f };
+            float[] starts = { 0.00f, 0.055f, 0.11f, 0.17f, 0.23f, 0.30f };
+
+            for (int i = 0; i < samplesCount; i++)
+            {
+                float t = (float)i / sampleRate;
+                float sample = 0f;
+
+                for (int n = 0; n < notes.Length; n++)
+                {
+                    float nt = t - starts[n];
+                    if (nt < 0f) continue;
+                    float decay = n == notes.Length - 1 ? 5.0f : 8.8f;
+                    float env = Mathf.Min(1f, nt / 0.007f) * Mathf.Exp(-nt * decay);
+                    float chime = Mathf.Sin(2f * Mathf.PI * notes[n] * nt) * 0.65f
+                                + Mathf.Sin(4f * Mathf.PI * notes[n] * nt) * 0.25f
+                                + Mathf.Sin(6f * Mathf.PI * notes[n] * nt) * 0.10f;
+                    sample += chime * env * 0.22f;
+                }
+
+                float shimmerEnv = Mathf.Exp(-Mathf.Max(0f, t - 0.18f) * 4.8f) * Mathf.Min(1f, t / 0.05f);
+                float shimmer = Mathf.Sin(2f * Mathf.PI * 3520.00f * t) * 0.07f
+                              + Mathf.Sin(2f * Mathf.PI * 4434.92f * t) * 0.05f;
+                sample += shimmer * shimmerEnv;
+
+                data[i] = Mathf.Clamp(sample, -0.95f, 0.95f);
+            }
+
+            AudioClip clip = AudioClip.Create("WandCastTone", samplesCount, 1, sampleRate, false);
             clip.SetData(data, 0);
             return clip;
         }

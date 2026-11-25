@@ -1,0 +1,101 @@
+{
+    "schemaVersion": 1,
+    "levelNumber": 2,
+    "name": "Level 2",
+    "difficulty": "Easy",
+    "timeSeconds": 300,
+    "columns": 6,
+    "rows": 6,
+    "cells": [
+        "000000",
+        "001000",
+        "001000",
+        "111110",
+        "001000",
+        "001000"
+    ],
+    "gates": [
+        {
+            "color": "Green",
+            "requiredValue": 2,
+            "side": "Top",
+            "startCell": {
+                "x": 2,
+                "y": 0
+            },
+            "span": 1
+        },
+        {
+            "color": "Red",
+            "requiredValue": 3,
+            "side": "Right",
+            "startCell": {
+                "x": 5,
+                "y": 3
+            },
+            "span": 1
+        }
+    ],
+    "pieces": [
+        {
+            "color": "Red",
+            "shape": "Single_1x1",
+            "value": 1,
+            "origin": {
+                "x": 2,
+                "y": 1
+            },
+            "iceCount": 0,
+            "moveAxis": "None",
+            "isStone": false
+        },
+        {
+            "color": "Red",
+            "shape": "Single_1x1",
+            "value": 2,
+            "origin": {
+                "x": 2,
+                "y": 3
+            },
+            "iceCount": 0,
+            "moveAxis": "None",
+            "isStone": false
+        },
+        {
+            "color": "Red",
+            "shape": "Single_1x1",
+            "value": 1,
+            "origin": {
+                "x": 2,
+                "y": 5
+            },
+            "iceCount": 0,
+            "moveAxis": "None",
+            "isStone": false
+        },
+        {
+            "color": "Green",
+            "shape": "Single_1x1",
+            "value": 1,
+            "origin": {
+                "x": 0,
+                "y": 3
+            },
+            "iceCount": 0,
+            "moveAxis": "None",
+            "isStone": false
+        },
+        {
+            "color": "Green",
+            "shape": "Single_1x1",
+            "value": 1,
+            "origin": {
+                "x": 4,
+                "y": 3
+            },
+            "iceCount": 0,
+            "moveAxis": "None",
+            "isStone": false
+        }
+    ]
+}
